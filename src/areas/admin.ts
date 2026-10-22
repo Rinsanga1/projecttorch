@@ -1,40 +1,20 @@
 // Admin: account owners and admins only. Billing, roles and cancelling are owners only.
+// The pages are client/areas/admin.tsx; these are their posts, the export download, and JSON for what isn't synced.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { HttpServerResponse } from "effect/http"
 import { mkdirSync } from "node:fs"
-import { html, raw, fmtDate, fmtDateTime, plural } from "../lib/html.ts"
-import { get, post, redirect, render, str, errors, isAdmin, isClient, NoAccess, NotFound, type Ctx, type Person, type Account } from "../lib/web.ts"
+import { get, post, redirect, invalid, json, str, isAdmin, NoAccess, NotFound, type Ctx, type Person } from "../lib/web.ts"
 import { sendEmail, logEvent, projectUrl, type Project } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
-const isOwner = (p: Person) => p.role === "owner"
+const isOwner = (p: Pick<Person, "role">) => p.role === "owner"
 const requireAdmin = (c: Ctx) => (isAdmin(c.me) ? Effect.void : Effect.fail(new NoAccess()))
 const requireOwner = (c: Ctx) => (isOwner(c.me) ? Effect.void : Effect.fail(new NoAccess()))
 
-const crumbs = [["Admin", "/admin"]] as const
-
-// ponytail: illustrative prices, no real payment processor. Wire Stripe in where the card is saved.
-const PLANS = {
-  standard: { name: "Saintsflow", price: (seats: number) => 15 * seats, label: "$15 per user per month" },
-  pro_unlimited: { name: "Saintsflow Unlimited", price: (_: number) => 299, label: "$299 a month for any number of users" },
-} as const
+// ponytail: illustrative plans, no real payment processor. Prices live with the page (client/areas/admin.tsx).
+const PLANS = { standard: { name: "Saintsflow" }, pro_unlimited: { name: "Saintsflow Unlimited" } } as const
 type PlanKey = keyof typeof PLANS
-const plan = (a: Account) => PLANS[(a.plan in PLANS ? a.plan : "standard") as PlanKey]
-
-const seats = (accountId: number) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient
-    return (yield* sql<{ n: number }>`select count(*)::int as n from people where account_id = ${accountId} and role <> 'client' and removed_at is null and joined_at is not null`)[0]!.n
-  })
-
-const accountPeopleAll = (c: Ctx) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient
-    return yield* sql<Person & { company_name: string | null }>`
-      select p.*, k.name as company_name from people p left join companies k on k.id = p.company_id
-      where p.account_id = ${c.me.account_id} and p.removed_at is null and p.joined_at is not null order by k.name nulls first, p.name`
-  })
 
 const ownerCount = (accountId: number) =>
   Effect.gen(function* () {
@@ -73,7 +53,7 @@ const buildExports = Effect.gen(function* () {
     yield* Effect.promise(() => Bun.write(path, JSON.stringify(dump, null, 2)))
     yield* sql`update exports set status = 'ready', file_path = ${path} where id = ${e.id}`
     const [who] = e.person_id ? yield* sql<Person>`select * from people where id = ${e.person_id}` : []
-    if (who) yield* sendEmail(who, { subject: "Your export is ready", body: "Everything in your account is ready to download.", kind: "export", link: `/admin/export/${e.id}/download` }, true)
+    if (who) yield* sendEmail(who, { subject: "Your export is ready", body: "Everything in your account is ready to download.", kind: "export", link: `/api/admin/export/${e.id}/download` }, true)
   }
 })
 
@@ -82,34 +62,7 @@ export const jobs = [buildExports]
 // ---------- routes ----------
 
 export const routes = [
-  get("/admin", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const owner = isOwner(c.me)
-      return yield* render(c, "Admin", html`
-<h1>Admin</h1>
-<p>Account owners and admins only.${owner ? "" : " Some settings are for owners only."}</p>
-<ul>
-  <li><a href="/admin/account">Account name & logo</a></li>
-  <li><a href="/admin/roles">Administrators & owners</a></li>
-  <li><a href="/admin/people">Manage people</a></li>
-  <li><a href="/admin/permissions">Who can do what</a></li>
-  ${owner ? html`<li><a href="/admin/billing">Plan & billing</a></li>` : ""}
-  <li><a href="/admin/export">Export your data</a></li>
-  <li><a href="/admin/projects">Archived & trashed projects</a></li>
-  <li><a href="/admin/integrations">Integrations</a></li>
-  <li><a href="/admin/security">Security</a></li>
-  ${owner ? html`<li><a href="/admin/cancel">Cancel this account</a></li>` : ""}
-</ul>`)
-    })),
-
   // Account name & logo
-  get("/admin/account", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      return yield* render(c, "Account name & logo", accountForm(c.account.name, c.account.logo_url ?? "", []), crumbs)
-    })),
-
   post("/admin/account", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
@@ -118,37 +71,12 @@ export const routes = [
       const name = str(fd, "name")
       const logo = str(fd, "logo_url")
       const errs = [...(name ? [] : ["Your account needs a name."]), ...(logo && !/^https?:\/\//.test(logo) ? ["The logo has to be a link to an image (https://…)."] : [])]
-      if (errs.length) return yield* render(c, "Account name & logo", accountForm(name, logo, errs), crumbs, 422)
+      if (errs.length) return invalid(errs)
       yield* sql`update accounts set name = ${name}, logo_url = ${logo || null} where id = ${c.me.account_id}`
       return redirect("/admin/account", "Saved.")
     })),
 
   // Administrators & owners
-  get("/admin/roles", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const people = yield* accountPeopleAll(c)
-      const owners = people.filter(isOwner)
-      const admins = people.filter((p) => p.role === "admin")
-      const others = people.filter((p) => p.role === "member")
-      const owner = isOwner(c.me)
-      const remove = (p: Person) => owner ? html` <form method="post" action="/admin/roles/${p.id}/remove" style="display:inline"><button>Remove</button></form>` : ""
-      return yield* render(c, "Administrators & owners", html`
-<h1>Administrators & owners</h1>
-<h2>Owners</h2>
-<p>Owners can do everything, including billing.</p>
-<ul>${owners.map((p) => html`<li><a href="/people/${p.id}">${p.name}</a>${remove(p)}</li>`)}</ul>
-<h2>Admins</h2>
-<p>Admins can manage people and projects.</p>
-${admins.length ? html`<ul>${admins.map((p) => html`<li><a href="/people/${p.id}">${p.name}</a>${remove(p)}</li>`)}</ul>` : html`<p>No admins yet.</p>`}
-${owner ? html`<h2>Add an admin or owner</h2>
-<form method="post" action="/admin/roles">
-  <p><label>Person <select name="person_id">${[...others, ...admins].map((p) => html`<option value="${p.id}">${p.name}${p.role === "admin" ? " (admin)" : ""}</option>`)}</select></label>
-  <label>as <select name="role"><option value="admin">Admin</option><option value="owner">Owner</option></select></label></p>
-  <button>Add</button>
-</form>` : html`<p>Only owners can change who's an admin or owner.</p>`}`, crumbs)
-    })),
-
   post("/admin/roles", (c) =>
     Effect.gen(function* () {
       yield* requireOwner(c)
@@ -173,41 +101,6 @@ ${owner ? html`<h2>Add an admin or owner</h2>
     })),
 
   // Manage people
-  get("/admin/people", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const people = yield* accountPeopleAll(c)
-      return yield* render(c, "Manage people", html`
-<h1>Manage people</h1>
-<p><a href="/people/invite">Invite people</a> · <a href="/people/pending">Pending invitations</a></p>
-<table>
-  <thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Last active</th><th></th></tr></thead>
-  <tbody>${people.map((p) => html`<tr>
-    <td><a href="/people/${p.id}">${p.name}</a></td><td>${p.company_name ?? ""}</td><td>${p.role}</td>
-    <td>${(p as any).last_active_at ? fmtDateTime((p as any).last_active_at, c.me.time_zone) : "never"}</td>
-    <td>${isOwner(p) && !isOwner(c.me) ? "" : html`<a href="/admin/people/${p.id}">Manage</a>`}</td></tr>`)}</tbody>
-</table>`, crumbs)
-    })),
-
-  get("/admin/people/:id", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const sql = yield* SqlClient.SqlClient
-      const p = yield* managed(c)
-      const cos = yield* sql<{ id: number; name: string }>`select id, name from companies where account_id = ${c.me.account_id} order by name`
-      const roles = isOwner(c.me) ? ["member", "client", "admin", "owner"] : ["member", "client", "admin"]
-      return yield* render(c, `Manage ${p.name}`, html`
-<h1>${p.name}</h1>
-<p>${p.email}${p.joined_at ? "" : " (hasn't accepted the invitation yet)"}</p>
-<form method="post" action="/admin/people/${p.id}">
-  <p><label>Role <select name="role">${roles.map((r) => html`<option value="${r}"${p.role === r ? raw(" selected") : ""}>${r}</option>`)}</select></label></p>
-  <p><label>Company <select name="company_id"><option value="">None</option>${cos.map((k) => html`<option value="${k.id}"${p.company_id === k.id ? raw(" selected") : ""}>${k.name}</option>`)}</select></label>
-  <label>or move them to a new company: <input name="new_company"></label></p>
-  <p><button>Save changes</button> <a href="/admin/people">Cancel</a></p>
-</form>
-${p.id !== c.me.id ? html`<p><a href="/admin/people/${p.id}/remove">Remove from account</a></p>` : ""}`, [...crumbs, ["Manage people", "/admin/people"]])
-    })),
-
   post("/admin/people/:id", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
@@ -228,16 +121,6 @@ ${p.id !== c.me.id ? html`<p><a href="/admin/people/${p.id}/remove">Remove from 
       return redirect("/admin/people", `Saved ${p.name}.`)
     })),
 
-  get("/admin/people/:id/remove", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const p = yield* managed(c)
-      return yield* render(c, `Remove ${p.name}?`, html`
-<h1>Remove ${p.name} from ${c.account.name}?</h1>
-<p>Their posts and comments stay. They lose access right away.</p>
-<form method="post" action="/admin/people/${p.id}/remove"><button>Yes, remove ${p.name}</button> <a href="/admin/people/${p.id}">Never mind</a></form>`, [...crumbs, ["Manage people", "/admin/people"]])
-    })),
-
   post("/admin/people/:id/remove", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
@@ -253,30 +136,6 @@ ${p.id !== c.me.id ? html`<p><a href="/admin/people/${p.id}/remove">Remove from 
     })),
 
   // Who can do what
-  get("/admin/permissions", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const s = c.account.settings
-      const radio = (name: string, value: string, label: string, on: boolean) =>
-        html`<label><input type="radio" name="${name}" value="${value}"${on ? raw(" checked") : ""}> ${label}</label><br>`
-      return yield* render(c, "Who can do what", html`
-<h1>Who can do what</h1>
-<form method="post" action="/admin/permissions">
-  <fieldset><legend>Who can make new projects?</legend>
-    ${radio("who_can_create_projects", "everyone", "Everyone except clients", s.who_can_create_projects !== "admins")}
-    ${radio("who_can_create_projects", "admins", "Only admins and owners", s.who_can_create_projects === "admins")}
-  </fieldset>
-  <fieldset><legend>Who can invite people?</legend>
-    ${radio("who_can_invite", "everyone", "Everyone except clients", s.who_can_invite !== "admins")}
-    ${radio("who_can_invite", "admins", "Only admins and owners", s.who_can_invite === "admins")}
-  </fieldset>
-  <fieldset><legend>Who can start private chats?</legend>
-    <label><input type="checkbox" name="clients_can_ping"${s.clients_can_ping ? raw(" checked") : ""}> Clients can start a private chat with anyone at ${c.account.name}, not just people on their projects</label>
-  </fieldset>
-  <p><button>Save changes</button></p>
-</form>`, crumbs)
-    })),
-
   post("/admin/permissions", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
@@ -292,64 +151,13 @@ ${p.id !== c.me.id ? html`<p><a href="/admin/people/${p.id}/remove">Remove from 
       return redirect("/admin/permissions", "Saved.")
     })),
 
-  // Plan & billing (owners)
-  get("/admin/billing", (c) =>
+  // Plan & billing (owners). Storage counts every upload in the account (private chats too), so it comes from here.
+  get("/admin/billing/storage", (c) =>
     Effect.gen(function* () {
       yield* requireOwner(c)
       const sql = yield* SqlClient.SqlClient
-      const a = c.account
-      const n = yield* seats(a.id)
-      const [storage] = yield* sql<{ bytes: number }>`select coalesce(sum((data->>'size')::bigint), 0)::float8 as bytes from recordings where account_id = ${a.id} and type = 'upload'`
-      const pl = plan(a)
-      const months: Date[] = []
-      for (let d = new Date(a.created_at.getFullYear(), a.created_at.getMonth(), 1); d <= new Date(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) months.unshift(d)
-      return yield* render(c, "Plan & billing", html`
-<h1>Plan & billing</h1>
-${a.status === "on_hold" ? html`<div role="alert"><p><b>This account is on hold.</b> Your card was declined. Update it to keep the account active.</p></div>` : ""}
-${a.status === "cancelled" ? html`<div role="alert"><p><b>This account is cancelled.</b> Everything will be deleted for good on ${fmtDate(new Date(new Date(a.cancelled_at!).getTime() + 30 * 86400_000))}.</p>
-  <form method="post" action="/admin/billing/reactivate"><button>Reactivate this account</button></form></div>` : ""}
-${a.status === "trial" ? html`<p>You're on a free trial${a.trial_ends_on ? ` until ${fmtDate(a.trial_ends_on)}` : ""}. Add a card to keep going after that.</p>` : ""}
-<h2>Your plan</h2>
-<p><b>${pl.name}</b>: ${pl.label}. ${plural(n, "user")} right now, so <b>$${pl.price(n)}/month</b>.</p>
-<p><small>Prices here are illustrative. No real payments are taken.</small></p>
-<p>Storage used: ${(storage!.bytes / 1024 / 1024).toFixed(1)} MB</p>
-<form method="post" action="/admin/billing/plan">
-  <p><label>Change plan <select name="plan">${Object.entries(PLANS).map(([k, v]) => html`<option value="${k}"${a.plan === k ? raw(" selected") : ""}>${v.name}: ${v.label}</option>`)}</select></label>
-  <button>Change plan</button></p>
-</form>
-<h2>Payment method</h2>
-<p>${a.card_last4 ? `Card ending in ${a.card_last4}` : "No card on file."}</p>
-<form method="post" action="/admin/billing/card">
-  <p><label>Card number (only the last 4 digits are kept)<br><input name="card" inputmode="numeric" autocomplete="cc-number" size="22" required></label></p>
-  <button>Update card</button>
-</form>
-<form method="post" action="/admin/billing/decline"><p><button>Simulate a declined card</button> <small>(for trying the on-hold flow)</small></p></form>
-<h2>Billing contact</h2>
-<form method="post" action="/admin/billing/contact">
-  <p><label>Receipts go to <input type="email" name="billing_email" value="${a.billing_email ?? ""}" required></label> <button>Save</button></p>
-</form>
-<h2>Receipts</h2>
-${a.status === "trial" || !a.card_last4 ? html`<p>No receipts yet.</p>` : html`<ul>${months.map((d) => {
-  const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-  return html`<li><a href="/admin/billing/receipts/${ym}">${fmtDate(d)}</a>: $${pl.price(n)}, paid</li>`
-})}</ul>`}`, crumbs)
-    })),
-
-  get("/admin/billing/receipts/:ym", (c) =>
-    Effect.gen(function* () {
-      yield* requireOwner(c)
-      if (!/^\d{4}-\d{2}$/.test(c.params.ym ?? "")) return yield* new NotFound()
-      const n = yield* seats(c.account.id)
-      const pl = plan(c.account)
-      return yield* render(c, "Receipt", html`
-<h1>Receipt for ${c.params.ym}</h1>
-<p>${c.account.name}</p>
-<table><tbody>
-  <tr><th>Plan</th><td>${pl.name}</td></tr>
-  <tr><th>Users</th><td>${n}</td></tr>
-  <tr><th>Charged</th><td>$${pl.price(n)}${c.account.card_last4 ? ` to the card ending in ${c.account.card_last4}` : ""}</td></tr>
-</tbody></table>
-<p><small>Illustrative receipt. No real payment was taken.</small></p>`, [...crumbs, ["Plan & billing", "/admin/billing"]])
+      const [storage] = yield* sql<{ bytes: number }>`select coalesce(sum((data->>'size')::bigint), 0)::float8 as bytes from recordings where account_id = ${c.me.account_id} and type = 'upload'`
+      return json({ bytes: storage!.bytes })
     })),
 
   post("/admin/billing/plan", (c) =>
@@ -401,21 +209,6 @@ ${a.status === "trial" || !a.card_last4 ? html`<p>No receipts yet.</p>` : html`<
     })),
 
   // Export your data
-  get("/admin/export", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const sql = yield* SqlClient.SqlClient
-      const ex = yield* sql<{ id: number; status: string; created_at: Date; name: string | null }>`
-        select e.*, p.name from exports e left join people p on p.id = e.person_id where e.account_id = ${c.me.account_id} order by e.id desc`
-      return yield* render(c, "Export your data", html`
-<h1>Export your data</h1>
-<form method="post" action="/admin/export"><button>Export everything</button></form>
-<p>We'll email you when your export is ready. Big accounts can take a while.</p>
-<h2>Past exports</h2>
-${ex.length ? html`<ul>${ex.map((e) => html`<li>${fmtDateTime(e.created_at, c.me.time_zone)}${e.name ? ` by ${e.name}` : ""}: ${e.status === "ready"
-  ? html`<a href="/admin/export/${e.id}/download">Download</a>` : "being prepared…"}</li>`)}</ul>` : html`<p>No exports yet.</p>`}`, crumbs)
-    })),
-
   post("/admin/export", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
@@ -435,25 +228,6 @@ ${ex.length ? html`<ul>${ex.map((e) => html`<li>${fmtDateTime(e.created_at, c.me
     })),
 
   // Archived & trashed projects
-  get("/admin/projects", (c) =>
-    Effect.gen(function* () {
-      yield* requireAdmin(c)
-      const sql = yield* SqlClient.SqlClient
-      const ps = yield* sql<Project>`select * from projects where account_id = ${c.me.account_id} and kind <> 'ping' and status in ('archived','trashed') order by name`
-      const archived = ps.filter((p) => p.status === "archived")
-      const trashed = ps.filter((p) => p.status === "trashed")
-      return yield* render(c, "Archived & trashed projects", html`
-<h1>Archived & trashed projects</h1>
-<h2>Archived</h2>
-${archived.length ? html`<ul>${archived.map((p) => html`<li><a href="${projectUrl(p)}">${p.name}</a>
-  <form method="post" action="/admin/projects/${p.id}/restore" style="display:inline"><button>Unarchive</button></form></li>`)}</ul>` : html`<p>Nothing's archived.</p>`}
-<p><a href="/projects/archived">All archived projects</a></p>
-<h2>In the trash</h2>
-<p>Trashed projects are deleted forever after 30 days.</p>
-${trashed.length ? html`<ul>${trashed.map((p) => html`<li><a href="${projectUrl(p)}">${p.name}</a> <small>(trashed ${fmtDate(p.trashed_at)}, ${plural(daysLeft(p.trashed_at), "day")} left)</small>
-  <form method="post" action="/admin/projects/${p.id}/restore" style="display:inline"><button>Put it back</button></form></li>`)}</ul>` : html`<p>The trash is empty.</p>`}`, crumbs)
-    })),
-
   post("/admin/projects/:id/restore", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
@@ -464,27 +238,13 @@ ${trashed.length ? html`<ul>${trashed.map((p) => html`<li><a href="${projectUrl(
       return redirect("/admin/projects", { msg: `${p.name} is back.`, href: projectUrl(p), label: "Go there" })
     })),
 
-  // Integrations
-  get("/admin/integrations", (c) =>
+  // Integrations. Connected apps only sync to the person who connected them, so the account's list comes from here.
+  get("/admin/integrations/apps", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
       const sql = yield* SqlClient.SqlClient
-      const bots = yield* sql<{ id: number; name: string }>`select id, name from chatbots where account_id = ${c.me.account_id} order by name`
-      const hooks = yield* sql<{ id: number; url: string; project_id: number; project_name: string }>`
-        select w.id, w.url, w.project_id, p.name as project_name from webhooks w join projects p on p.id = w.project_id where p.account_id = ${c.me.account_id} order by p.name`
-      const apps = yield* sql<{ id: number; name: string; person: string; created_at: Date }>`
-        select a.id, a.name, p.name as person, a.created_at from connected_apps a join people p on p.id = a.person_id where p.account_id = ${c.me.account_id} order by a.name`
-      return yield* render(c, "Integrations", html`
-<h1>Integrations</h1>
-<h2>Bots</h2>
-${bots.length ? html`<ul>${bots.map((b) => html`<li>${b.name}</li>`)}</ul>` : html`<p>No bots yet.</p>`}
-<p><a href="/bots">Manage bots</a></p>
-<h2>Webhooks</h2>
-${hooks.length ? html`<ul>${hooks.map((h) => html`<li><a href="/projects/${h.project_id}/webhooks">${h.project_name}</a>: ${h.url}</li>`)}</ul>` : html`<p>No webhooks. Add them from a project's ••• menu.</p>`}
-<h2>Apps people have connected</h2>
-${apps.length ? html`<ul>${apps.map((a) => html`<li>${a.name} <small>(connected by ${a.person}, ${fmtDate(a.created_at)})</small>
-  <form method="post" action="/admin/integrations/apps/${a.id}/disconnect" style="display:inline"><button>Disconnect</button></form></li>`)}</ul>` : html`<p>No connected apps.</p>`}
-<p>Looking for more? Apps that work with Saintsflow connect through its API. A directory is coming later.</p>`, crumbs)
+      return json(yield* sql<{ id: number; name: string; person: string; created_at: Date }>`
+        select a.id, a.name, p.name as person, a.created_at from connected_apps a join people p on p.id = a.person_id where p.account_id = ${c.me.account_id} order by a.name`)
     })),
 
   post("/admin/integrations/apps/:id/disconnect", (c) =>
@@ -496,20 +256,15 @@ ${apps.length ? html`<ul>${apps.map((a) => html`<li>${a.name} <small>(connected 
       return redirect("/admin/integrations", "Disconnected.")
     })),
 
-  // Security
-  get("/admin/security", (c) =>
+  // Security. Other people's two_factor pref doesn't sync, so who hasn't set it up comes from here.
+  get("/admin/security/missing", (c) =>
     Effect.gen(function* () {
       yield* requireAdmin(c)
-      const people = (yield* accountPeopleAll(c)).filter((p) => !p.prefs.two_factor)
-      return yield* render(c, "Security", html`
-<h1>Security</h1>
-<form method="post" action="/admin/security">
-  <p><label><input type="checkbox" name="require_2fa"${c.account.settings.require_2fa ? raw(" checked") : ""}> Require two-step verification for everyone</label></p>
-  <button>Save</button>
-</form>
-<h2>Who hasn't set it up yet</h2>
-${people.length ? html`<ul>${people.map((p) => html`<li><a href="/people/${p.id}">${p.name}</a></li>`)}</ul>` : html`<p>Everyone has two-step verification on.</p>`}
-<p><small>People set it up from <a href="/my/security">Login & security</a>.</small></p>`, crumbs)
+      const sql = yield* SqlClient.SqlClient
+      return json(yield* sql<{ id: number; name: string }>`
+        select p.id, p.name from people p left join companies k on k.id = p.company_id
+        where p.account_id = ${c.me.account_id} and p.removed_at is null and p.joined_at is not null and coalesce((p.prefs->>'two_factor')::boolean, false) = false
+        order by k.name nulls first, p.name`)
     })),
 
   post("/admin/security", (c) =>
@@ -522,16 +277,6 @@ ${people.length ? html`<ul>${people.map((p) => html`<li><a href="/people/${p.id}
     })),
 
   // Cancel
-  get("/admin/cancel", (c) =>
-    Effect.gen(function* () {
-      yield* requireOwner(c)
-      return yield* render(c, "Cancel this account", html`
-<h1>Cancel ${c.account.name}</h1>
-<p>Cancelling deletes everything in ${c.account.name} for good after 30 days. <a href="/admin/export">Export first</a> if you want a copy.</p>
-<form method="post" action="/admin/cancel"><button>Cancel my account</button> <a href="/admin">Never mind</a></form>
-<p>Changed your mind? Reactivate any time in the next 30 days from <a href="/admin/billing">Plan & billing</a>.</p>`, crumbs)
-    })),
-
   post("/admin/cancel", (c) =>
     Effect.gen(function* () {
       yield* requireOwner(c)
@@ -541,16 +286,6 @@ ${people.length ? html`<ul>${people.map((p) => html`<li><a href="/people/${p.id}
       return redirect("/lockout", "Your account is cancelled. You can reactivate it for 30 days.")
     })),
 ]
-
-const accountForm = (name: string, logo: string, errs: string[]) => html`
-<h1>Account name & logo</h1>
-${errors(errs)}
-<form method="post" action="/admin/account">
-  <p><label>Account name<br><input name="name" value="${name}" required></label></p>
-  <p><label>Logo (link to an image)<br><input type="url" name="logo_url" value="${logo}" size="60" placeholder="https://…"></label></p>
-  ${logo ? html`<p><img src="${logo}" alt="Current logo" height="48"></p>` : ""}
-  <p><button>Save changes</button> <a href="/admin">Cancel</a></p>
-</form>`
 
 export const seed = (s: Seed) =>
   Effect.gen(function* () {

@@ -33,8 +33,8 @@ Used all day in a desktop browser alongside email and chat; checked on phones. K
 
 ## Capabilities and Constraints
 
-- Server-rendered HTML from Bun + TypeScript + Effect 4 + Postgres; plain forms, almost no client JavaScript.
-- Styling: StyleX (user decision), compiled at server start by a Bun preload plugin; no bundler.
+- A React app (Vite on Rolldown, React Router) on a Bun + TypeScript + Effect 4 + Postgres API; local-first after Linear (the browser keeps a synced copy and renders from it). See docs/tech_stack/stack.md.
+- Styling: StyleX (user decision), compiled by @stylexjs/unplugin in the Vite build.
 - People choose Light, Dark or Match my system appearance in `/my/appearance`.
 - Pages must keep working without JavaScript.
 

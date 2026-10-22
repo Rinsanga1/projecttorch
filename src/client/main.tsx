@@ -1,4 +1,5 @@
 // The React app. Every module in ./areas exports `routes` (declared with `page()` from ui/page.tsx).
+import "./app.css"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { createBrowserRouter, RouterProvider, type RouteObject } from "react-router"

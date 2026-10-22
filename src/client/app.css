@@ -1,0 +1,3 @@
+/* The app's one stylesheet. The StyleX plugin appends every compiled rule here at build time.
+   Base styles for plain elements live in ui/base.ts (they need the token variables). */
+@layer base;
