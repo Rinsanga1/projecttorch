@@ -479,6 +479,13 @@ The project menu and an item's ••• menu use `menu` from `ui.ts`: a 560px c
 ### Record Rows and Threads
 Each row is a 32px face, then a name and muted meta on one baseline, then the body. Chat lines tighten this to 6px vertical padding with no rules between lines. Chat breaks by day with a centered group label between two hairlines, while check-ins use a left label followed by a hairline. File attachments in chat are 12px-round Tile Gray chips. A record's byline is a face, the name in Ink 600, and muted small text.
 
+### The bottom of a record
+Every record page (a post, doc, file, task, card, event, list) ends the same short way, so the record stays the biggest thing on it:
+- **Reactions:** the boost pills, then one quiet "React" toggle that opens a field and "Add".
+- **Comments:** the "Comments" heading only once there are some. Each comment's "React" (and your own Edit and Delete) shows on hover, like chat. The comment box is one line until you're writing in it (focused, or with text in it); only then do the @-mention hint, "This notifies N people · Who's that?" and "Add this comment" appear. No "reply to the email" footnote.
+- **Who gets notified:** one muted line: 24px faces, "4 people get notified of new comments", Change, and a text-button Unsubscribe me (or "You're not notified of new comments" and Subscribe me).
+- Then "••• More options for this post".
+
 ### Drawn Check
 The to-do check is a 22px rounded square: 7px radius, 1.5px Control Gray stroke, Sheet White fill. On fine pointers, hover fills it with Peach Wash and turns the stroke Amber Focus. When done, it fills Kargul Orange with a drawn Burnt Ink tick (SVG, 1.8px stroke, round caps). A 28px / 9px-radius variant is used on a to-do's own page, and the marketing demo uses a 16px / 5px-radius static version.
 
@@ -505,7 +512,7 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
   - Its title bar is 40px with a hairline under it: a 16px tool icon, the name (650, 0.875rem), a one-line muted summary (xs), then the actions. The body pads 12px/14px.
   - The master's one action is a 28px full-screen button (a square; four inward corners while on). There is no close: picking another window from the row swaps it. Its outline is 2px Kargul Orange, the focus state of the page.
   - In a stack window the whole title is a button that brings it forward. Nothing else: no close.
-- **The master is where you work:** it runs the tool's real pages on a router of its own (`ui/window-router.tsx`). Links, forms and redirects inside it move the window, never the page; only links that leave the project open as pages. Deeper than the tool's start, a back chevron takes the icon's place. A window sent to the stack comes back on the page it was on.
+- **The address is the window:** every page that belongs to a window (`/projects/2/posts`, `/projects/2/docs/5`) is a child route of the project page, shown in its main window; `windowOfPath` (shared/domain.ts) says which window a path belongs to. So Back, refresh, copy-a-link, bookmarks and links from Home, Updates or Find all land in the project, in the right window. A bare `/projects/2` goes to the window you had in front last; picking a window goes back to where you were in it. Deeper than the window's start, a back chevron takes the icon's place and goes back to that start. The project's own pages (menu, people, settings, activity, trash) stay pages of their own, and Links has a page of its own so every window has an address.
   - Pages inside drop their own frame: no breadcrumb, sheet or tab title, headings at 1.5rem, and at the tool's start the page heading is kept for screen readers only (the title bar names the tool). Chat opens at its newest lines.
   - A flash raised while working in a window floats just above the taskbar (it rises 8px in, 220ms ease-out) instead of pushing the page down, and its Undo runs in that window.
 - **Full screen** lifts the desk over the whole page: the master alone above the taskbar, the page under it held still. Switching tools from the taskbar keeps it on; Escape or the button comes back out. It isn't remembered across visits.
@@ -519,17 +526,24 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
   - New means someone else added it after your last visit; what you wrote yourself is never new to you.
 - **A brand-new project** (every window empty) says one line in the row's lead instead of the news: "A fresh start. Invite the people on it, then post what this project is about."
 - **Nothing under the desk** but the taskbar: "Add a link" and "See all activity" live in the ••• project menu.
-- **Window row** (desktop, 900px and up): the last line of the project head, on its white, padded like it. It is both the way around and the news, so there is no taskbar on desktop.
-  - It leads with when you last opened the project, in words and 650 weight ("Since Tuesday:", "Since yesterday:", "Since Oct 12:"), or "All caught up." in muted text when nothing is new. A first visit shows no lead.
+- **Window row:** the last line of the project head, on its white, padded like it. On desktop (900px and up) it is both the way around and the news, so there is no taskbar. On a phone it is the news line only: just the windows with news or late work, one line that scrolls sideways (the bottom bar does the getting around there).
+  - It leads with when the news starts, in words and 650 weight ("Since Tuesday:", "Since yesterday:", "Since Oct 12:"), or "All caught up." in muted text when nothing is new. A first visit shows no lead.
   - Then every window by name, in project order, as 30px Tile Gray pills (sm, 600). The open one is Pill Black. One with news is Peach Wash with an 18px Kargul Orange count; one with late work is outlined in orange at 55% with "1 late" in Accent Text. A "+" pill (for everyone but clients) goes to add or remove windows.
-  - News is what other people added since your last visit (comments count in the window of what they comment on; board columns, task groups and card steps aren't news). Opening a window clears its count for the rest of the visit; the "since" moment is taken when the page opens (`prefs.project_seen`, set by each visit).
+  - News is counted per window: what other people added since you last opened that window (comments count in the window of what they comment on; board columns, task groups and card steps aren't news). Opening a window is reading it, and only that window: glancing at the project leaves the others' news waiting. A window never opened yet counts from your previous visit to the project. The times live in `prefs.window_seen` ("2:campfire"), merged in the database on each visit; the page reads them once as it opens, so counts don't vanish while you're looking. Home's cards count the same way (`src/client/news.ts`).
   - A side window with news shows "N new" (an orange xs pill) in its title bar in place of its summary.
   - In full screen the row sits at the top of the overlay, on Tile Gray.
+- **On a phone** the main window is part of the page, not a box that scrolls inside it, and Chat's pinned composer sits just above the bottom bar.
 - **Taskbar** (phones and tablets, under 900px): the Slab Charcoal pill (18px corners) of 38px icon buttons, Slab Ink fill for open windows. It sticks to the bottom of the screen (safe-area padding), in thumb reach, scrolls sideways, and fades at its end only while there is more to scroll to. A window with news or late work carries a 7px orange dot.
 - **Motion:** swapping windows by mouse glides with a view transition (240ms, cubic-bezier(0.32, 0.72, 0, 1)); the windows' pictures are clipped, never stretched. Keyboard swaps are instant. Reduced motion keeps the fades and drops the movement.
 
+### Shaped for daily use
+- **Task groups:** a group's name, then a quiet ••• (rename, trash) beside it; each group ends in a quiet "+ Add a task" line, and "+ Add a group" is a toggle too. `kit.quietSummary` is that look: a disclosure with no pill and no chevron.
+- **Files:** "Upload files" is the primary, "New doc" beside it, and a quiet ••• holds New folder and "Link a Google Doc, Sheet or other file". Sort and View appear past 10 items. A folder's color is a 9px dot before its name, never the color's name.
+- **Team questions:** Edit, then a quiet ••• holding "Pause asking" and "Put it in the trash", so trashing can't be a slip.
+- **Timesheet:** its filters fold into a quiet "Filter" until there are more than 15 entries (or a filter is on).
+
 ### Card Table
-The board is a single row of Tile Gray columns, at least 240px each, that share the width when they fit and otherwise scroll sideways (snap to column start, overscroll contained); while more columns wait off to the right, the row's end fades (`fadeOverflow`). Each column head carries a 9px label dot, the column name and a Sheet White count pill. Cards inside are Sheet White with 16px corners and 12px padding; a card's "Move to…" is a row action that shows on hover. "Add a card" is a plain Sheet White button, and "Reorder columns" is folded away, shown only with two columns of your own.
+The board is a single row of Tile Gray columns, at least 240px each, that share the width when they fit and otherwise scroll sideways (snap to column start, overscroll contained); while more columns wait off to the right, the row's end fades (`fadeOverflow`). Each column head carries a 9px label dot, the column name and a Sheet White count pill. Cards inside are Sheet White with 16px corners and 12px padding; a card's "Move to…" is a row action that shows on hover. A card's own page leads with its title, then one muted line of facts: its column as a quiet dropdown that moves it, who has it, when it's due. "Mark as done" is the primary, with Edit and "Put on hold" as text actions beside it. Steps use the drawn check, with who and when in xs under the name, and Remove as a row action; "Add a step" is a toggle that opens a small form. "Add a card" is a plain Sheet White button, and "Reorder columns" is folded away, shown only with two columns of your own.
 
 ### In a project window
 Pages shaped for a project window, which is about 800px wide and 560px tall. Calendar and Chat change only inside a window (`InWindow`); the others look this way on their own page too.

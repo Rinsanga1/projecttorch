@@ -55,6 +55,10 @@ const ls = stylex.create({
   // Late is the case orange is kept for: it needs attention now.
   late: { color: color.accentText, fontWeight: 600 },
   more: { fontSize: text.sm, marginTop: space.s1 },
+  // A list's groups: the name and a quiet ••• for its options.
+  groupHead: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: space.s3, marginTop: space.s6 },
+  groupTitle: { margin: 0 },
+  groupMore: { margin: 0 },
   fill: (w: string) => ({ width: w }),
   fillBox: { display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
   count: { fontSize: text.xs, fontWeight: 600, color: color.muted, fontVariantNumeric: "tabular-nums" },
@@ -328,7 +332,7 @@ export const routes = [
     const row = (t: Recording) => <TodoRow key={t.id} p={p} t={t} people={people} moveTargets={targets} readOnly={readOnly} />
     // Keyed by the location: after a post lands back here the fields start blank, as after the old page reload.
     const composer = (groupId: number | null) => (
-      <details open={open.length === 0 && groups.length === 0}><summary>Add a task</summary>
+      <details open={open.length === 0 && groups.length === 0}><summary {...sx(kit.quietSummary)}>+ Add a task</summary>
         <Form key={loc.key} action={`/projects/${p.id}/lists/${list.id}/tasks`}>
           {groupId && <input type="hidden" name="group_id" value={groupId} />}
           <TodoFields people={people} t={{}} groups={groupId ? [] : groups} />
@@ -361,22 +365,27 @@ export const routes = [
             {!readOnly && composer(null)}
             {groups.map((g) => (
               <section key={g.id} id={`group-${g.id}`} aria-label={g.title}>
-                <h2>{g.title}</h2>
-                {!readOnly && (
-                  <details><summary><small>Rename or remove this group</small></summary>
-                    <Form action={`/projects/${p.id}/groups/${g.id}`}><input name="title" defaultValue={g.title} aria-label="Group name" required /> <button>Rename</button></Form>
-                    <p><a href={`/r/${g.id}/trash`}>Put this group in the trash</a></p>
-                  </details>
-                )}
+                {/* A group's name, with its options tucked into a ••• beside it. */}
+                <div {...sx(ls.groupHead)}>
+                  <h2 {...sx(ls.groupTitle)}>{g.title}</h2>
+                  {!readOnly && (
+                    <details {...sx(ls.groupMore)}><summary aria-label={`Options for ${g.title}`} title="Rename or remove this group" {...sx(kit.quietSummary)}>•••</summary>
+                      <Form action={`/projects/${p.id}/groups/${g.id}`}><input name="title" defaultValue={g.title} aria-label="Group name" required /> <button>Rename</button></Form>
+                      <p><a href={`/r/${g.id}/trash`}>Put this group in the trash</a></p>
+                    </details>
+                  )}
+                </div>
                 <ul>{open.filter((t) => t.parent_id === g.id).map(row)}</ul>
                 {!readOnly && composer(g.id)}
               </section>
             ))}
             {open.length === 0 && todos.length > 0 && <p>Everything on this list is done.</p>}
             {!readOnly && (
-              <Form key={loc.key} action={`/projects/${p.id}/lists/${list.id}/groups`}>
-                <p><label>Add a group <input name="title" placeholder="Name this group" required /></label> <button>Add this group</button></p>
-              </Form>
+              <details><summary {...sx(kit.quietSummary)}>+ Add a group</summary>
+                <Form key={loc.key} action={`/projects/${p.id}/lists/${list.id}/groups`}>
+                  <p><label>Name this group <input name="title" required autoFocus /></label> <button>Add this group</button></p>
+                </Form>
+              </details>
             )}
             {open.length > 1 && !readOnly && <p><a href="?reorder=1">Reorder tasks</a></p>}
           </>

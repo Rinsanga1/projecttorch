@@ -105,6 +105,11 @@ export const kit = stylex.create({
     letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
   dayRule: { flexGrow: 1, height: 1, backgroundColor: color.line },
   // Read by screen readers, not shown.
+  // A disclosure that reads as a quiet line ("+ Add a task", "•••"): no pill, no chevron, until it's opened.
+  quietSummary: {
+    minHeight: 0, paddingBlock: 4, paddingInline: 0, fontSize: text.sm, fontWeight: 500, color: color.muted,
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } }, "::after": { content: "none" },
+  },
   // A button that reads as a text link: for secondary actions that still have to post ("Take this list off the hill").
   linkButton: {
     minHeight: 0, padding: 0, borderRadius: 0, fontSize: "inherit", fontWeight: "inherit", color: "inherit", textDecoration: "underline",

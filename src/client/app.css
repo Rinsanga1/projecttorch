@@ -19,9 +19,12 @@
 /* A row's quiet action ("Move to…") shows while the row is hovered or has focus. On touch it's always there. */
 @media (hover: hover) and (pointer: fine) {
   [data-row-action] { opacity: 0; transition: opacity 150ms ease; }
-  li:is(:hover, :focus-within) [data-row-action] { opacity: 1; }
+  :is(li, article):is(:hover, :focus-within) [data-row-action] { opacity: 1; }
 }
 
 /* A row that scrolls sideways fades at its end while there's more to scroll to (ui/kit.tsx fadeOverflow). */
 [data-more] { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
 
+
+/* A comment box is one line until you're writing: its hints and button show while it's focused or has text in it. */
+[data-composer]:not(:focus-within):has(textarea:placeholder-shown) [data-composer-more] { display: none; }

@@ -127,7 +127,10 @@ export const routes = [
     return (
       <Page title="Timesheet" crumbs={projectCrumbs(p)}>
         <PageHead title="Timesheet" actions={[p.status === "active" && <a key="log" href={`/projects/${p.id}/timesheet/new`} data-button>Log time</a>]} />
-        <FilterForm action={`/projects/${p.id}/timesheet`} f={f} people={staff} />
+        {/* Filters earn their row once there are enough entries to sift; until then, one quiet "Filter" that opens. */}
+        {es.length > 15 || filtered
+          ? <FilterForm action={`/projects/${p.id}/timesheet`} f={f} people={staff} />
+          : <details><summary {...sx(kit.quietSummary)}>Filter</summary><FilterForm action={`/projects/${p.id}/timesheet`} f={f} people={staff} /></details>}
         {es.length
           ? <><EntryTable es={es} /><p><a href={`/api/projects/${p.id}/timesheet.csv${qs(f)}`}>Export as CSV</a></p></>
           : <p {...sx(kit.empty)}>{filtered ? "No time logged that matches these filters." : "Log time on any task and it adds up here."}</p>}
