@@ -8,7 +8,7 @@ import { isRouteErrorResponse, useRouteError, type RouteObject } from "react-rou
 import { state } from "../store.ts"
 import { projectUrl, toolName, toolUrl, TYPE_TOOL, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
 import { sx } from "./kit.tsx"
-import { InWindow, windowGo } from "./window-router.tsx"
+import { InWindow } from "./in-window.tsx"
 import { color, media, radius, space, text } from "./tokens.stylex.ts"
 
 const DESKTOP = "@media (min-width: 768px)"
@@ -61,7 +61,7 @@ export const Page = observer(({ title, crumbs, flush, children }: { title: strin
       ) : null}
       {f && (
         <p role="status" data-flash {...sx(s.flash, flush && s.flashFloat)}>
-          <span {...sx(s.dot)} /><b>{f.msg}</b>{f.href && <> <a href={f.href} onClick={(e) => f.win && windowGo(f.win, f.href!) && e.preventDefault()}>{f.label ?? "Go there"}</a></>}
+          <span {...sx(s.dot)} /><b>{f.msg}</b>{f.href && <> <a href={f.href}>{f.label ?? "Go there"}</a></>}
         </p>
       )}
       <main {...sx(s.sheet, flush && s.flush)}>{children}</main>

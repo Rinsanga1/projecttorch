@@ -35,6 +35,8 @@ export type Prefs = {
   recent_projects?: number[]
   /** Project id → when this person last opened it (ISO). The project page counts what's new since. */
   project_seen?: Record<string, string>
+  /** "projectId:window" → when this person last opened that window (ISO). Each window's news counts since then. */
+  window_seen?: Record<string, string>
 }
 
 export type Role = "owner" | "admin" | "member" | "client"
@@ -203,6 +205,27 @@ export const TOOL_PATHS: Record<ToolType, string> = {
   cardtable: "board",
   forwards: "forwards",
   timesheet: "timesheet",
+}
+
+/** A project's windows: its tools, plus Links (its doors). */
+export type WindowKey = ToolType | "links"
+/** Every page inside a project that belongs to one of its windows, by its first path segment. The project's own pages
+ * (menu, people, settings, activity, trash…) aren't in here: they stay pages of their own. */
+const WINDOW_SEGMENTS: Record<string, WindowKey> = {
+  posts: "message_board",
+  tasks: "todos", lists: "todos", progress: "todos",
+  files: "vault", folders: "vault", docs: "vault", uploads: "vault", cloudfiles: "vault",
+  chat: "campfire",
+  calendar: "schedule", events: "schedule",
+  questions: "checkins", answers: "checkins",
+  board: "cardtable", cards: "cardtable", columns: "cardtable",
+  timesheet: "timesheet", forwards: "forwards", links: "links",
+}
+export const WINDOW_SEGMENT_NAMES = Object.keys(WINDOW_SEGMENTS)
+/** Which window a path belongs to: "/projects/2/docs/5" → "vault"; null for anything else. */
+export const windowOfPath = (path: string): WindowKey | null => {
+  const m = /^\/projects\/\d+\/([^/?#]+)/.exec(path)
+  return (m && WINDOW_SEGMENTS[m[1]!]) || null
 }
 
 export const defaultTools = (): Tool[] => [

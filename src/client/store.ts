@@ -18,8 +18,7 @@ export const db = Object.fromEntries(TABLES.map((t) => [t, observable.map<string
 /** The same maps, untyped, for code that works on any table. */
 const anyDb = db as unknown as Record<Table, ObservableMap<string, Row>>
 
-/** `win`: raised inside a project window (its start path), so its link (an Undo) opens in that window, not as a page. */
-export type Flash = { msg: string; href?: string; label?: string; at?: string; win?: string }
+export type Flash = { msg: string; href?: string; label?: string; at?: string }
 
 export const state = observable({
   /** The copy is loaded (from disk or the network); until then the app shows nothing. */

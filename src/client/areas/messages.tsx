@@ -7,7 +7,7 @@ import { isAdmin, isClient, toolUrl, urlFor, type Category, type Project, type R
 import { excerpt, fmtDate, ms } from "../../shared/format.ts"
 import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
-import { NewTag } from "../ui/window-router.tsx"
+import { NewTag } from "../ui/in-window.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 

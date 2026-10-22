@@ -142,11 +142,14 @@ export const useApi = <T,>(path: string | null) => {
 }
 
 /** Remember this page in the Jump menu and Home's "recently visited". */
-export const useVisit = (href: string, title: string, projectId?: number) =>
+/** Record a visit (Go to, recent projects, and what's seen). The project page passes its `windows`, so a window never
+ * opened yet gets a starting point for its news. */
+export const useVisit = (href: string, title: string, projectId?: number, windows?: ReadonlyArray<string>) =>
   useEffect(() => {
     const fd = new FormData()
     fd.set("href", href)
     fd.set("title", title)
     if (projectId) fd.set("project_id", String(projectId))
+    if (windows?.length) fd.set("windows", windows.join(","))
     submit("/visits", fd).catch(() => {})
-  }, [href, title, projectId])
+  }, [href, title, projectId, windows?.join()])

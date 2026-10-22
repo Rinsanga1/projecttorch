@@ -19,7 +19,7 @@
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { fmtDate, esc } from "../shared/format.ts"
-import { CLIENT_INHERITS, TYPE_NAMES, titleOf, urlFor, mentionedIds, canSeeProject, type Tool } from "../shared/domain.ts"
+import { CLIENT_INHERITS, TYPE_NAMES, titleOf, urlFor, mentionedIds, canSeeProject, windowOfPath, type Tool } from "../shared/domain.ts"
 import { NotFound, NoAccess, Deleted, isAdmin, isClient, isQuiet, type Ctx, type Person } from "./web.ts"
 
 export {
@@ -336,15 +336,25 @@ export const visibleProjects = (c: Ctx, opts: { status?: string; kind?: string }
       order by p.is_hq desc, p.name`
   })
 
-/** Remember the last pages someone visited (Go to, Home's "recently visited"), and when they last saw each project. */
-export const trackVisit = (c: Ctx, href: string, title: string, projectId?: number) =>
+/** Remember the last pages someone visited (Go to, Home's "recently visited"), and when they last saw each project and window. */
+export const trackVisit = (c: Ctx, href: string, title: string, projectId?: number, windows: ReadonlyArray<string> = []) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const pages = [{ href, title }, ...((c.me.prefs as any).recent_pages ?? []).filter((p: any) => p.href !== href)].slice(0, 12)
     const projects = projectId ? [projectId, ...((c.me.prefs as any).recent_projects ?? []).filter((id: number) => id !== projectId)].slice(0, 8) : (c.me.prefs as any).recent_projects ?? []
-    // When this person last looked at each project, for its "Since Tuesday" line.
-    const seen = projectId ? { ...((c.me.prefs as any).project_seen ?? {}), [projectId]: new Date().toISOString() } : (c.me.prefs as any).project_seen
-    yield* sql`update people set prefs = prefs || ${JSON.stringify({ recent_pages: pages, recent_projects: projects, ...(seen && { project_seen: seen }) })}::jsonb, last_active_at = now() where id = ${c.me.id}`
+    yield* sql`update people set prefs = prefs || ${JSON.stringify({ recent_pages: pages, recent_projects: projects })}::jsonb, last_active_at = now() where id = ${c.me.id}`
+    if (!projectId) return
+    // When this person last looked at each project, and at each of its windows ("2:campfire"), for the news since.
+    // Opening a window is reading it: only the window you opened moves. A window never opened yet starts from the
+    // previous visit to its project, so what came in before still counts as new until you look. Merged in the database,
+    // not from this request's copy of prefs: the project page and the page in its window post visits at the same moment.
+    const now = new Date().toISOString()
+    const start = Object.fromEntries(windows.map((w) => [`${projectId}:${w}`, (c.me.prefs as any).project_seen?.[projectId] ?? now]))
+    const opened = windowOfPath(href)
+    yield* sql`update people set prefs = prefs
+      || jsonb_build_object('project_seen', coalesce(prefs->'project_seen', '{}'::jsonb) || ${JSON.stringify({ [projectId]: now })}::jsonb)
+      || jsonb_build_object('window_seen', ${JSON.stringify(start)}::jsonb || coalesce(prefs->'window_seen', '{}'::jsonb) || ${JSON.stringify(opened ? { [`${projectId}:${opened}`]: now } : {})}::jsonb)
+      where id = ${c.me.id}`
   })
 
 /** Can this person make new projects? */

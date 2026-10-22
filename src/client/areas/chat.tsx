@@ -4,7 +4,7 @@
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
 import { useContext, useEffect, useRef, useState } from "react"
-import { InWindow, useSince } from "../ui/window-router.tsx"
+import { InWindow, useSince } from "../ui/in-window.tsx"
 import { Navigate, useParams, useSearchParams } from "react-router"
 import { db, isTemp, submit, temp } from "../store.ts"
 import { me, account, accountPeople, findProject, findRecording, projectPeople, boostsOn, recordings, useVisit, NoAccess, NotFound } from "../data.ts"
@@ -36,7 +36,7 @@ const cs = stylex.create({
   composer: { padding: space.s4, borderRadius: radius.xl, backgroundColor: color.tile, display: "grid", gap: space.s2 },
   // In a window the composer stays at the window's bottom while you read back; the shadow paints the window's white into
   // the gap under it, so older lines don't peek through.
-  composerPinned: { position: "sticky", bottom: 0, zIndex: 1, boxShadow: `0 12px 0 0 ${color.sheet}` },
+  composerPinned: { position: "sticky", bottom: { default: 64, "@media (min-width: 900px)": 0 }, zIndex: 1, boxShadow: `0 12px 0 0 ${color.sheet}` },
   field: { width: "100%", maxWidth: "none", minHeight: "3.5em", backgroundColor: color.sheet, margin: 0 },
   composerRow: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s3, margin: 0, maxWidth: "none" },
   composerHint: { margin: 0 },
@@ -133,7 +133,9 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
     const body = field.current?.closest("[data-window-body]")
     if (!inWindow || !body) return
     const line = body.querySelector("[data-new-line]")
-    body.scrollTop = line ? body.scrollTop + line.getBoundingClientRect().top - body.getBoundingClientRect().top - 12 : body.scrollHeight
+    if (body.scrollHeight > body.clientHeight) body.scrollTop = line ? body.scrollTop + line.getBoundingClientRect().top - body.getBoundingClientRect().top - 12 : body.scrollHeight
+    // On a phone the window is the page: scroll the page there, after the app's own scroll-to-top for a new page.
+    else requestAnimationFrame(() => (line ?? body.querySelector("#lines > li:last-child"))?.scrollIntoView({ block: line ? "start" : "center" }))
   }, [inWindow])
 
   // Lines without a file show up right away; the server's row replaces the stand-in.
