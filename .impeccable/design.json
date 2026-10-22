@@ -1,0 +1,757 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-21T18:33:26.654Z",
+  "title": "Design System: Saintsflow",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Studio Gray",
+        "canonical": "oklch(95.2% 0.000 90)",
+        "darkValue": "#121212",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "oklch(100.0% 0.000 90)",
+        "darkValue": "#1c1c1c",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "tile": {
+        "role": "neutral",
+        "displayName": "Tile Gray",
+        "canonical": "oklch(97.0% 0.000 90)",
+        "darkValue": "#242424",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "tile-hover": {
+        "role": "neutral",
+        "displayName": "Tile Pressed",
+        "canonical": "oklch(94.0% 0.000 90)",
+        "darkValue": "#2c2c2c",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(20.5% 0.000 90)",
+        "darkValue": "#f2f2f2",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Graphite",
+        "canonical": "oklch(48.2% 0.000 90)",
+        "darkValue": "#a3a3a3",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(91.9% 0.000 90)",
+        "darkValue": "#2d2d2d",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "control": {
+        "role": "neutral",
+        "displayName": "Control Gray",
+        "canonical": "oklch(66.7% 0.000 90)",
+        "darkValue": "#6b6b6b",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "slab": {
+        "role": "neutral",
+        "displayName": "Slab Charcoal",
+        "canonical": "oklch(25.6% 0.000 90)",
+        "darkValue": "#000000",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "slab-tile": {
+        "role": "neutral",
+        "displayName": "Slab Tile",
+        "canonical": "oklch(30.1% 0.000 90)",
+        "darkValue": "#1a1a1a",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "slab-ink": {
+        "role": "neutral",
+        "displayName": "Slab Ink",
+        "canonical": "oklch(97.0% 0.000 90)",
+        "darkValue": "#f5f5f5",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "slab-muted": {
+        "role": "neutral",
+        "displayName": "Slab Muted",
+        "canonical": "oklch(73.2% 0.000 90)",
+        "darkValue": "#a3a3a3",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Pill Black",
+        "canonical": "oklch(25.6% 0.000 90)",
+        "darkValue": "#f2f2f2",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "True Black",
+        "canonical": "oklch(0.0% 0.000 0)",
+        "darkValue": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "on-primary": {
+        "role": "primary",
+        "displayName": "Sheet White (on primary)",
+        "canonical": "oklch(100.0% 0.000 90)",
+        "darkValue": "#121212",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Kargul Orange",
+        "canonical": "oklch(77.0% 0.169 68)",
+        "darkValue": "#f99c00",
+        "tonalRamp": [
+          "#140800",
+          "#361e00",
+          "#5b3600",
+          "#845001",
+          "#b26f03",
+          "#e48f06",
+          "#ffbb70",
+          "#ffebd6"
+        ]
+      },
+      "on-accent": {
+        "role": "secondary",
+        "displayName": "Burnt Ink",
+        "canonical": "oklch(18.7% 0.038 89)",
+        "darkValue": "#1a1200",
+        "tonalRamp": [
+          "#100a00",
+          "#2b230c",
+          "#483f28",
+          "#665d45",
+          "#897f66",
+          "#aea48a",
+          "#d4caaf",
+          "#f9eed2"
+        ]
+      },
+      "accent-soft": {
+        "role": "secondary",
+        "displayName": "Peach Wash",
+        "canonical": "oklch(95.7% 0.043 83)",
+        "darkValue": "#3b2a0a",
+        "tonalRamp": [
+          "#110a00",
+          "#2e2209",
+          "#4b3e25",
+          "#695c42",
+          "#8d7e63",
+          "#b2a387",
+          "#d8c9ac",
+          "#fdedcf"
+        ]
+      },
+      "focus": {
+        "role": "secondary",
+        "displayName": "Amber Focus",
+        "canonical": "oklch(62.4% 0.145 61)",
+        "darkValue": "#ffb23d",
+        "tonalRamp": [
+          "#150700",
+          "#381c00",
+          "#5f3302",
+          "#894c01",
+          "#ba6902",
+          "#e48d36",
+          "#feba80",
+          "#feeada"
+        ]
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Alert Red",
+        "canonical": "oklch(53.9% 0.193 29)",
+        "darkValue": "#ff7b6e",
+        "tonalRamp": [
+          "#1f0000",
+          "#4b0100",
+          "#7d0100",
+          "#b10804",
+          "#dc4133",
+          "#fe7362",
+          "#ffb5aa",
+          "#fee9e5"
+        ]
+      },
+      "danger-soft": {
+        "role": "status",
+        "displayName": "Alert Blush",
+        "canonical": "oklch(94.9% 0.022 24)",
+        "darkValue": "#3a1714",
+        "tonalRamp": [
+          "#130807",
+          "#2e201f",
+          "#4b3b3a",
+          "#6a5957",
+          "#8d7b7a",
+          "#b2a09e",
+          "#d9c5c3",
+          "#fde9e7"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Live Green",
+        "canonical": "oklch(62.7% 0.170 149)",
+        "darkValue": "#4ade80",
+        "tonalRamp": [
+          "#001003",
+          "#012d0f",
+          "#004e1e",
+          "#02712f",
+          "#029a43",
+          "#43c166",
+          "#6fe98b",
+          "#c8ffd0"
+        ]
+      },
+      "label-red": {
+        "role": "label",
+        "displayName": "Label Red",
+        "canonical": "oklch(62.6% 0.193 23)",
+        "darkValue": "#e5484d",
+        "tonalRamp": [
+          "#1f0002",
+          "#4b0008",
+          "#7c0015",
+          "#b10122",
+          "#dc3f46",
+          "#ff7170",
+          "#ffb4b0",
+          "#fee9e7"
+        ]
+      },
+      "label-orange": {
+        "role": "label",
+        "displayName": "Label Orange",
+        "canonical": "oklch(77.0% 0.169 68)",
+        "darkValue": "#f99c00",
+        "tonalRamp": [
+          "#140800",
+          "#361e00",
+          "#5b3600",
+          "#845001",
+          "#b26f03",
+          "#e48f06",
+          "#ffbb70",
+          "#ffebd6"
+        ]
+      },
+      "label-yellow": {
+        "role": "label",
+        "displayName": "Label Yellow",
+        "canonical": "oklch(84.2% 0.168 90)",
+        "darkValue": "#f5c518",
+        "tonalRamp": [
+          "#100a00",
+          "#2e2301",
+          "#4f3d02",
+          "#725a05",
+          "#9c7c01",
+          "#c89f05",
+          "#f4c416",
+          "#ffeebe"
+        ]
+      },
+      "label-green": {
+        "role": "label",
+        "displayName": "Label Green",
+        "canonical": "oklch(64.1% 0.133 158)",
+        "darkValue": "#30a46c",
+        "tonalRamp": [
+          "#000f06",
+          "#002c18",
+          "#004d2d",
+          "#007044",
+          "#1d9760",
+          "#4ebd84",
+          "#78e5a9",
+          "#c4ffdb"
+        ]
+      },
+      "label-blue": {
+        "role": "label",
+        "displayName": "Label Blue",
+        "canonical": "oklch(61.3% 0.200 263)",
+        "darkValue": "#3e7bfa",
+        "tonalRamp": [
+          "#00062b",
+          "#001a60",
+          "#00319d",
+          "#1750cc",
+          "#3a77f6",
+          "#73a2ff",
+          "#afcbff",
+          "#e7effe"
+        ]
+      },
+      "label-purple": {
+        "role": "label",
+        "displayName": "Label Purple",
+        "canonical": "oklch(55.6% 0.183 306)",
+        "darkValue": "#8e4ec6",
+        "tonalRamp": [
+          "#140024",
+          "#350056",
+          "#580a89",
+          "#7836ad",
+          "#9b5cd5",
+          "#c182fe",
+          "#dabafe",
+          "#f3eafe"
+        ]
+      },
+      "label-gray": {
+        "role": "label",
+        "displayName": "Label Gray",
+        "canonical": "oklch(64.5% 0.016 278)",
+        "darkValue": "#8b8d98",
+        "tonalRamp": [
+          "#090b12",
+          "#22232c",
+          "#3d3f49",
+          "#5b5d67",
+          "#7e7f8a",
+          "#a2a4af",
+          "#c8cad5",
+          "#ebeefa"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Marketing hero headline only, max 14ch, centered."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Marketing section headings."
+      },
+      "headline-cut": {
+        "displayName": "Cut Headline",
+        "purpose": "Struck-through feature names in the marketing 'fewer features' list; Slab Muted with a 2px orange line-through."
+      },
+      "wordmark-giant": {
+        "displayName": "Giant Wordmark",
+        "purpose": "Marketing footer wordmark, cropped by the page bottom. One per page."
+      },
+      "prose": {
+        "displayName": "Prose",
+        "purpose": "Readable body of messages, docs and long-form records, max 68ch."
+      },
+      "title-page": {
+        "displayName": "Page Title",
+        "purpose": "App h1; 2.5rem on the project page at desktop."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "App h2."
+      },
+      "title-sm": {
+        "displayName": "Small Title",
+        "purpose": "h3, project card names, tile titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text; paragraphs cap at 72ch."
+      },
+      "body-sm": {
+        "displayName": "Small Body",
+        "purpose": "Card descriptions, tables, breadcrumbs."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, nav links, summary pills."
+      },
+      "group-label": {
+        "displayName": "Group Label",
+        "purpose": "Uppercase muted table headers, nested legends, group headings over card grids."
+      },
+      "tag": {
+        "displayName": "Tag",
+        "purpose": "Uppercase text inside small pills: HQ, All-access, Today, hill stage."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "Account name in the app header (22px, -0.045em on marketing)."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "code, kbd, pre."
+      }
+    },
+    "shadows": [
+      {
+        "name": "demo-float",
+        "value": "0 1px 2px rgba(0,0,0,.04), 0 24px 60px -24px rgba(0,0,0,.18)",
+        "purpose": "Marketing example-project frame only. App surfaces carry no shadows."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 3px color-mix(in srgb, #f99c00 28%, transparent)",
+        "purpose": "Focused text inputs, selects and textareas."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(.22, 1, .36, 1)",
+        "purpose": "Press scale, summary chevron, flash entrance, hill-dot climb."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Color and background shifts on hover; button press."
+      },
+      {
+        "name": "duration-base",
+        "value": "220ms",
+        "purpose": "Disclosure chevron rotation, flash entrance."
+      },
+      {
+        "name": "flash-in",
+        "value": "220ms ease-out via @starting-style from opacity 0, translateY(-6px)",
+        "purpose": "Flash message entrance; reduced motion keeps the fade, drops the slide."
+      },
+      {
+        "name": "hover-gate",
+        "value": "@media (hover: hover) and (pointer: fine)",
+        "purpose": "Every hover style lives behind this (media.hover) so a tap never leaves a stuck hover."
+      },
+      {
+        "name": "reduce",
+        "value": "@media (prefers-reduced-motion: reduce)",
+        "purpose": "Removes presses, slides, the chevron turn and animations; color and fade transitions stay."
+      },
+      {
+        "name": "hill-climb",
+        "value": "1.4s SMIL animateMotion, keySplines .22 1 .36 1",
+        "purpose": "Marketing hill dots climb into place on scroll; static under reduced motion or without JS."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone-max",
+        "value": "640px"
+      },
+      {
+        "name": "app-desktop",
+        "value": "768px"
+      },
+      {
+        "name": "marketing-desktop",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action: dark pill.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Add a project</button>",
+      "css": ".ds-btn{font-family:Geist,ui-sans-serif,system-ui,sans-serif;font-size:.84375rem;font-weight:600;letter-spacing:-.005em;line-height:1.2;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 16px;border:0;border-radius:999px;cursor:pointer;transition:background 150ms,transform 150ms cubic-bezier(.22,1,.36,1)}.ds-btn:active{transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid #c46f00;outline-offset:2px}.ds-btn-primary{background:#232323;color:#fff}@media (hover:hover) and (pointer:fine){.ds-btn-primary:hover{background:#000}}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Default button: tile-gray pill.",
+      "html": "<button class=\"ds-btn2\">Pin</button>",
+      "css": ".ds-btn2{font-family:Geist,ui-sans-serif,system-ui,sans-serif;font-size:.84375rem;font-weight:600;line-height:1.2;min-height:34px;padding:7px 16px;border:0;border-radius:999px;background:#f5f5f5;color:#171717;cursor:pointer;transition:background 150ms,transform 150ms cubic-bezier(.22,1,.36,1)}@media (hover:hover) and (pointer:fine){.ds-btn2:hover{background:#ebebeb}}.ds-btn2:active{transform:scale(.97)}.ds-btn2:focus-visible{outline:2px solid #c46f00;outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "White field, gray stroke, orange focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Name this project\">",
+      "css": ".ds-input{font-family:Geist,ui-sans-serif,system-ui,sans-serif;font-size:.9375rem;color:#171717;min-height:36px;width:min(100%,32rem);padding:6px 12px;background:#fff;border:1px solid #949494;border-radius:10px;transition:border-color 150ms,box-shadow 150ms}.ds-input::placeholder{color:#5e5e5e}.ds-input:focus{outline:0;border-color:#c46f00;box-shadow:0 0 0 3px color-mix(in srgb,#f99c00 28%,transparent)}"
+    },
+    {
+      "name": "App Nav",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Wordmark and pill links on the gray ground, orange unread count.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-wm\" href=\"#\">Acme HQ</a><a class=\"ds-nl ds-nl-cur\" href=\"#\" aria-current=\"page\">Home</a><a class=\"ds-nl\" href=\"#\">Lineup</a><a class=\"ds-nl\" href=\"#\">Pings<span class=\"ds-count\">3</span></a><a class=\"ds-nl\" href=\"#\">Hey!</a><a class=\"ds-nl\" href=\"#\">Activity</a></nav>",
+      "css": ".ds-nav{font-family:Geist,ui-sans-serif,system-ui,sans-serif;display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:16px;background:#efefef}.ds-wm{font-size:1.0625rem;font-weight:750;letter-spacing:-.035em;color:#171717;text-decoration:none;margin-right:18px}.ds-nl{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;font-size:.84375rem;font-weight:500;color:#5e5e5e;text-decoration:none;transition:color 150ms,background-color 150ms}@media (hover:hover) and (pointer:fine){.ds-nl:hover{color:#171717;background:color-mix(in srgb,#fff 60%,transparent)}}.ds-nl:focus-visible{outline:2px solid #c46f00;outline-offset:2px}.ds-nl-cur,.ds-nl-cur:hover{background:#fff;color:#171717;font-weight:600}.ds-count{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#f99c00;color:#1a1200;font-size:11px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Project Card",
+      "kind": "card",
+      "refersTo": "tile",
+      "description": "Tile-gray card on the white sheet, with a dark tag.",
+      "html": "<div class=\"ds-sheet\"><div class=\"ds-card\"><span class=\"ds-tag\">HQ</span><a class=\"ds-card-name\" href=\"#\">Acme HQ</a><p class=\"ds-card-desc\">Company-wide announcements and resources.</p></div></div>",
+      "css": ".ds-sheet{font-family:Geist,ui-sans-serif,system-ui,sans-serif;background:#fff;border-radius:24px;padding:24px}.ds-card{display:flex;flex-direction:column;gap:6px;min-height:168px;padding:24px;background:#f5f5f5;border-radius:24px;transition:background-color 150ms}@media (hover:hover) and (pointer:fine){.ds-card:hover{background:#ebebeb}}.ds-card-name{font-size:1.0625rem;font-weight:650;letter-spacing:-.02em;color:#171717;text-decoration:none}.ds-card-name:focus-visible{outline:2px solid #c46f00;outline-offset:2px;border-radius:6px}.ds-card-desc{margin:0;font-size:.84375rem;color:#5e5e5e}.ds-tag{align-self:flex-start;padding:4px 9px;border-radius:999px;background:#232323;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1}"
+    },
+    {
+      "name": "Drawn Check",
+      "kind": "custom",
+      "refersTo": "check",
+      "description": "To-do check: rounded square, orange when done.",
+      "html": "<div class=\"ds-checks\"><button class=\"ds-check\" aria-label=\"Mark as done\"></button><button class=\"ds-check ds-check-done\" aria-label=\"Mark as not done\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M2.5 6.2 5 8.6l4.5-5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div>",
+      "css": ".ds-checks{display:flex;gap:12px}.ds-check{width:22px;height:22px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:#fff;border:1.5px solid #949494;color:#1a1200;cursor:pointer;transition:background-color 150ms,border-color 150ms}@media (hover:hover) and (pointer:fine){.ds-check:hover{background:#ffefd1;border-color:#c46f00}}.ds-check:focus-visible{outline:2px solid #c46f00;outline-offset:2px}.ds-check-done,.ds-check-done:hover{background:#f99c00;border-color:#f99c00}"
+    },
+    {
+      "name": "Lineup Bar",
+      "kind": "custom",
+      "refersTo": "tile",
+      "description": "Project bars on a shared track with the orange Today marker.",
+      "html": "<div class=\"ds-track\"><span class=\"ds-today-line\" style=\"left:45%\"></span><span class=\"ds-today\" style=\"left:45%\">Today</span><div class=\"ds-lane\"><a class=\"ds-bar\" href=\"#\" style=\"left:10%;width:60%\">Website Redesign <span>Oct 1 – Nov 15</span></a></div><div class=\"ds-lane\"><a class=\"ds-bar\" href=\"#\" style=\"left:35%;width:50%\">Marketing Plan <span>Oct 20 – Dec 1</span></a></div></div>",
+      "css": ".ds-track{font-family:Geist,ui-sans-serif,system-ui,sans-serif;position:relative;display:grid;gap:8px;padding:26px 0 8px;background:#fff}.ds-lane{position:relative;z-index:1;height:34px}.ds-bar{position:absolute;top:0;bottom:0;min-width:fit-content;display:flex;align-items:center;gap:8px;padding:0 14px;border-radius:999px;background:#f5f5f5;font-size:.84375rem;font-weight:600;color:#171717;text-decoration:none;white-space:nowrap;transition:background-color 150ms}@media (hover:hover) and (pointer:fine){.ds-bar:hover{background:#ebebeb}}.ds-bar:focus-visible{outline:2px solid #c46f00;outline-offset:2px}.ds-bar span{font-weight:400;color:#5e5e5e}.ds-today-line{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;border-radius:2px;background:#f99c00}.ds-today{position:absolute;top:0;transform:translateX(-50%);padding:3px 8px;border-radius:999px;background:#f99c00;color:#1a1200;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1}"
+    },
+    {
+      "name": "Record Row with Face",
+      "kind": "custom",
+      "refersTo": "face",
+      "description": "A comment: 32px initials disc, name and muted meta, then the body; subscriber faces stack with a sheet ring.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-face\" aria-hidden=\"true\">AL</span><div><div class=\"ds-row-head\"><b>Ann Lee</b><span>Oct 21, 3:40pm</span></div><p>First homepage sketches are up. Thoughts on the hero?</p></div></div><div class=\"ds-stack\"><span class=\"ds-face\">JF</span><span class=\"ds-face\">BO</span><span class=\"ds-face\">DK</span></div>",
+      "css": ".ds-row{font-family:Geist,ui-sans-serif,system-ui,sans-serif;display:grid;grid-template-columns:32px 1fr;column-gap:12px;padding:16px 0;color:#171717;font-size:.9375rem;line-height:1.55}.ds-row p{margin:0;max-width:70ch}.ds-row-head{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;margin-bottom:2px}.ds-row-head b{font-weight:600}.ds-row-head span{font-size:.84375rem;color:#5e5e5e}.ds-face{font-family:Geist,ui-sans-serif,system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background:#232323;color:#fff;font-size:13px;font-weight:650;letter-spacing:-.02em;line-height:1}.ds-stack{display:flex;padding-left:8px}.ds-stack .ds-face{margin-left:-8px;border:2px solid #fff}"
+    },
+    {
+      "name": "Board Column",
+      "kind": "custom",
+      "refersTo": "board-column",
+      "description": "Card Table column: tile column with label dot and count pill, white 16px cards inside.",
+      "html": "<div class=\"ds-col\"><h2 class=\"ds-col-head\"><span class=\"ds-dot\" style=\"background:#3e7bfa\"></span>In progress<span class=\"ds-col-count\">2</span></h2><a class=\"ds-kcard\" href=\"#\"><b>Homepage hero copy</b><span>Ann · Oct 25</span></a><a class=\"ds-kcard\" href=\"#\"><b>Set up redirects</b><span>Bob</span></a></div>",
+      "css": ".ds-col{font-family:Geist,ui-sans-serif,system-ui,sans-serif;width:256px;background:#f5f5f5;border-radius:24px;padding:12px;display:grid;gap:8px}.ds-col-head{display:flex;align-items:center;gap:8px;margin:0;padding:4px 6px 0;font-size:.9375rem;font-weight:650;letter-spacing:-.01em;color:#171717}.ds-dot{width:9px;height:9px;border-radius:999px;flex-shrink:0}.ds-col-count{margin-left:auto;min-width:22px;padding:3px 7px;border-radius:999px;background:#fff;font-size:.75rem;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}.ds-kcard{display:grid;gap:6px;padding:12px;border-radius:16px;background:#fff;color:#171717;text-decoration:none;font-size:.9375rem}.ds-kcard b{font-weight:600}.ds-kcard span{font-size:.75rem;color:#5e5e5e}@media (hover:hover) and (pointer:fine){.ds-kcard:hover b{text-decoration:underline}}.ds-kcard:focus-visible{outline:2px solid #c46f00;outline-offset:2px}"
+    },
+    {
+      "name": "Dark Slab",
+      "kind": "card",
+      "refersTo": "slab",
+      "description": "Marketing emphasis block: 40px-round charcoal slab with slab tiles.",
+      "html": "<section class=\"ds-slab\"><h2>Every project gets its own home</h2><div class=\"ds-slab-tile\"><b>Message Board</b><p>Announcements, pitches and decisions.</p></div></section>",
+      "css": ".ds-slab{font-family:Geist,ui-sans-serif,system-ui,sans-serif;background:#232323;color:#f5f5f5;border-radius:40px;padding:48px 32px}.ds-slab h2{margin:0 0 24px;font-size:2rem;line-height:1.05;font-weight:750;letter-spacing:-.035em}.ds-slab-tile{background:#2e2e2e;border-radius:24px;padding:24px;max-width:280px}.ds-slab-tile b{font-size:1.0625rem;font-weight:650;letter-spacing:-.02em}.ds-slab-tile p{margin:12px 0 0;font-size:.84375rem;color:#a8a8a8}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Gray Studio Table",
+    "overview": "Saintsflow borrows kargul.studio's world and puts a Basecamp-style app on it. Picture a light-gray table (the ground) with white sheets of paper lying on it. Softer gray tiles are grouped on each sheet, and near-black pills, discs and slabs are the only heavy objects. Everything is rounded, flat, and set in one typeface, Geist. Depth comes from the order of the layers, never from shadows.\n\nThe same world has two volumes. In the app (Operate) it is calm and dense: fixed rem type steps topping out at 2rem, small pill controls, and plain semantic HTML styled by a classless base layer. Every tool page uses the same kit: a heading with its actions on the right, hairline-ruled record rows led by a face, tiles for anything grouped, and a tile for an empty state. On marketing (Persuade) it plays at full strength: clamp-scaled 750-weight headlines, 54px pill CTAs, 40px-round dark slabs running nearly the width of the page, a framed example project, and a giant cropped wordmark at the foot of the page.\n\nOne orange does all the signaling. It marks what needs your attention or what has finished: unread counts, today, done checks, progress, focus. That is how the product's first principle (calm over urgent) shows up visually. The dark theme mirrors the light one layer for layer. The primary pill and the face discs flip to near-white, so they stay the heaviest objects on the page.",
+    "keyCharacteristics": [
+      "Gray ground, white sheet, gray tile: three tonal layers, no shadows in the app.",
+      "One typeface (Geist variable, self-hosted), tight negative tracking on headings.",
+      "Pills for every control; 24px corners on every container; 40px on slabs.",
+      "Near-black pill = primary action; tile-gray pill = secondary.",
+      "People appear as initials on a dark disc, in a 32px column at the start of every record row.",
+      "Single orange accent, reserved for attention and completion.",
+      "Hover exists only for fine pointers; reduced motion removes movement but keeps fades.",
+      "Light and dark themes mirror each other; the OS decides unless a person pins one."
+    ],
+    "rules": [
+      {
+        "name": "The Single Orange Rule",
+        "body": "Orange means \"this needs you\" or \"this is done\": unread, today, done, progress, focused. It never fills a button, a heading, a card or a background region. Peach Wash is the only orange that may fill an area, and only a small one (a tag, a calendar pill, a highlight).",
+        "section": "colors"
+      },
+      {
+        "name": "The Dot-Only Label Rule",
+        "body": "People-picked label colors appear as 9px dots and nothing larger. They never tint a card, a column or text.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mirror Rule",
+        "body": "Every color token has a light and a dark value defined together; a new color is not done until both exist. Themes swap values, never structure.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Volumes Rule",
+        "body": "The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, headline-cut, giant wordmark) belong to marketing and signup.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tight Heading Rule",
+        "body": "Every heading tracks negative (-0.01em at h3 up to -0.06em on the giant wordmark) and wraps with `text-wrap: balance`. Only uppercase labels and tags track positive.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Stack Rule",
+        "body": "Ground, sheet, tile, sheet: when something needs to stand apart, move it one layer instead of shadowing it. App surfaces carry no shadows.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Pill-Or-Card Rule",
+        "body": "If you can click it and it is not a container, it is a pill. If it holds content, it is a rounded card with no border: 24px at the top level, 16px when nested.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Nested Corner Rule",
+        "body": "A shape inside a rounded container drops one radius step (24 → 16 → 12) so the inner and outer corners stay concentric.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do put the page on a Sheet White sheet (24px radius on desktop) over the Studio Gray ground, with chrome on the ground.",
+      "Do open a tool page with `pageHead()`: the title on the left, its actions on the right.",
+      "Do group content on a sheet as Tile Gray cards with 24px corners and no border, and step nested pieces back to Sheet White with 16px corners.",
+      "Do make the one primary action a Pill Black pill and everything else a Tile Gray pill; use `a[data-button]` when an action navigates.",
+      "Do lead every row about a person with their 32px face.",
+      "Do write plain semantic HTML and let the base layer style it; reach for `sx()` only for layout and the signature components.",
+      "Do define every new color in both `light` and `dark` in `tokens.stylex.ts`.",
+      "Do keep app type on the fixed rem steps and reserve `clamp()` steps for marketing.",
+      "Do gate every hover style behind `media.hover`, and let reduced motion remove movement while keeping color and fade transitions.",
+      "Do keep motion to 150ms color shifts, the 0.97 press and the ease-out curve."
+    ],
+    "donts": [
+      "Don't use Kargul Orange for buttons, headings, backgrounds or decoration; it is for unread, today, done, progress and focus.",
+      "Don't let a label color grow past its 9px dot.",
+      "Don't add shadows to app surfaces; the only shadow is the marketing demo frame.",
+      "Don't put borders around tiles, cards, sheets or slabs; borders are for hairline rules, ruled tables and form fields.",
+      "Don't use square or slightly rounded buttons; controls are full pills.",
+      "Don't introduce a second accent hue or a second typeface.",
+      "Don't hardcode hex values in component styles; use the `color` tokens so themes swap."
+    ]
+  }
+}

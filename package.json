@@ -1,0 +1,26 @@
+{
+  "name": "saintsflow",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun scripts/dev.ts",
+    "start": "bun src/server.ts",
+    "db:reset": "bun scripts/reset.ts",
+    "smoke": "bun scripts/smoke.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "@types/babel__core": "^7",
+    "@types/bun": "latest",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "@babel/core": "^7.26.8",
+    "@babel/plugin-syntax-typescript": "^7.25.9",
+    "@effect/platform-bun": "4.0.5",
+    "@effect/sql-pg": "4.0.5",
+    "@stylexjs/babel-plugin": "0.19.1",
+    "@stylexjs/stylex": "0.19.1",
+    "effect": "4.0.5"
+  }
+}
