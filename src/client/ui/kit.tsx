@@ -54,6 +54,17 @@ export const Face = ({ p, px = 32 }: { p: { name: string; avatar_url?: string | 
 }
 
 /** A plain-text body, formatted: links, @mentions bold, line breaks kept. `fmt` escapes everything first. */
+/** `ref={fadeOverflow}` on a row that scrolls sideways: its end fades (app.css `[data-more]`) only while there is more to scroll to. */
+export const fadeOverflow = (el: HTMLElement | null) => {
+  if (!el) return
+  // Only a row that actually scrolls; a visible-overflow row's scrollWidth also counts things hanging off it (tips).
+  const check = () => el.toggleAttribute("data-more", getComputedStyle(el).overflowX !== "visible" && el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  const ro = new ResizeObserver(check)
+  ro.observe(el)
+  el.addEventListener("scroll", check, { passive: true })
+  return () => { ro.disconnect(); el.removeEventListener("scroll", check) }
+}
+
 export const Fmt = ({ text, ...rest }: { text: string | null | undefined } & React.HTMLAttributes<HTMLDivElement>) =>
   <div {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />
 

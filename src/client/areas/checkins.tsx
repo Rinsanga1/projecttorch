@@ -7,7 +7,7 @@ import { Form as GetForm, useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, peopleByIds, personById, recordings, commentCount, useVisit, NoAccess, NotFound, type PersonWithCompany } from "../data.ts"
 import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
-import { fmtDate, ms, plural } from "../../shared/format.ts"
+import { excerpt, fmtDate, ms, plural } from "../../shared/format.ts"
 import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, submitOnChange, TextArea } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
@@ -16,13 +16,16 @@ import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 
 // Questions as cards; on a question, its answers by day, each answer a card with the person's face.
 const ck = stylex.create({
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: space.s3, margin: 0, marginBottom: space.s5 },
+  // auto-fit: one question fills the row instead of sitting as a half-width card.
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: space.s3, margin: 0, marginBottom: space.s5 },
   card: {
     position: "relative", borderTopWidth: 0, padding: space.s5, borderRadius: radius.xl, display: "grid", gap: space.s2, alignContent: "start", minHeight: 132,
     backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
   },
   cardTitle: { fontSize: text.md, fontWeight: 650, letterSpacing: "-0.02em", textDecoration: "none",
     "::after": { content: '""', position: "absolute", inset: 0, borderRadius: "inherit" } },
+  latest: { display: "grid", gap: space.s1, margin: 0, marginTop: space.s2, fontSize: text.sm },
+  latestItem: { borderTopWidth: 0, paddingBlock: 0, color: color.muted },
   group: { fontSize: text.xs, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: color.muted, marginTop: space.s6, marginBottom: space.s3 },
   asked: { fontSize: text.md, color: color.muted, marginBottom: space.s5 },
   manage: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2, marginBottom: space.s5, maxWidth: "none" },
@@ -135,7 +138,17 @@ export const routes = [
     const questions = recordings((r) => r.project_id === p.id && r.type === "question" && r.status === "active").sort((a, b) => a.position - b.position || a.id - b.id)
     const active = questions.filter((q) => !q.data.paused)
     const paused = questions.filter((q) => q.data.paused)
-    const item = (q: Recording) => <li key={q.id} {...sx(ck.card)}><a href={urlFor(q)} {...sx(ck.cardTitle)}>{q.title}</a><small>{summary(q)}</small></li>
+    // A question shows its newest answers, so the start page says what people said, not just what was asked.
+    const item = (q: Recording) => {
+      const latest = recordings((a) => a.parent_id === q.id && a.type === "answer" && a.status === "active").sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3)
+      return (
+        <li key={q.id} {...sx(ck.card)}><a href={urlFor(q)} {...sx(ck.cardTitle)}>{q.title}</a><small>{summary(q)}</small>
+          {latest.length > 0 && <ul {...sx(ck.latest)}>{latest.map((a) => (
+            <li key={a.id} {...sx(ck.latestItem)}><b>{personById(a.creator_id)?.name.split(" ")[0] ?? "Someone"}:</b> {excerpt(a.body, 110)}</li>
+          ))}</ul>}
+        </li>
+      )
+    }
     return (
       <Page title="Team questions" crumbs={projectCrumbs(p)}>
         <PageHead title="Team questions" actions={[p.status === "active" && !isClient(me()) && <a key="new" href={`/projects/${p.id}/questions/new`} data-button>Ask a new question</a>]} />

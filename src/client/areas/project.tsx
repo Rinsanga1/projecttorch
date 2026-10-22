@@ -7,15 +7,17 @@ import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-rou
 import { db, temp } from "../store.ts"
 import { me, findProject, projectPeople, accountPeople, memberIds, recordings, commentCount, useApi, useVisit, canInvite, NoAccess } from "../data.ts"
 import { Desk, type DeskWindow } from "../ui/desk.tsx"
+import { Icon } from "../ui/icons.tsx"
 import { ToolWindow, windowAt, windowBack } from "../ui/window-router.tsx"
-import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
-import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
+import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, TYPE_TOOL, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
+import { daysFromToday, fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
 import { ActivityList } from "../ui/activity.tsx"
 import { Face, Fmt, kit, menu, sx } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, submitOnChange } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, font, radius, space, text } from "../ui/tokens.stylex.ts"
 import { togglePin } from "./home.tsx"
+import { fmtHours } from "./timesheet.tsx"
 
 // The pages off the project menu: activity and gauge updates as rows led by a face, trashed and archived items as
 // rows with their action at the end, a tile around the forms that add something (a webhook, a gauge update).
@@ -68,8 +70,12 @@ const ps = stylex.create({
   gauge: { width: 64, height: 6 },
   pitch: { margin: 0, fontSize: text.sm, color: color.muted, maxWidth: "48ch" },
   tileText: { margin: 0, fontSize: text.sm },
-  list: { margin: 0, fontSize: text.sm },
-  item: { borderTopWidth: 0, paddingBlock: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  // A link row in the Links window.
+  door: { display: "flex", alignItems: "flex-start", gap: space.s3, paddingBlock: 10 },
+  doorIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, flexShrink: 0, borderRadius: radius.md, backgroundColor: color.tile },
+  doorText: { minWidth: 0, flexGrow: 1 },
+  doorMore: { flexShrink: 0, paddingInline: space.s2, color: color.muted, textDecoration: "none" },
+  addLink: { marginTop: space.s3, marginBottom: 0, fontSize: text.sm },
   itemLink: { textDecoration: "none", ":hover": { textDecoration: "underline" } },
   // Inside a window: rows of title, a muted line of facts, and sometimes an excerpt or the next tasks.
   rows: { margin: 0, fontSize: text.base },
@@ -153,8 +159,8 @@ const windowBody = (p: Project, t: ToolType): ReactNode => {
       const m = minutesThisMonth(p)
       const recent = [...db.time_entries.values()].filter((e) => e.project_id === p.id).sort((a, b) => b.on_date.localeCompare(a.on_date) || b.id - a.id).slice(0, 5)
       return m || recent.length ? <>
-        <p {...sx(ps.tileText)}><b>{(m / 60).toFixed(1)} hours</b> logged this month</p>
-        {list(recent.map((e) => row(e.id, e.description || "Time logged", `${who(e.person_id)} · ${fmtDate(e.on_date)} · ${(e.minutes / 60).toFixed(1)} h`)))}
+        <p {...sx(ps.tileText)}><b>{fmtHours(m)} hours</b> logged this month</p>
+        {list(recent.map((e) => row(e.id, e.description || "Time logged", `${who(e.person_id)} · ${fmtDate(e.on_date)} · ${fmtHours(e.minutes)} h`)))}
       </> : null
     }
   }
@@ -167,6 +173,33 @@ const minutesThisMonth = (p: Project) => {
   return [...db.time_entries.values()].filter((e) => e.project_id === p.id && e.on_date >= month).reduce((n, e) => n + e.minutes, 0)
 }
 
+/** Open tasks in the project past their due date. */
+const lateTasks = (p: Project) =>
+  activeIn(p, "todolist").flatMap(todosOf).filter((x) => !x.data.completed_at && x.data.due_on && x.data.due_on < today()).length
+
+/** What other people added to each window since `since`. Comments count in the window of what they comment on; structure
+ * (board columns, task groups, card steps) isn't news. */
+const NOT_NEWS = new Set(["column", "todogroup", "step"])
+const newsSince = (p: Project, since: string | null, meId: number) => {
+  const n = new Map<string, number>()
+  if (!since) return n
+  for (const r of recordings((r) => r.project_id === p.id && r.status === "active" && r.created_at > since && r.creator_id !== meId && !NOT_NEWS.has(r.type))) {
+    const on = r.type === "comment" ? db.recordings.get(String(r.parent_id))?.type : r.type
+    const tool = on && TYPE_TOOL[on]
+    if (tool) n.set(tool, (n.get(tool) ?? 0) + 1)
+  }
+  return n
+}
+
+/** When you last opened the project, in words: "Since yesterday", "Since Tuesday", "Since Oct 12". */
+const sinceLabel = (iso: string) => {
+  const ago = -daysFromToday(iso)
+  if (ago <= 0) return "Since earlier today"
+  if (ago === 1) return "Since yesterday"
+  if (ago < 7) return `Since ${new Date(iso).toLocaleDateString("en-US", { weekday: "long" })}`
+  return `Since ${fmtDate(iso)}`
+}
+
 /** One line about what's new in a tool, for its window's title bar and its taskbar tip. */
 const summary = (p: Project, t: ToolType): string => {
   switch (t) {
@@ -177,7 +210,7 @@ const summary = (p: Project, t: ToolType): string => {
     case "todos": {
       const ts = activeIn(p, "todolist").flatMap(todosOf)
       const done = ts.filter((x) => x.data.completed_at).length
-      const late = ts.filter((x) => !x.data.completed_at && x.data.due_on && x.data.due_on < today()).length
+      const late = lateTasks(p)
       return ts.length ? `${done} of ${ts.length} done${late ? ` · ${late} late` : ""}` : "No tasks yet"
     }
     case "vault": {
@@ -209,10 +242,13 @@ const summary = (p: Project, t: ToolType): string => {
     }
     case "timesheet": {
       const m = minutesThisMonth(p)
-      return m ? `${(m / 60).toFixed(1)} hours this month` : "No time logged this month"
+      return m ? `${fmtHours(m)} hours this month` : "No time logged this month"
     }
   }
 }
+
+/** "https://www.figma.com/file/…" → "figma.com". */
+const hostOf = (url: string) => { try { return new URL(url).host.replace(/^www\./, "") } catch { return url } }
 
 const enabledTools = (p: Project) => p.tools.filter((t) => t.enabled)
 
@@ -234,28 +270,43 @@ const useProject = (opts?: { staff?: boolean }) => {
 }
 
 const ProjectHome = observer(({ p }: { p: Project }) => {
-  useVisit(projectUrl(p), p.name, p.id)
   const m = me()
+  // When you last opened this project, taken once as the page opens (the visit below moves it to now).
+  const [sinceAt] = useState(() => m.prefs.project_seen?.[String(p.id)] ?? null)
+  useVisit(projectUrl(p), p.name, p.id)
   const people = projectPeople(p)
   const clients = people.filter(isClient)
   const tools = isClient(m) ? enabledTools(p).filter((t) => t.type !== "timesheet") : enabledTools(p)
   const doors = recordings((r) => r.project_id === p.id && r.type === "door" && r.status === "active").sort(byPosition)
   const gauge = [...db.gauge_updates.values()].filter((g) => g.project_id === p.id).sort((a, b) => b.id - a.id)[0]
+  const news = newsSince(p, sinceAt, m.id)
+  const late = lateTasks(p)
   // The big window shows the tool's own pages to work in; the stack shows the preview.
   const windows: DeskWindow[] = tools.map((t) => {
     const body = windowBody(p, t.type)
     const start = toolUrl(p, t.type), at = windowAt(start)
     return {
       key: t.type, name: t.name, icon: t.type, summary: summary(p, t.type),
-      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body,
+      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.type) ?? 0, late: t.type === "todos" ? late : 0,
       work: <ToolWindow start={start} home={`/projects/${p.id}`} />, back: at.depth > 0 ? () => windowBack(start) : undefined,
     }
   })
   if (doors.length) windows.push({
     key: "links", name: "Links", icon: "links", summary: doors.map((d) => d.title).join(", "),
-    body: <ul {...sx(ps.list)}>{doors.map((d) => (
-      <li key={d.id} {...sx(ps.item)}><a href={d.data.url} target="_blank" rel="noopener" {...sx(ps.itemLink)}>{d.title}</a>{d.data.description && <small>: {d.data.description}</small>} <small><a href={`/projects/${p.id}/links/${d.id}`} aria-label={`Options for ${d.title}`}>•••</a></small></li>
-    ))}</ul>,
+    // Each link as a row that reads as a link: icon, its name (underlined, opens in a new tab), the site it goes to.
+    body: <>
+      <ul {...sx(ps.rows)}>{doors.map((d) => (
+        <li key={d.id} {...sx(ps.door)}>
+          <span aria-hidden="true" {...sx(ps.doorIcon)}><Icon name="links" size={16} /></span>
+          <span {...sx(ps.doorText)}>
+            <a href={d.data.url} target="_blank" rel="noopener" {...sx(ps.rowTitle)}>{d.title}<span {...sx(kit.srOnly)}> (opens in a new tab)</span></a>
+            <small {...sx(ps.meta)}>{hostOf(d.data.url)}{d.data.description && ` · ${d.data.description}`}</small>
+          </span>
+          {!isClient(m) && <a href={`/projects/${p.id}/links/${d.id}`} aria-label={`Options for ${d.title}`} title="Options" data-row-action {...sx(ps.doorMore)}>•••</a>}
+        </li>
+      ))}</ul>
+      {!isClient(m) && p.status === "active" && <p {...sx(ps.addLink)}><a href={`/projects/${p.id}/links/new`}>Add a link</a></p>}
+    </>,
   })
   return (
     <Page title={p.name} crumbs={p.kind === "template" ? [["Templates", "/templates"]] : undefined} flush>
@@ -287,7 +338,8 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
           </div>
         </div>
       </div>
-      <Desk windows={windows} storageKey={`saintsflow:desk:${p.id}`} />
+      <Desk windows={windows} storageKey={`saintsflow:desk:${p.id}`} since={sinceAt ? sinceLabel(sinceAt) : undefined}
+        addHref={!isClient(m) && p.status === "active" ? `/projects/${p.id}/tools` : undefined} />
     </Page>
   )
 })
@@ -330,7 +382,8 @@ export const routes = [
   page("/projects/:id", () => {
     const p = useProject()
     if (p.kind === "ping") return <Navigate replace to={`/chats/${p.id}`} />
-    return <ProjectHome p={p} />
+    // Keyed by project: its "since" moment is taken when this project's page opens.
+    return <ProjectHome key={p.id} p={p} />
   }),
 
   page("/projects/:id/edit", () => {

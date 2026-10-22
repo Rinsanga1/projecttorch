@@ -31,6 +31,9 @@ const cs = stylex.create({
   dayRule: { flexGrow: 1, height: 1, backgroundColor: color.line },
   dayLabel: { margin: 0, fontSize: text.xs, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
   composer: { padding: space.s4, borderRadius: radius.xl, backgroundColor: color.tile, display: "grid", gap: space.s2 },
+  // In a window the composer stays at the window's bottom while you read back; the shadow paints the window's white into
+  // the gap under it, so older lines don't peek through.
+  composerPinned: { position: "sticky", bottom: 0, zIndex: 1, boxShadow: `0 12px 0 0 ${color.sheet}` },
   field: { width: "100%", maxWidth: "none", minHeight: "3.5em", backgroundColor: color.sheet, margin: 0 },
   composerRow: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s3, margin: 0, maxWidth: "none" },
   composerHint: { margin: 0 },
@@ -149,7 +152,7 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
         ])}
       </ul>
       {p.status === "active" ? (
-        <Form id="say" action={`${base}/lines`} encType="multipart/form-data" optimistic={say} onDone={() => { field.current?.form?.reset(); setFile("") }} {...sx(cs.composer)}>
+        <Form id="say" action={`${base}/lines`} encType="multipart/form-data" optimistic={say} onDone={() => { field.current?.form?.reset(); setFile("") }} {...sx(cs.composer, inWindow && cs.composerPinned)}>
           <textarea
             ref={field} name="body" rows={2} cols={70} placeholder="Type a message…" aria-label="Message" {...sx(cs.field)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit() } }}

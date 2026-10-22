@@ -336,13 +336,15 @@ export const visibleProjects = (c: Ctx, opts: { status?: string; kind?: string }
       order by p.is_hq desc, p.name`
   })
 
-/** Remember the last pages someone visited (Go to, Home's "recently visited"). */
+/** Remember the last pages someone visited (Go to, Home's "recently visited"), and when they last saw each project. */
 export const trackVisit = (c: Ctx, href: string, title: string, projectId?: number) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const pages = [{ href, title }, ...((c.me.prefs as any).recent_pages ?? []).filter((p: any) => p.href !== href)].slice(0, 12)
     const projects = projectId ? [projectId, ...((c.me.prefs as any).recent_projects ?? []).filter((id: number) => id !== projectId)].slice(0, 8) : (c.me.prefs as any).recent_projects ?? []
-    yield* sql`update people set prefs = prefs || ${JSON.stringify({ recent_pages: pages, recent_projects: projects })}::jsonb, last_active_at = now() where id = ${c.me.id}`
+    // When this person last looked at each project, for its "Since Tuesday" line.
+    const seen = projectId ? { ...((c.me.prefs as any).project_seen ?? {}), [projectId]: new Date().toISOString() } : (c.me.prefs as any).project_seen
+    yield* sql`update people set prefs = prefs || ${JSON.stringify({ recent_pages: pages, recent_projects: projects, ...(seen && { project_seen: seen }) })}::jsonb, last_active_at = now() where id = ${c.me.id}`
   })
 
 /** Can this person make new projects? */

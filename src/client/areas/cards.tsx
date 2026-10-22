@@ -7,7 +7,7 @@ import { db } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, children, recordings, personById, useVisit, NoAccess, NotFound, type PersonWithCompany } from "../data.ts"
 import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, isoDate } from "../../shared/format.ts"
-import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
+import { ByLine, fadeOverflow, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
@@ -18,7 +18,9 @@ import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 const DOT: Record<string, string> = { red: "#e5484d", orange: "#f99c00", yellow: "#f5c518", green: "#30a46c", blue: "#3e7bfa", purple: "#8e4ec6", gray: "#8b8d98" }
 const ks = stylex.create({
   board: {
-    display: "grid", gridAutoFlow: "column", gridAutoColumns: "min(256px, 82vw)", gap: space.s3, alignItems: "start",
+    // Columns share the width when they fit (a window with two or three columns has no empty gap); past that the
+    // board scrolls sideways, its end fading while there are more columns to see.
+    display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(min(240px, 82vw), 1fr)", gap: space.s3, alignItems: "start",
     overflowX: "auto", overscrollBehaviorX: "contain", scrollSnapType: "x proximity", paddingBottom: space.s3, marginBottom: space.s5,
   },
   column: { scrollSnapAlign: "start", backgroundColor: color.tile, borderRadius: radius.xl, padding: space.s3, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: space.s2 },
@@ -152,7 +154,7 @@ export const routes = [
         <EnsureColumns p={p} cols={cols} />
         <PageHead title="Board" actions={[active && !isClient(m) && <a key="add" href={`/projects/${p.id}/columns/new`} data-button>Add a column</a>]} />
         {cards.length === 0 && <p>Move cards from column to column as work gets done. Add your first card to New, or set up your columns first.</p>}
-        <div {...sx(ks.board)}>
+        <div ref={fadeOverflow} {...sx(ks.board)}>
           {cols.map((col) => {
             const inCol = cards.filter((k) => k.parent_id === col.id)
             const held = col.data.on_hold ? inCol.filter((k) => k.data.on_hold) : []
