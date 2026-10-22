@@ -1,15 +1,9 @@
-// `bun run dev`: run the server and restart it when anything in src/ changes.
-// Not `bun --watch`: it doesn't see files that the StyleX preload (src/lib/stylex-plugin.ts) compiles.
-import { watch } from "node:fs"
+// `bun run dev`: the API server on 3001 (restarts when src/ changes) and Vite on http://localhost:3000.
+const run = (cmd: string[], env: Record<string, string> = {}) =>
+  Bun.spawn(cmd, { stdio: ["inherit", "inherit", "inherit"], env: { ...process.env, ...env } })
 
-const start = () => Bun.spawn(["bun", "src/server.ts"], { stdio: ["inherit", "inherit", "inherit"] })
-let server = start()
-let timer: Timer | undefined
-watch("src", { recursive: true }, () => {
-  clearTimeout(timer)
-  timer = setTimeout(async () => {
-    server.kill()
-    await server.exited
-    server = start()
-  }, 100)
-})
+const api = run(["bun", "--watch", "src/server.ts"], { PORT: "3001" })
+const web = run(["bunx", "--bun", "vite"], { API_PORT: "3001" })
+await Promise.race([api.exited, web.exited])
+api.kill()
+web.kill()
