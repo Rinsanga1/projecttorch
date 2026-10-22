@@ -90,8 +90,8 @@ const Line = ({ l, base, meId, tz }: { l: Recording; base: string; meId: number;
         {!isTemp(l.id) && (
           <p {...sx(cs.extras)}>
             {boosts && <small>Reactions: {boosts}</small>}
-            <a href={`/r/${l.id}/reactions`} {...sx(cs.quiet)}>React</a>
-            {own && <span><a href={`${base}/lines/${l.id}/edit`} {...sx(cs.quiet)}>Edit</a> · <a href={`/r/${l.id}/trash`} {...sx(cs.quiet)}>Delete</a></span>}
+            <a href={`/r/${l.id}/reactions`} data-row-action {...sx(cs.quiet)}>React</a>
+            {own && <span data-row-action><a href={`${base}/lines/${l.id}/edit`} {...sx(cs.quiet)}>Edit</a> · <a href={`/r/${l.id}/trash`} {...sx(cs.quiet)}>Delete</a></span>}
           </p>
         )}
       </div>

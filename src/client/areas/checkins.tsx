@@ -30,6 +30,7 @@ const ck = stylex.create({
   group: { fontSize: text.xs, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: color.muted, marginTop: space.s6, marginBottom: space.s3 },
   asked: { fontSize: text.md, color: color.muted, marginBottom: space.s5 },
   manage: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2, marginBottom: space.s5, maxWidth: "none" },
+  more: { margin: 0 },
   day: { display: "flex", alignItems: "center", gap: space.s3, marginTop: space.s6, marginBottom: space.s3, fontSize: text.xs, fontWeight: 600,
     letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
   rule: { flexGrow: 1, height: 1, backgroundColor: color.line },
@@ -199,14 +200,20 @@ export const routes = [
         {q.status === "active" && !isClient(m) && (
           <div {...sx(ck.manage)}>
             <a href={`/projects/${project.id}/questions/${q.id}/edit`} data-button>Edit</a>
-            <Form
-              action={`/projects/${project.id}/questions/${q.id}/${d.paused ? "resume" : "pause"}`}
-              style={{ display: "inline" }}
-              optimistic={() => db.recordings.set(String(q.id), { ...q, data: { ...q.data, paused: !d.paused } })}
-            >
-              <button>{d.paused ? "Resume" : "Pause"}</button>
-            </Form>
-            <a href={`/r/${q.id}/trash`}>Trash</a>
+            {/* Pausing and trashing are rare and the second can't be a slip: both one quiet click away. */}
+            <details {...sx(ck.more)}>
+              <summary aria-label="More for this question" title="Pause or trash this question" {...sx(kit.quietSummary)}>•••</summary>
+              <div {...sx(ck.manage)}>
+                <Form
+                  action={`/projects/${project.id}/questions/${q.id}/${d.paused ? "resume" : "pause"}`}
+                  style={{ display: "inline" }}
+                  optimistic={() => db.recordings.set(String(q.id), { ...q, data: { ...q.data, paused: !d.paused } })}
+                >
+                  <button>{d.paused ? "Resume asking" : "Pause asking"}</button>
+                </Form>
+                <a href={`/r/${q.id}/trash`}>Put it in the trash</a>
+              </div>
+            </details>
           </div>
         )}
         {(answerers.length > 1 || personId) && (

@@ -49,7 +49,8 @@ export const ClientBanner = ({ r, hasClients }: { r: Recording; hasClients: bool
     ? <p {...sx(fs.vis)}><Svg d={r.visible_to_clients ? EYE : LOCK} /><span>{r.visible_to_clients ? "This is visible to clients." : "Clients can't see this."}</span> <a href={`/r/${r.id}/clients`}>Change</a></p>
     : null
 
-// The bottom of every item page: boost pills, the comment thread, the comment box, who gets notified.
+// The bottom of every item page, kept short so the record stays the biggest thing: the boost pills and a quiet "React",
+// the comment thread, a one-line comment box that opens as you write, and one line about who gets notified.
 const fs = stylex.create({
   vis: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, fontSize: text.sm, color: color.muted },
   menuFor: { color: color.muted, marginBottom: space.s6 },
@@ -72,14 +73,14 @@ const fs = stylex.create({
   commentMeta: { display: "flex", flexWrap: "wrap", columnGap: space.s3, marginTop: space.s2, marginBottom: 0, fontSize: text.sm },
   quiet: { color: color.muted, textDecoration: "none", ":hover": { textDecoration: "underline" } },
   box: { display: "grid", gridTemplateColumns: "32px 1fr", columnGap: space.s3, marginTop: space.s3, padding: space.s4, borderRadius: radius.xl, backgroundColor: color.tile },
-  boxField: { width: "100%", maxWidth: "none", minHeight: "6.5em", backgroundColor: color.sheet },
+  // One line until you're writing in it (focused, or with text in it), then room to write.
+  boxField: { width: "100%", maxWidth: "none", backgroundColor: color.sheet, resize: "none", minHeight: { default: "6.5em", ":placeholder-shown": { default: "2.75em", ":focus": "6.5em" } } },
+  reactOpen: { display: "inline-flex", margin: 0 },
+  subsLine: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s3, rowGap: space.s1, marginTop: space.s6, fontSize: text.sm, color: color.muted },
   hints: { display: "grid", gap: 2, marginBlock: space.s2 },
   hint: { margin: 0 },
-  subs: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s4 },
-  people: { display: "flex", alignItems: "center", gap: space.s3, margin: 0 },
   stack: { display: "flex", flexShrink: 0, paddingLeft: 8 },
   stacked: { marginLeft: -8, borderRadius: radius.pill, borderWidth: 2, borderStyle: "solid", borderColor: color.sheet, display: "inline-flex" },
-  subActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s3, margin: 0 },
   more: { marginTop: space.s6, marginBottom: 0 },
 })
 
@@ -121,15 +122,18 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
       <section aria-label="Reactions" {...sx(fs.boosts)}>
         <BoostList recordingId={r.id} />
         {!readOnly && (
-          <Form action={`/r/${r.id}/reactions`} optimistic={addBoost(r.id)} {...sx(fs.boostForm)}>
-            <input name="content" maxLength={16} size={16} placeholder="React with an emoji or a few words" aria-label="Reaction" required {...sx(fs.boostInput)} />{" "}
-            <button data-quiet {...sx(fs.boostButton)}>React</button>
-          </Form>
+          <details {...sx(fs.reactOpen)}>
+            <summary>React</summary>
+            <Form action={`/r/${r.id}/reactions`} optimistic={addBoost(r.id)} {...sx(fs.boostForm)}>
+              <input name="content" maxLength={16} size={16} placeholder="An emoji or a few words" aria-label="Reaction" required autoFocus {...sx(fs.boostInput)} />{" "}
+              <button data-quiet {...sx(fs.boostButton)}>Add</button>
+            </Form>
+          </details>
         )}
       </section>
       {showComments && (
         <section aria-label="Comments" id="comments" {...sx(fs.section)}>
-          <h2 {...sx(fs.heading)}>Comments</h2>
+          {thread.length > 0 && <h2 {...sx(fs.heading)}>Comments</h2>}
           {thread.map((cm) => {
             const author = db.people.get(String(cm.creator_id))
             const bs = boostsOn(cm.id)
@@ -141,7 +145,7 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
                   <Fmt text={cm.body} {...sx(fs.commentBody)} />
                   {bs.length > 0 && <p {...sx(fs.commentMeta)}><small>Reactions: {bs.map((b) => `${b.content} ${db.people.get(String(b.person_id))?.name ?? ""}`).join(", ")}</small></p>}
                   <p {...sx(fs.commentMeta)}>
-                    <a href={`/r/${cm.id}/reactions`} {...sx(fs.quiet)}>React</a>
+                    <a href={`/r/${cm.id}/reactions`} data-row-action {...sx(fs.quiet)}>React</a>
                     {cm.creator_id === m.id && !readOnly && <><a href={`/r/${r.id}/comments/${cm.id}/edit`} {...sx(fs.quiet)}>Edit</a> <a href={`/r/${cm.id}/trash`} {...sx(fs.quiet)}>Delete</a></>}
                   </p>
                 </div>
@@ -149,38 +153,33 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
             )
           })}
           {!readOnly && (
-            <Form action={`/r/${r.id}/comments`} {...sx(fs.box)}>
+            <Form action={`/r/${r.id}/comments`} data-composer {...sx(fs.box)}>
               <Face p={m} />
               <div>
-                <p><textarea name="body" rows={4} cols={70} placeholder="Add a comment here…" aria-label="Add a comment" required {...sx(fs.boxField)} /></p>
-                <div {...sx(fs.hints)}>
-                  <p {...sx(fs.hint)}><small>Mention someone with @: {pool.filter((p) => p.id !== m.id).map((p) => `@${p.name.split(" ")[0]}`).join(", ")}</small></p>
-                  <p {...sx(fs.hint)}><small>Adding this comment will notify {plural(subs.filter((p) => p.id !== m.id).length, "person", "people")}. <a href={`/r/${r.id}/subscribers`}>Who's that?</a></small></p>
+                <p><textarea name="body" rows={1} cols={70} placeholder="Add a comment…" aria-label="Add a comment" required {...sx(fs.boxField)} /></p>
+                {/* The rest shows once you're writing (app.css [data-composer]). */}
+                <div data-composer-more>
+                  <div {...sx(fs.hints)}>
+                    <p {...sx(fs.hint)}><small>Mention someone with @: {pool.filter((p) => p.id !== m.id).map((p) => `@${p.name.split(" ")[0]}`).join(", ")}</small></p>
+                    <p {...sx(fs.hint)}><small>This notifies {plural(subs.filter((p) => p.id !== m.id).length, "person", "people")}. <a href={`/r/${r.id}/subscribers`}>Who's that?</a></small></p>
+                  </div>
+                  <p><button>Add this comment</button></p>
                 </div>
-                <p><button>Add this comment</button> <small>You can also reply to the notification email to comment.</small></p>
               </div>
             </Form>
           )}
         </section>
       )}
-      <section aria-label="Subscribers" {...sx(fs.section)}>
-        <h2 {...sx(fs.heading)}>Subscribers</h2>
-        <div {...sx(fs.subs)}>
-          <p {...sx(fs.people)}>
-            <span {...sx(fs.stack)} aria-hidden="true">{subs.slice(0, 6).map((p) => <span key={p.id} {...sx(fs.stacked)}><Face p={p} px={28} /></span>)}</span>
-            <span>{plural(subs.length, "person", "people")} will be notified when someone comments on this: {subs.map((p, i) => <span key={p.id}>{i ? ", " : ""}<a href={`/people/${p.id}`}>{p.name}</a></span>)}</span>
-          </p>
-          <div {...sx(fs.subActions)}>
-            <Form
-              action={`/r/${r.id}/${subscribed ? "unsubscribe" : "subscribe"}`}
-              optimistic={() => (subscribed ? db.subscriptions.delete(`${r.id}:${m.id}`) : db.subscriptions.set(`${r.id}:${m.id}`, { recording_id: r.id, person_id: m.id }))}
-            >
-              <button>{subscribed ? "Unsubscribe me" : "Subscribe me"}</button>
-            </Form>
-            <a href={`/r/${r.id}/subscribers`}><small>Add/remove people…</small></a>
-          </div>
-        </div>
-        {!subscribed && <p><small>You're not getting notifications about new comments.</small></p>}
+      <section aria-label="Who gets notified" {...sx(fs.subsLine)}>
+        <span {...sx(fs.stack)} aria-hidden="true">{subs.slice(0, 6).map((p) => <span key={p.id} {...sx(fs.stacked)}><Face p={p} px={24} /></span>)}</span>
+        <span title={subs.map((p) => p.name).join(", ")}>{subscribed ? `${plural(subs.length, "person", "people")} get notified of new comments` : "You're not notified of new comments"}</span>
+        <a href={`/r/${r.id}/subscribers`}>Change</a>
+        <Form
+          action={`/r/${r.id}/${subscribed ? "unsubscribe" : "subscribe"}`} style={{ display: "inline" }}
+          optimistic={() => (subscribed ? db.subscriptions.delete(`${r.id}:${m.id}`) : db.subscriptions.set(`${r.id}:${m.id}`, { recording_id: r.id, person_id: m.id }))}
+        >
+          <button data-quiet {...sx(kit.linkButton)}>{subscribed ? "Unsubscribe me" : "Subscribe me"}</button>
+        </Form>
       </section>
       <p {...sx(fs.more)}><a href={`/r/${r.id}/menu`}>••• More options for this {TYPE_NAMES[r.type] ?? "item"}</a></p>
     </>

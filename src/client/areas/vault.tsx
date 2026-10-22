@@ -13,6 +13,7 @@ import { NewTag } from "../ui/in-window.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
+import { DOT } from "./cards.tsx"
 
 const fmtSize = (n: number) => (n < 1024 ? `${n} bytes` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : n < 1024 ** 3 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${(n / 1024 ** 3).toFixed(2)} GB`)
 
@@ -72,7 +73,12 @@ const vs = stylex.create({
   },
   thumb: { display: "flex", alignItems: "center", justifyContent: "center", aspectRatio: "4 / 3", borderRadius: radius.lg, backgroundColor: color.sheet, overflow: "hidden" },
   thumbImg: { width: "100%", height: "100%", objectFit: "cover", borderRadius: 0 },
-  new: { display: "flex", flexWrap: "wrap", gap: space.s2, marginBottom: space.s5, maxWidth: "none" },
+  new: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2, marginBottom: space.s5, maxWidth: "none" },
+  newMore: { margin: 0 },
+  newMoreLinks: { display: "flex", flexWrap: "wrap", gap: space.s2, marginTop: space.s2 },
+  // A folder's color, as a dot (never the color's name as text).
+  dot: (bg: string) => ({ backgroundColor: bg }),
+  dotBox: { display: "inline-block", width: 9, height: 9, borderRadius: radius.pill, marginRight: space.s2, verticalAlign: 1 },
 })
 
 const ICONS: Record<string, string> = {
@@ -89,12 +95,17 @@ const Drawn = ({ type, size = 20 }: { type: string; size?: number }) => (
 const NewMenu = ({ p, folderId }: { p: Project; folderId: number | null }) => {
   const q = folderId ? `?folder=${folderId}` : ""
   return (
-    <p {...sx(vs.new)}>
+    <div {...sx(vs.new)}>
+      <a href={`/projects/${p.id}/uploads/new${q}`} data-button data-primary>Upload files</a>
       <a href={`/projects/${p.id}/docs/new${q}`} data-button>New doc</a>
-      <a href={`/projects/${p.id}/folders/new${q}`} data-button>New folder</a>
-      <a href={`/projects/${p.id}/uploads/new${q}`} data-button>Upload files</a>
-      <a href={`/projects/${p.id}/cloudfiles/new${q}`} data-button>Link to a Google Doc, Sheet…</a>
-    </p>
+      <details {...sx(vs.newMore)}>
+        <summary aria-label="More ways to add" title="New folder, or a link to a cloud file" {...sx(kit.quietSummary)}>•••</summary>
+        <p {...sx(vs.newMoreLinks)}>
+          <a href={`/projects/${p.id}/folders/new${q}`} data-button>New folder</a>
+          <a href={`/projects/${p.id}/cloudfiles/new${q}`} data-button>Link a Google Doc, Sheet or other file</a>
+        </p>
+      </details>
+    </div>
   )
 }
 
@@ -102,8 +113,8 @@ const ItemLabel = observer(({ r }: { r: Recording }) => {
   const comments = commentCount(r.id)
   return (
     <div>
-      <a href={urlFor(r)} {...sx(vs.title)}>{titleOf(r)}</a><NewTag r={r} />
-      {r.type === "folder" && <> <small>({plural(childCount(r.id), "item")}{r.data.color ? `, ${r.data.color}` : ""})</small></>}
+      {r.type === "folder" && r.data.color && <span aria-hidden="true" {...sx(vs.dotBox, vs.dot(DOT[r.data.color] ?? DOT.gray!))} />}<a href={urlFor(r)} {...sx(vs.title)}>{titleOf(r)}</a><NewTag r={r} />
+      {r.type === "folder" && <> <small>({plural(childCount(r.id), "item")})</small></>}
       {r.type === "upload" && r.data.size ? <> <small>({fmtSize(r.data.size)})</small></> : null}
       <span {...sx(vs.meta)}>
         <span>{personById(r.creator_id)?.name ?? "Someone"} · {fmtDate(r.updated_at, me().time_zone)}{comments ? ` · ${plural(comments, "comment")}` : ""}</span>
@@ -233,7 +244,7 @@ export const routes = [
       <Page title="Files" crumbs={projectCrumbs(p)}>
         <PageHead title="Files" />
         {p.status === "active" && <NewMenu p={p} folderId={null} />}
-        <SortViewForm sort={sort} view={view} />
+        {items.length > 10 && <SortViewForm sort={sort} view={view} />}
         {items.length ? <Listing items={items} view={view} /> : <p {...sx(kit.empty)}>Keep docs, files, and images here. Put them in folders so they're easy to find.</p>}
         <p {...sx(kit.links)}><a href={`/projects/${p.id}/trash`}>Archived & trashed files</a></p>
       </Page>
@@ -255,10 +266,9 @@ export const routes = [
       <Page title={r.title} crumbs={folderCrumbs(p, r.parent_id)}>
         <StatusBanner r={r} />
         <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
-        <h1>📁 {r.title}</h1>
-        {r.data.color && <p><small>Color: {r.data.color}</small></p>}
+        <h1>{r.data.color && <span aria-hidden="true" {...sx(vs.dotBox, vs.dot(DOT[r.data.color] ?? DOT.gray!))} />}{r.title}</h1>
         {r.status === "active" && p.status === "active" && <NewMenu p={p} folderId={r.id} />}
-        <SortViewForm sort={sort} view={view} />
+        {items.length > 10 && <SortViewForm sort={sort} view={view} />}
         {items.length ? <Listing items={items} view={view} /> : <p>This folder is empty. Add a doc or upload files to it.</p>}
         {r.status === "active" && <p><a href={`/projects/${p.id}/folders/${r.id}/edit`}>Rename or recolor this folder</a></p>}
         <ItemFooter r={r} project={p} />

@@ -12,10 +12,11 @@ import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, TextAr
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 import { reorderLocal } from "./todos.tsx"
-import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
+import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
 
 // The table: columns side by side (scrolling sideways when they don't fit), cards as white cards in each column.
-const DOT: Record<string, string> = { red: "#e5484d", orange: "#f99c00", yellow: "#f5c518", green: "#30a46c", blue: "#3e7bfa", purple: "#8e4ec6", gray: "#8b8d98" }
+/** Label colors for board columns and folders, drawn as dots. */
+export const DOT: Record<string, string> = { red: "#e5484d", orange: "#f99c00", yellow: "#f5c518", green: "#30a46c", blue: "#3e7bfa", purple: "#8e4ec6", gray: "#8b8d98" }
 const ks = stylex.create({
   board: {
     // Columns share the width when they fit (a window with two or three columns has no empty gap); past that the
@@ -44,6 +45,24 @@ const ks = stylex.create({
   held: { margin: 0, marginTop: space.s2, paddingInline: 6, fontSize: text.xs, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
   add: { display: "flex", gap: 6, margin: 0 },
   addInput: { flexGrow: 1, minWidth: 0, width: "auto", minHeight: 32, paddingBlock: 3, fontSize: text.sm, margin: 0, backgroundColor: color.sheet },
+  // The card page: title, one line of facts, what to do; steps with real checkboxes, like tasks.
+  facts: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s3, rowGap: space.s1, marginTop: space.s1, color: color.muted, fontSize: text.sm, maxWidth: "none" },
+  // At least as wide as its longest column name (the browser's own measure cuts the name short).
+  columnPick: { color: color.ink, paddingLeft: 8, marginLeft: -8, minWidth: "max-content" },
+  cardDo: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s4, marginTop: space.s5 },
+  steps: { marginTop: space.s7 },
+  stepList: { margin: 0, marginBottom: space.s4 },
+  step: { display: "flex", alignItems: "flex-start", gap: space.s3, paddingBlock: 8 },
+  check: {
+    width: 22, height: 22, minHeight: 22, padding: 0, flexShrink: 0, borderRadius: 7, color: color.onAccent,
+    borderWidth: 1.5, borderStyle: "solid", borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.focus } },
+    backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.accentSoft } },
+    transitionProperty: "background-color, border-color", transitionDuration: motion.fast,
+  },
+  checkDone: { backgroundColor: color.accent, borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.focus } } },
+  stepDone: { color: color.muted, textDecoration: "line-through", textDecorationColor: color.accent, textDecorationThickness: 2 },
+  stepMeta: { display: "block", fontSize: text.xs, color: color.muted },
+  stepRemove: { marginLeft: "auto", fontSize: text.sm, color: color.muted },
 })
 
 const COLORS = ["", "red", "orange", "yellow", "green", "blue", "purple", "gray"]
@@ -89,8 +108,12 @@ const flipLocal = (r: Recording, change: (d: Record<string, any>) => Record<stri
 
 // ---------- pieces ----------
 
-const ColumnSelect = ({ cols, current, name = "column_id", onChange }: { cols: ReadonlyArray<Recording>; current: number | null; name?: string; onChange?: typeof submitOwnForm }) => (
-  <select name={name} defaultValue={current ?? undefined} onChange={onChange}>{cols.map((col) => <option key={col.id} value={col.id}>{col.title}</option>)}</select>
+const ColumnSelect = ({ cols, current, name = "column_id", onChange, label, quiet }: { cols: ReadonlyArray<Recording>; current: number | null; name?: string; onChange?: typeof submitOwnForm; label?: string; quiet?: boolean }) => (
+  <select name={name} defaultValue={current ?? undefined} onChange={onChange} aria-label={label} {...(quiet ? sx(kit.quietSelect, ks.columnPick) : {})}>{cols.map((col) => <option key={col.id} value={col.id}>{col.title}</option>)}</select>
+)
+
+const Tick = () => (
+  <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
 
 const ColorSelect = ({ current }: { current: string }) => (
@@ -267,51 +290,60 @@ export const routes = [
         <EnsureColumns p={project} cols={cols} />
         <StatusBanner r={r} />
         <ClientBanner r={r} hasClients={people.some(isClient)} />
+        {/* The card first, then one line of facts (its column is a quiet "move" dropdown), then what to do with it. */}
         <article>
-          {live
-            ? <Form key={r.parent_id} action={`/projects/${project.id}/cards/${r.id}/move`} optimistic={(fd) => moveLocal(r, fd.get("column_id"))}><label>In column <ColumnSelect cols={cols} current={r.parent_id} onChange={submitOwnForm} /></label></Form>
-            : <p>In column: {col?.title ?? "?"}</p>}
-          {r.data.on_hold && <p>⏸ On hold</p>}
-          {r.data.completed_at && <p>✓ Done {fmtDate(r.data.completed_at, m.time_zone)}</p>}
           <h1>{r.title}</h1>
+          <p {...sx(ks.facts)}>
+            {live
+              ? <Form key={r.parent_id} action={`/projects/${project.id}/cards/${r.id}/move`} style={{ display: "inline" }} optimistic={(fd) => moveLocal(r, fd.get("column_id"))}>
+                  <ColumnSelect cols={cols} current={r.parent_id} onChange={submitOwnForm} label="Column" quiet />
+                </Form>
+              : <span>{col?.title ?? "?"}</span>}
+            {r.data.on_hold && <span>On hold</span>}
+            {r.data.completed_at && <span>Done {fmtDate(r.data.completed_at, m.time_zone)}</span>}
+            <span>{names(people, r.data.assignee_ids) || "Nobody's on it"}</span>
+            {r.data.due_on && <span>due {fmtDate(r.data.due_on)}</span>}
+          </p>
           <ByLine who={author} when={r.created_at} tz={m.time_zone} />
-          <p>Assigned to: {names(people, r.data.assignee_ids) || "Nobody"}</p>
-          <p>Due on: {r.data.due_on ? fmtDate(r.data.due_on) : "No due date"}</p>
-          {r.body ? <Fmt text={r.body} {...sx(kit.prose)} /> : <p><small>No notes.</small></p>}
+          {r.body && <Fmt text={r.body} {...sx(kit.prose)} />}
           {live && (
-            <>
-              <p><a href={`/projects/${project.id}/cards/${r.id}/edit`}>Edit</a></p>
-              {col?.data.kind !== "done" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
+            <p {...sx(ks.cardDo)}>
+              {col?.data.kind !== "done" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} style={{ display: "inline" }} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
+              <a href={`/projects/${project.id}/cards/${r.id}/edit`}>Edit</a>
               {col?.data.on_hold && (
-                <Form action={`/projects/${project.id}/cards/${r.id}/hold`} optimistic={() => flipLocal(r, (d) => ({ on_hold: !d.on_hold }))}>
-                  <button>{r.data.on_hold ? "Take off hold" : "Put on hold"}</button>
+                <Form action={`/projects/${project.id}/cards/${r.id}/hold`} style={{ display: "inline" }} optimistic={() => flipLocal(r, (d) => ({ on_hold: !d.on_hold }))}>
+                  <button data-quiet {...sx(kit.linkButton)}>{r.data.on_hold ? "Take off hold" : "Put on hold"}</button>
                 </Form>
               )}
-            </>
+            </p>
           )}
         </article>
-        <section aria-label="Steps">
+        <section aria-label="Steps" {...sx(ks.steps)}>
           <h2>Steps</h2>
           {steps.length ? (
-            <ul>{steps.map((s) => (
-              <li key={s.id} id={`step-${s.id}`}>
+            <ul {...sx(ks.stepList)}>{steps.map((s) => (
+              <li key={s.id} id={`step-${s.id}`} {...sx(ks.step)}>
                 <Form action={`/projects/${project.id}/steps/${s.id}/toggle`} style={{ display: "inline" }} optimistic={() => flipLocal(s, (d) => ({ completed_at: d.completed_at ? null : new Date().toISOString() }))}>
-                  <button aria-label={`${s.data.completed_at ? "Uncheck" : "Check off"} ${s.title}`}>{s.data.completed_at ? "☑" : "☐"}</button>
-                </Form>{" "}
-                {s.data.completed_at ? <s>{s.title}</s> : s.title}
-                {s.data.assignee_ids?.length > 0 && ` · ${names(people, s.data.assignee_ids)}`}
-                {s.data.due_on && ` · due ${fmtDate(s.data.due_on)}`}
-                {live && <> <small><a href={`/r/${s.id}/trash`}>Remove</a></small></>}
+                  <button aria-label={`${s.data.completed_at ? "Uncheck" : "Check off"} ${s.title}`} {...sx(ks.check, !!s.data.completed_at && ks.checkDone)}>{s.data.completed_at && <Tick />}</button>
+                </Form>
+                <span>
+                  <span {...sx(!!s.data.completed_at && ks.stepDone)}>{s.title}</span>
+                  {(s.data.assignee_ids?.length > 0 || s.data.due_on) && <small {...sx(ks.stepMeta)}>{[names(people, s.data.assignee_ids), s.data.due_on && `due ${fmtDate(s.data.due_on)}`].filter(Boolean).join(" · ")}</small>}
+                </span>
+                {live && <a href={`/r/${s.id}/trash`} data-row-action {...sx(ks.stepRemove)}>Remove</a>}
               </li>
             ))}</ul>
-          ) : <p><small>No steps yet. Break the card into steps, each with its own assignee and due date.</small></p>}
+          ) : <p><small>No steps yet. Break the card into steps, each with its own person and date.</small></p>}
           {live && (
-            <Form key={loc.key} action={`/projects/${project.id}/cards/${r.id}/steps`}>
-              <label>Step <input name="title" required /></label>{" "}
-              <label>Assign to <select name="assignee_id"><option value="">Nobody</option>{people.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>{" "}
-              <label>Due on <input type="date" name="due_on" /></label>{" "}
-              <button>Add a step</button>
-            </Form>
+            <details>
+              <summary>Add a step</summary>
+              <Form key={loc.key} action={`/projects/${project.id}/cards/${r.id}/steps`}>
+                <p><label>Step<br /><input name="title" required autoFocus /></label></p>
+                <p><label>Who's doing it<br /><select name="assignee_id"><option value="">Nobody yet</option>{people.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>{" "}
+                  <label>Due on<br /><input type="date" name="due_on" /></label></p>
+                <button>Add this step</button>
+              </Form>
+            </details>
           )}
         </section>
         <ItemFooter r={r} project={project} />
