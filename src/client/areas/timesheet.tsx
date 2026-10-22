@@ -1,7 +1,7 @@
 // Timesheet: a project's timesheet, logging time (on a to-do or not), and the account-wide timesheet.
 // Clients never see time. Posts and CSV exports: src/areas/timesheet.ts.
 import * as stylex from "@stylexjs/stylex"
-import { useLocation, useParams, useSearchParams, Form as GetForm } from "react-router"
+import { useParams, useSearchParams, Form as GetForm } from "react-router"
 import { db } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, visibleProjects, recordings, NoAccess, NotFound } from "../data.ts"
 import { isAdmin, isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
@@ -9,19 +9,17 @@ import { fmtDate, today } from "../../shared/format.ts"
 import { Form, submitOnChange } from "../ui/forms.tsx"
 import { kit, PageHead, sx } from "../ui/kit.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
-import { color, radius, space, text } from "../ui/tokens.stylex.ts"
+import { color, space, text } from "../ui/tokens.stylex.ts"
 import { personName, projectName } from "./reports.tsx"
 
-// Hours line up on the right; the "Add time" form sits in a tile.
+// Hours line up on the right. "Log time" (in the head) opens the form on its own page, which comes back here.
 const tt = stylex.create({
   num: { textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
   total: { fontSize: text.base, color: color.ink },
-  add: { marginTop: space.s6, padding: space.s5, borderRadius: radius.xl, backgroundColor: color.tile },
-  addTitle: { marginTop: 0 },
 })
 
 /** Same as src/areas/timesheet.ts (the CSV uses that one). */
-const fmtHours = (minutes: number) => (minutes / 60).toFixed(2).replace(/\.?0+$/, "")
+export const fmtHours = (minutes: number) => (minutes / 60).toFixed(2).replace(/\.?0+$/, "")
 
 type Filters = { from: string; to: string; personId: number | null; projectId: number | null }
 
@@ -121,7 +119,6 @@ export const routes = [
   page("/projects/:id/timesheet", () => {
     const params = useParams()
     const [q] = useSearchParams()
-    const loc = useLocation()
     const p = projectTimesheet(params.id)
     const f = readFilters(q)
     const es = entries([p.id], f)
@@ -129,18 +126,11 @@ export const routes = [
     const filtered = !!(f.from || f.to || f.personId)
     return (
       <Page title="Timesheet" crumbs={projectCrumbs(p)}>
-        <PageHead title="Timesheet" />
+        <PageHead title="Timesheet" actions={[p.status === "active" && <a key="log" href={`/projects/${p.id}/timesheet/new`} data-button>Log time</a>]} />
         <FilterForm action={`/projects/${p.id}/timesheet`} f={f} people={staff} />
         {es.length
           ? <><EntryTable es={es} /><p><a href={`/api/projects/${p.id}/timesheet.csv${qs(f)}`}>Export as CSV</a></p></>
           : <p {...sx(kit.empty)}>{filtered ? "No time logged that matches these filters." : "Log time on any task and it adds up here."}</p>}
-        {p.status === "active" && (
-          <section aria-label="Add time" {...sx(tt.add)}>
-            <h2 {...sx(tt.addTitle)}>Add time</h2>
-            {/* A fresh form after each entry: the post comes back to this same page. */}
-            <EntryForm key={loc.key} p={p} staff={staff} todos={openTodos(p.id)} />
-          </section>
-        )}
         <p {...sx(kit.links)}><a href="/timesheet">Timesheet for every project</a></p>
       </Page>
     )

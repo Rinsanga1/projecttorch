@@ -2,9 +2,10 @@
 // Events keep wall-clock times in data.starts_at / ends_at: "YYYY-MM-DD" (all day) or "YYYY-MM-DDTHH:MM",
 // plus data.tz, the time zone of whoever saved it. Plain strings, so they sort and compare to today().
 import * as stylex from "@stylexjs/stylex"
-import { Fragment, useState } from "react"
+import { Fragment, useContext, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useParams, useSearchParams } from "react-router"
+import { InWindow } from "../ui/window-router.tsx"
 import { me, findProject, findRecording, projectPeople, personById, peopleByIds, recordings, useApi, useVisit, NoAccess } from "../data.ts"
 import { isClient, titleOf, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, today } from "../../shared/format.ts"
@@ -80,7 +81,7 @@ const itemsBetween = (rows: Rows, from: string, to: string): Item[] => [
     time: e.data.all_day || String(e.data.starts_at).length === 10 ? "" : fmtClock(String(e.data.starts_at)),
   }))),
   ...rows.dues.filter((t) => t.data.due_on >= from && t.data.due_on <= to)
-    .map((t) => ({ date: String(t.data.due_on), title: `Due: ${titleOf(t)}`, href: urlFor(t), kind: "due" as const, time: "", r: t })),
+    .map((t) => ({ date: String(t.data.due_on), title: titleOf(t), href: urlFor(t), kind: "due" as const, time: "", r: t })),
 ].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
 
 // The month as a ruled grid (still a real table), today on an orange disc, items as small pills in their day.
@@ -154,7 +155,7 @@ const MonthCalendar = ({ month, items, base }: { month: string; items: ReadonlyA
                   <span {...sx(ss.num, d === now && ss.today)}>{Number(d.slice(8))}</span>{d === now && <span {...sx(kit.srOnly)}>(today)</span>}
                   {day.length > 0 && (
                     <ul {...sx(ss.items)}>{day.map((it) => (
-                      <li key={`${it.kind}-${it.r.id}`} {...sx(ss.item)}><a href={it.href} title={it.title} {...sx(ss.pill, it.kind === "due" && ss.due)}>{it.title}</a></li>
+                      <li key={`${it.kind}-${it.r.id}`} {...sx(ss.item)}><a href={it.href} title={it.title} {...sx(ss.pill, it.kind === "due" && ss.due)}>{it.kind === "due" ? `Due: ${it.title}` : it.title}</a></li>
                     ))}</ul>
                   )}
                 </td>
@@ -237,6 +238,7 @@ export const routes = [
     const rows = projectRows(p.id)
     const base = toolUrl(p, "schedule")
     useVisit(base, `${p.name}: Calendar`, p.id)
+    const inWindow = useContext(InWindow)
     if (q.get("past")) {
       const past = itemsBetween({ events: rows.events, dues: [] }, addDays(today(), -365), addDays(today(), -1)).reverse().slice(0, 60)
       return (
@@ -259,11 +261,20 @@ export const routes = [
         {!rows.events.length && !rows.dues.length
           ? <p {...sx(kit.empty)}>Add events and big dates. Tasks and cards with due dates show up here on their own.</p>
           : (
-            <>
-              <MonthCalendar month={month} items={monthItems} base={base} />
-              <h2>Coming up</h2>
-              {upcoming.length ? <ItemList items={upcoming} /> : <p>Nothing in the next 60 days.</p>}
-            </>
+            // In a project window, what's coming up comes first; the month fills a window, so it follows.
+            inWindow ? (
+              <>
+                <h2>Coming up</h2>
+                {upcoming.length ? <ItemList items={upcoming.slice(0, 8)} /> : <p>Nothing in the next 60 days.</p>}
+                <MonthCalendar month={month} items={monthItems} base={base} />
+              </>
+            ) : (
+              <>
+                <MonthCalendar month={month} items={monthItems} base={base} />
+                <h2>Coming up</h2>
+                {upcoming.length ? <ItemList items={upcoming} /> : <p>Nothing in the next 60 days.</p>}
+              </>
+            )
           )}
         <p {...sx(kit.links)}><a href={`${base}?past=1`}>See past events</a></p>
       </Page>

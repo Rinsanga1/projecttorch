@@ -1,11 +1,12 @@
-// A project's tools as windows: master and stack, with the taskbar in a strip below them (never on top).
-// The big window (master) is the tool you're working on: its real pages, not a preview. The other open ones wait in
-// a column beside it, in the order you drag them into. Full screen lifts the desk over the whole page.
-// The taskbar lists every tool: light icons are open, dark ones closed. Design and history: docs/project_ui_explore.
+// A project's windows: master and stack. The big window (master) is the one you're working in: its real pages, not a
+// preview. The other open ones wait in a column beside it, in the order you drag them into. Full screen lifts the desk
+// over the whole page. Above the desk, one row names every window and carries the news: "Since Tuesday:" then each
+// window, with a count of what's new, the late one outlined. Under 900px that row is the dark taskbar at the bottom of
+// the screen instead, in thumb reach. Design and history: docs/project_ui_explore, docs/app_terms.
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
 import { flushSync } from "react-dom"
-import { sx } from "./kit.tsx"
+import { fadeOverflow, sx } from "./kit.tsx"
 import { Icon, type IconName } from "./icons.tsx"
 import { color, light, media, motion, radius, space, text } from "./tokens.stylex.ts"
 
@@ -21,8 +22,12 @@ export type DeskWindow = {
   work?: ReactNode
   /** Back a page inside the big window, when it has gone deeper than the tool's start. */
   back?: () => void
-  /** Nothing in the tool yet: in the stack it shrinks to its title bar. */
+  /** Nothing in the window yet: in the stack it shows blank placeholder lines instead of a preview. */
   empty?: boolean
+  /** How many things others added since your last visit; shown until you open the window. */
+  news?: number
+  /** How many things in it are late (open tasks past their date). Shown, outlined, until they're dealt with. */
+  late?: number
 }
 
 const DESKTOP = "@media (min-width: 900px)"
@@ -64,11 +69,8 @@ const s = stylex.create({
     cursor: "pointer", transitionProperty: "border-color", transitionDuration: motion.fast,
     borderColor: { default: color.line, ":hover": { default: null, [media.hover]: color.control } },
   },
-  // A tool with nothing in it waits as its title bar alone, so the stack's room goes to the tools that have news.
-  collapsed: { flexGrow: 0, flexBasis: "auto" },
 
   head: { display: "flex", alignItems: "center", gap: space.s2, minHeight: 40, paddingBlock: 4, paddingInline: "12px 6px", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line, flexShrink: 0 },
-  headOnly: { borderBottomWidth: 0 },
   // The back button is wider than the icon it replaces; it tucks into the padding so the name stays put.
   headBack: { paddingLeft: 6 },
   backBtn: { marginRight: -6 },
@@ -93,6 +95,41 @@ const s = stylex.create({
   },
   body: { flexGrow: 1, overflow: "auto", overscrollBehavior: "contain", paddingBlock: 12, paddingInline: 14 },
   peek: { overflow: "hidden", fontSize: text.sm, maskImage: "linear-gradient(#000 55%, transparent)", pointerEvents: "none" },
+  // A window with nothing in it yet keeps its size and shows a few still placeholder lines (no shimmer: nothing is
+  // loading). Its title bar already says what's missing ("No posts yet").
+  blank: { display: "grid", alignContent: "start", gap: 10, paddingTop: 16 },
+  blankLine: { height: 10, borderRadius: radius.pill, backgroundColor: color.tile },
+  blankWidth: (w: string) => ({ width: w }),
+
+  // The row of every window, under the project head: the head's white, the head's padding.
+  row: {
+    display: { default: "none", [DESKTOP]: "flex" }, flexWrap: "wrap", alignItems: "center", gap: 4,
+    paddingInline: 28, paddingBottom: 16, backgroundColor: color.sheet, fontSize: text.sm,
+  },
+  rowFull: { paddingTop: 10, paddingInline: 10, paddingBottom: 6, backgroundColor: color.tile },
+  lead: { fontWeight: 650, marginRight: 4 },
+  calm: { color: color.muted, marginRight: 4 },
+  pill: {
+    display: "inline-flex", alignItems: "center", gap: 6, minHeight: 30, paddingBlock: 4, paddingInline: 11, borderRadius: radius.pill,
+    fontSize: text.sm, fontWeight: 600, color: color.ink, whiteSpace: "nowrap",
+    backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
+  },
+  pillNews: { backgroundColor: { default: color.accentSoft, ":hover": { default: null, [media.hover]: color.accentSoft } } },
+  pillLate: { color: color.accentText, backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } }, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
+  pillCur: { color: color.onPrimary, boxShadow: "none", backgroundColor: { default: color.primary, ":hover": { default: null, [media.hover]: color.primaryHover } } },
+  plus: { width: 30, paddingInline: 0, justifyContent: "center", color: color.muted },
+  num: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, paddingInline: 5, borderRadius: radius.pill,
+    backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+  },
+  numOnCur: { backgroundColor: color.onPrimary, color: color.primary },
+  // A side window with news says so in its title bar, in place of its summary.
+  newTag: {
+    display: "inline-flex", alignItems: "center", height: 18, paddingInline: 7, borderRadius: radius.pill, flexShrink: 0,
+    backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+  },
+  // On the phone taskbar, news is a dot.
+  dot: { position: "absolute", top: 5, right: 5, width: 7, height: 7, borderRadius: radius.pill, backgroundColor: color.accent, boxShadow: `0 0 0 2px ${color.slab}` },
 
   empty: { gridColumn: "1 / -1", display: "grid", placeContent: "center", gap: 4, minHeight: 280, borderRadius: radius.lg, backgroundColor: color.sheet, textAlign: "center", color: color.muted },
   emptyTitle: { margin: 0, fontSize: text.md, fontWeight: 650, color: color.ink },
@@ -100,12 +137,11 @@ const s = stylex.create({
   // The taskbar, in its own strip under the card, on the page ground (in full screen, under the big window).
   // On a phone the bar stays at the bottom of the screen, in thumb reach, while the windows scroll past.
   strip: {
-    display: "flex", justifyContent: "center", paddingTop: 12, zIndex: 5,
+    // On desktop the row above the desk does this job.
+    display: { default: "flex", [DESKTOP]: "none" }, justifyContent: "center", paddingTop: 12, zIndex: 5,
     position: { default: "sticky", [DESKTOP]: "static" }, bottom: 0, paddingBottom: { default: "max(8px, env(safe-area-inset-bottom))", [DESKTOP]: 0 },
   },
   stripFull: { paddingTop: 0, paddingInline: 10, paddingBottom: 10 },
-  // When the windows don't all fit (a phone), the bar's end fades: there's more to scroll to.
-  barMore: { maskImage: "linear-gradient(to right, #000 calc(100% - 32px), transparent)" },
   bar: {
     display: "flex", gap: 4, padding: 5, borderRadius: 18, backgroundColor: color.slab, color: color.slabInk,
     width: { default: "100%", [DESKTOP]: "auto" }, justifyContent: { default: "space-between", [DESKTOP]: "flex-start" },
@@ -148,7 +184,13 @@ const load = (key: string): Saved | null => {
   try { const v = JSON.parse(localStorage.getItem(key) ?? "null"); return v ? { open: v.open, full: false } : null } catch { return null }
 }
 
-export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: ReadonlyArray<DeskWindow>; storageKey: string; startOpen?: number }) => {
+export const Desk = ({ windows, storageKey, startOpen = 5, since, addHref }: {
+  windows: ReadonlyArray<DeskWindow>; storageKey: string; startOpen?: number
+  /** "Since Tuesday": when you last opened the project. Without it (a first visit), the row names the windows only. */
+  since?: string
+  /** Where "+" goes to add or remove windows; none for people who can't. */
+  addHref?: string
+}) => {
   const keys = windows.map((w) => w.key)
   const [state, setState] = useState<Saved>(() => load(storageKey) ?? { open: keys.slice(0, startOpen), full: false })
   // Tools can be switched off or on elsewhere; only ever show the ones that exist.
@@ -157,6 +199,10 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
   const [master, ...waiting] = open
   const m = master ? byKey.get(master)! : undefined
   const full = state.full && !!master
+  // Opening a window is reading it: its news count goes for the rest of this visit.
+  const [read, setRead] = useState<ReadonlySet<string>>(() => new Set())
+  const newsOf = (w: DeskWindow) => (read.has(w.key) ? 0 : w.news ?? 0)
+  const anyNews = windows.some((w) => newsOf(w) > 0)
 
   useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify({ open })) } catch {} }, [storageKey, open.join()])
 
@@ -179,7 +225,7 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
     else setState(next)
   }
   // Full screen stays on while you switch tools from the taskbar; it ends when nothing is left open.
-  const bring = (k: string, e?: MouseEvent) => change({ open: [k, ...open.filter((x) => x !== k)], full }, e)
+  const bring = (k: string, e?: MouseEvent) => { change({ open: [k, ...open.filter((x) => x !== k)], full }, e); setRead((r) => new Set(r).add(k)) }
   const close = (k: string, e?: MouseEvent) => change({ open: open.filter((x) => x !== k), full }, e)
   const toggleFull = (e: MouseEvent) => change({ open, full: !full }, e)
   // Put a waiting window before or after another one in the stack.
@@ -231,20 +277,25 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
 
   const [hovered, setHovered] = useState<string | null>(null)
 
-  // Does the bar have more to scroll to (a phone with more windows than fit)? Its end fades only then.
-  const [more, setMore] = useState(false)
-  const measureBar = (el: HTMLElement | null) => {
-    if (!el) return
-    const check = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
-    check()
-    el.addEventListener("scroll", check)
-    addEventListener("resize", check)
-    return () => { el.removeEventListener("scroll", check); removeEventListener("resize", check) }
-  }
   const vt = (k: string) => ({ viewTransitionName: `desk-${k}` })
 
   return (
     <section aria-label="Tools" {...sx(full && s.wrapFull)}>
+      <nav aria-label="Every window in this project" {...sx(s.row, full && s.rowFull)}>
+        {since && (anyNews ? <span {...sx(s.lead)}>{since}:</span> : <span {...sx(s.calm)}>All caught up.</span>)}
+        {windows.map((w) => {
+          const cur = w.key === master, n = newsOf(w), late = w.late ?? 0
+          return (
+            <button key={w.key} type="button" onClick={(e) => bring(w.key, e.nativeEvent)} aria-current={cur || undefined}
+              aria-label={[w.name, n && `${n} new`, late && `${late} late`].filter(Boolean).join(", ")}
+              {...sx(s.pill, n > 0 && s.pillNews, late > 0 && !cur && s.pillLate, cur && s.pillCur)}>
+              {w.name}
+              {n > 0 ? <span aria-hidden="true" {...sx(s.num, cur && s.numOnCur)}>{n}</span> : late > 0 && <span aria-hidden="true">{late} late</span>}
+            </button>
+          )
+        })}
+        {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.pill, s.plus)}><Icon name="plus" size={16} /></a>}
+      </nav>
       <div {...sx(s.desk, s.card, full && s.deskFull)}>
         {m ? (
           <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master, !full && !!m.work && s.masterTall)}>
@@ -264,16 +315,19 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
               return (
                 <section key={k} aria-label={w.name} style={vt(k)} onClick={(e) => bring(k, e.nativeEvent)} title="Click to bring forward. Drag to reorder."
                   draggable onDragStart={(e) => dragStart(e, k)} onDragOver={(e) => dragOver(e, k)} onDragEnd={dragEnd}
-                  onPointerEnter={() => setHovered(k)} onPointerLeave={() => setHovered(null)} {...sx(s.win, s.waiting, w.empty && s.collapsed, drag === k && s.dragging)}>
-                  <div {...sx(s.head, w.empty && s.headOnly)}>
+                  onPointerEnter={() => setHovered(k)} onPointerLeave={() => setHovered(null)} {...sx(s.win, s.waiting, drag === k && s.dragging)}>
+                  <div {...sx(s.head)}>
                     <button type="button" onClick={(e) => { e.stopPropagation(); bring(k, e.nativeEvent) }} onKeyDown={(e) => moveKey(e, k)}
                       aria-label={`Bring ${w.name} forward`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" {...sx(s.bring)}>
-                      <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b><span {...sx(s.summary)}>{w.summary}</span>
+                      <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
+                      {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : <span {...sx(s.summary)}>{w.summary}</span>}
                       <span aria-hidden="true" {...sx(s.hint, hovered === k && !drag && s.hintShown)}>Bring forward</span>
                     </button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); close(k, e.nativeEvent) }} aria-label={`Close ${w.name}`} title="Close" {...sx(s.iconBtn)}><Icon name="close" size={16} /></button>
                   </div>
-                  {!w.empty && <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
+                  {w.empty
+                    ? <div aria-hidden="true" {...sx(s.body, s.blank)}>{["72%", "92%", "56%"].map((x) => <span key={x} {...sx(s.blankLine, s.blankWidth(x))} />)}</div>
+                    : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
                 </section>
               )
             })}
@@ -282,7 +336,7 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
         )}
       </div>
       <div {...sx(s.strip, full && s.stripFull)}>
-        <nav aria-label="Taskbar: every tool in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} ref={measureBar} {...sx(s.bar, more && s.barMore)}>
+        <nav aria-label="Taskbar: every tool in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} ref={fadeOverflow} {...sx(s.bar)}>
           {windows.map((w) => {
             const isOpen = open.includes(w.key)
             return (
@@ -290,6 +344,7 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
                 onClick={(e) => { bring(w.key, e.nativeEvent); setTipFor(null) }} onPointerEnter={() => showTip(w.key)} onFocus={(e) => focusIn(e, w.key)}
                 {...sx(s.tool, isOpen && s.toolOpen)}>
                 <Icon name={w.icon} size={18} />
+                {(newsOf(w) > 0 || (w.late ?? 0) > 0) && w.key !== master && <span aria-hidden="true" {...sx(s.dot)} />}
                 <span aria-hidden="true" {...sx(s.label, wide && s.labelShown, wide === "keyboard" && s.still)}><span {...sx(s.labelText)}>{w.name}</span></span>
                 <span aria-hidden="true" {...sx(s.tip, wide && tipFor === w.key && s.tipShown, (warm || wide === "keyboard") && s.still)}>
                   {w.summary.split(" · ").map((line, i) => <span key={i} {...sx(i === 0 && s.tipFirst)}>{line}</span>)}

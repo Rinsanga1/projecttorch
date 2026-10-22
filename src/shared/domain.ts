@@ -33,6 +33,8 @@ export type Prefs = {
   campfire_notify?: Record<string, "everything" | "mentions">
   recent_pages?: { href: string; title: string }[]
   recent_projects?: number[]
+  /** Project id → when this person last opened it (ISO). The project page counts what's new since. */
+  project_seen?: Record<string, string>
 }
 
 export type Role = "owner" | "admin" | "member" | "client"

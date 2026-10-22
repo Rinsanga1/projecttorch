@@ -21,3 +21,7 @@
   [data-row-action] { opacity: 0; transition: opacity 150ms ease; }
   li:is(:hover, :focus-within) [data-row-action] { opacity: 1; }
 }
+
+/* A row that scrolls sideways fades at its end while there's more to scroll to (ui/kit.tsx fadeOverflow). */
+[data-more] { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+
