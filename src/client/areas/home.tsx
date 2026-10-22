@@ -7,7 +7,7 @@ import { me, account, findProject, visibleProjects, accountPeople, canCreateProj
 import { isClient, projectUrl, toolName, type Recording, type ToolType } from "../../shared/domain.ts"
 import { addDays, fmtDate, excerpt, ms, today } from "../../shared/format.ts"
 import { Face, kit, sx } from "../ui/kit.tsx"
-import { lateTasks, newsSince } from "../news.ts"
+import { lateTasks, seenOf, windowNews } from "../news.ts"
 import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
@@ -141,8 +141,9 @@ const Cards = ({ ps, pin = true }: { ps: ReadonlyArray<ProjectRow>; pin?: boolea
 const HomeCard = observer(({ p }: { p: ProjectRow }) => {
   const m = me()
   const since = m.prefs.project_seen?.[String(p.id)] ?? null
+  // The same counts as the project's window row: per window, since you last opened that window.
   const enabled = new Set(p.tools.filter((t) => t.enabled).map((t) => t.type))
-  const news = [...newsSince(p.id, since, m.id)].filter(([t]) => enabled.has(t as ToolType)).sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const news = [...windowNews(p.id, m.id, seenOf(m.prefs, p.id)).counts].filter(([t]) => enabled.has(t as ToolType)).sort((a, b) => b[1] - a[1]).slice(0, 3)
   const late = enabled.has("todos") ? lateTasks(p.id) : 0
   const people = projectPeople(p)
   return (

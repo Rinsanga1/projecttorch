@@ -9,7 +9,7 @@ import { isClient, titleOf, toolUrl, urlFor, type Project, type Recording } from
 import { fmtDate, plural } from "../../shared/format.ts"
 import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
-import { NewTag } from "../ui/window-router.tsx"
+import { NewTag } from "../ui/in-window.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"

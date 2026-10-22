@@ -7,7 +7,8 @@ import { App } from "./app.tsx"
 import { start } from "./store.ts"
 import { injectBase } from "./ui/base.ts"
 import { ErrorPage, page, Page } from "./ui/page.tsx"
-import { windowRoutes } from "./ui/window-router.tsx"
+import { ProjectLayout } from "./areas/project.tsx"
+import { WINDOW_SEGMENT_NAMES } from "../shared/domain.ts"
 
 const areas = import.meta.glob<{ routes: RouteObject[] }>("./areas/*.tsx", { eager: true })
 
@@ -15,15 +16,24 @@ const NotFoundPage = () => (
   <Page title="Page not found"><h1>Page not found</h1><p>That page doesn't exist, or it moved.</p><p><a href="/">Go to Home</a></p></Page>
 )
 
-const pages = [...Object.values(areas).flatMap((m) => m.routes), page("*", NotFoundPage, { pub: true })]
-// The project page's windows show these same pages, each window on its own router (ui/window-router.tsx).
-windowRoutes.push(...pages)
+// Every page that belongs to a project window (/projects/:id/posts, /projects/:id/docs/:did…) is a child of the
+// project page, which shows it in its main window. The project's own pages (menu, people, settings…) stay top-level.
+const PREFIX = "/projects/:id/"
+const inWindow = (r: RouteObject) => !!r.path?.startsWith(PREFIX) && WINDOW_SEGMENT_NAMES.includes(r.path.slice(PREFIX.length).split("/")[0]!)
+const pages = Object.values(areas).flatMap((m) => m.routes)
 
 const router = createBrowserRouter([
   {
     Component: App,
     errorElement: <ErrorPage />,
-    children: pages,
+    children: [
+      {
+        path: "/projects/:id", Component: ProjectLayout, errorElement: <ErrorPage />,
+        children: [{ index: true }, ...pages.filter(inWindow).map((r) => ({ ...r, path: r.path!.slice(PREFIX.length) }))],
+      },
+      ...pages.filter((r) => !inWindow(r)),
+      page("*", NotFoundPage, { pub: true }),
+    ],
   },
 ])
 

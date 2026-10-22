@@ -2,23 +2,23 @@
 // Posts: src/areas/project.ts.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
-import { useState, type ReactNode } from "react"
-import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
+import { useEffect, useState, type ReactNode } from "react"
+import { Form as GetForm, Navigate, Outlet, useLocation, useNavigate, useParams, useSearchParams } from "react-router"
 import { db, temp } from "../store.ts"
 import { me, findProject, projectPeople, accountPeople, memberIds, recordings, commentCount, useApi, useVisit, canInvite, NoAccess } from "../data.ts"
 import { Desk, type DeskWindow } from "../ui/desk.tsx"
 import { Icon } from "../ui/icons.tsx"
-import { ToolWindow, windowAt, windowBack } from "../ui/window-router.tsx"
-import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
+import { InWindow, WindowSince } from "../ui/in-window.tsx"
+import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, windowOfPath, type Project, type Recording, type ToolType, type WindowKey } from "../../shared/domain.ts"
 import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
 import { ActivityList } from "../ui/activity.tsx"
-import { Face, Fmt, kit, menu, sx } from "../ui/kit.tsx"
+import { Face, Fmt, kit, menu, PageHead, sx } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, submitOnChange } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, font, radius, space, text } from "../ui/tokens.stylex.ts"
 import { togglePin } from "./home.tsx"
 import { fmtHours } from "./timesheet.tsx"
-import { lateTasks, newsSince, sinceLabel } from "../news.ts"
+import { lateTasks, seenOf, sinceLabel, windowNews } from "../news.ts"
 
 // The pages off the project menu: activity and gauge updates as rows led by a face, trashed and archived items as
 // rows with their action at the end, a tile around the forms that add something (a webhook, a gauge update).
@@ -246,34 +246,13 @@ const useProject = (opts?: { staff?: boolean }) => {
   return p
 }
 
-const ProjectHome = observer(({ p }: { p: Project }) => {
+/** Each link as a row that reads as a link: icon, its name (underlined, opens in a new tab), the site it goes to. */
+const LinkRows = observer(({ p }: { p: Project }) => {
   const m = me()
-  // When you last opened this project, taken once as the page opens (the visit below moves it to now).
-  const [sinceAt] = useState(() => m.prefs.project_seen?.[String(p.id)] ?? null)
-  useVisit(projectUrl(p), p.name, p.id)
-  const people = projectPeople(p)
-  const clients = people.filter(isClient)
-  const tools = isClient(m) ? enabledTools(p).filter((t) => t.type !== "timesheet") : enabledTools(p)
   const doors = recordings((r) => r.project_id === p.id && r.type === "door" && r.status === "active").sort(byPosition)
-  const gauge = [...db.gauge_updates.values()].filter((g) => g.project_id === p.id).sort((a, b) => b.id - a.id)[0]
-  const news = newsSince(p.id, sinceAt, m.id)
-  const since = sinceAt ? { at: sinceAt, label: sinceLabel(sinceAt) } : null
-  const late = lateTasks(p.id)
-  // The big window shows the tool's own pages to work in; the stack shows the preview.
-  const windows: DeskWindow[] = tools.map((t) => {
-    const body = windowBody(p, t.type)
-    const start = toolUrl(p, t.type), at = windowAt(start)
-    return {
-      key: t.type, name: t.name, icon: t.type, summary: summary(p, t.type),
-      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.type) ?? 0, late: t.type === "todos" ? late : 0,
-      work: <ToolWindow start={start} home={`/projects/${p.id}`} since={since} />, back: at.depth > 0 ? () => windowBack(start) : undefined,
-    }
-  })
-  if (doors.length) windows.push({
-    key: "links", name: "Links", icon: "links", summary: doors.map((d) => d.title).join(", "),
-    // Each link as a row that reads as a link: icon, its name (underlined, opens in a new tab), the site it goes to.
-    body: <>
-      <ul {...sx(ps.rows)}>{doors.map((d) => (
+  return (
+    <>
+      {doors.length ? <ul {...sx(ps.rows)}>{doors.map((d) => (
         <li key={d.id} {...sx(ps.door)}>
           <span aria-hidden="true" {...sx(ps.doorIcon)}><Icon name="links" size={16} /></span>
           <span {...sx(ps.doorText)}>
@@ -282,10 +261,77 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
           </span>
           {!isClient(m) && <a href={`/projects/${p.id}/links/${d.id}`} aria-label={`Options for ${d.title}`} title="Options" data-row-action {...sx(ps.doorMore)}>•••</a>}
         </li>
-      ))}</ul>
+      ))}</ul> : <p {...sx(ps.pitch)}>Link the outside tools this project uses: Figma, GitHub, a Drive folder.</p>}
       {!isClient(m) && p.status === "active" && <p {...sx(ps.addLink)}><a href={`/projects/${p.id}/links/new`}>Add a link</a></p>}
-    </>,
+    </>
+  )
+})
+
+/** Where you last were in each window ("2:vault" → "/projects/2/docs/5"), so picking a window takes you back there. */
+const lastIn = new Map<string, string>()
+const frontKey = (id: number) => `saintsflow:front:${id}`
+const loadFront = (id: number) => { try { return localStorage.getItem(frontKey(id)) } catch { return null } }
+
+/** /projects/:id and every page inside one of its windows: the project head and its desk. The page the address names
+ * is the main window (/projects/2/docs/5 is Files, at that doc), so links, Back, refresh and bookmarks all just work.
+ * A bare /projects/2 goes to the window you had in front last time. */
+export const ProjectLayout = observer(() => {
+  const p = useProject()
+  if (p.kind === "ping") return <Navigate replace to={`/chats/${p.id}`} />
+  // Keyed by project: what's "new" is measured from when this project's page opened.
+  return <ProjectHome key={p.id} p={p} />
+})
+
+const ProjectHome = observer(({ p }: { p: Project }) => {
+  const m = me()
+  const loc = useLocation()
+  const navigate = useNavigate()
+  // When you last opened this project and each of its windows, taken once as the page opens (visits move them to now).
+  const [seenAtOpen] = useState(() => seenOf(m.prefs, p.id))
+  const [projectSince] = useState(() => m.prefs.project_seen?.[String(p.id)] ?? null)
+  const people = projectPeople(p)
+  const clients = people.filter(isClient)
+  const tools = isClient(m) ? enabledTools(p).filter((t) => t.type !== "timesheet") : enabledTools(p)
+  const doors = recordings((r) => r.project_id === p.id && r.type === "door" && r.status === "active")
+  const gauge = [...db.gauge_updates.values()].filter((g) => g.project_id === p.id).sort((a, b) => b.id - a.id)[0]
+  const keys: WindowKey[] = [...tools.map((t) => t.type), ...(doors.length ? ["links" as const] : [])]
+  useVisit(projectUrl(p), p.name, p.id, keys)
+
+  // The window in front is the one the address is in; with none (a bare /projects/2), the one you had last.
+  const cur = windowOfPath(loc.pathname)
+  const front = cur && keys.includes(cur) ? cur : keys.find((k) => k === loadFront(p.id)) ?? keys[0]
+  const rootOf = (k: WindowKey) => (k === "links" ? `/projects/${p.id}/links` : toolUrl(p, k))
+  const here = loc.pathname + loc.search + loc.hash
+  useEffect(() => {
+    if (!cur) return
+    lastIn.set(`${p.id}:${cur}`, here)
+    try { localStorage.setItem(frontKey(p.id), cur) } catch {}
+  }, [cur, here])
+  // Picking a window goes back to where you were in it. By pointer it glides; by keyboard it's instant.
+  const bring = (k: string, e?: MouseEvent) => {
+    const glide = (!e || e.detail > 0) && !matchMedia("(prefers-reduced-motion: reduce)").matches
+    navigate(lastIn.get(`${p.id}:${k}`) ?? rootOf(k as WindowKey), { viewTransition: glide })
+  }
+
+  const { counts: news, oldest } = windowNews(p.id, m.id, seenAtOpen)
+  const late = lateTasks(p.id)
+  const sinceFor = (k: string) => { const at = seenAtOpen(k); return at ? { at, label: sinceLabel(at) } : null }
+  // The main window shows the page the address names (Outlet); the stack shows the previews.
+  const work = (k: WindowKey) => k === front && cur === front
+    // At the window's start page its title bar already names it: the page heading is kept for screen readers (app.css).
+    ? <InWindow.Provider value={true}><WindowSince.Provider value={sinceFor(k)}><div data-window-root={loc.pathname === rootOf(k) || undefined}><Outlet /></div></WindowSince.Provider></InWindow.Provider>
+    : undefined
+  const back = (k: WindowKey) => (k === front && cur === front && loc.pathname !== rootOf(k) ? () => navigate(rootOf(k)) : undefined)
+  const windows: DeskWindow[] = tools.map((t) => {
+    const body = windowBody(p, t.type)
+    return {
+      key: t.type, name: t.name, icon: t.type, summary: summary(p, t.type),
+      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.type) ?? 0, late: t.type === "todos" ? late : 0,
+      work: work(t.type), back: back(t.type), place: here,
+    }
   })
+  if (doors.length) windows.push({ key: "links", name: "Links", icon: "links", summary: doors.map((d) => d.title).join(", "), body: <LinkRows p={p} />, work: work("links"), back: back("links"), place: here })
+  if (!cur && front) return <Navigate replace to={lastIn.get(`${p.id}:${front}`) ?? rootOf(front)} />
   return (
     <Page title={p.name} crumbs={p.kind === "template" ? [["Templates", "/templates"]] : undefined} flush>
       <div {...sx(ps.top)}>
@@ -315,7 +361,7 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
           </div>
         </div>
       </div>
-      <Desk windows={windows} storageKey={`saintsflow:desk:${p.id}`} since={since?.label}
+      <Desk windows={windows} master={front ?? ""} onBring={bring} since={oldest ? sinceLabel(oldest) : projectSince ? sinceLabel(projectSince) : undefined}
         note={windows.every((w) => w.empty) ? "A fresh start. Invite the people on it, then post what this project is about." : undefined}
         addHref={!isClient(m) && p.status === "active" ? `/projects/${p.id}/tools` : undefined} />
     </Page>
@@ -357,11 +403,9 @@ const StatusForm = ({ p, value }: { p: Project; value: number }) => {
 type Delivery = { webhook_id: number; event: string; status: number | null; error: string | null; created_at: string }
 
 export const routes = [
-  page("/projects/:id", () => {
+  page("/projects/:id/links", () => {
     const p = useProject()
-    if (p.kind === "ping") return <Navigate replace to={`/chats/${p.id}`} />
-    // Keyed by project: its "since" moment is taken when this project's page opens.
-    return <ProjectHome key={p.id} p={p} />
+    return <Page title="Links" crumbs={projectCrumbs(p)}><PageHead title="Links" /><LinkRows p={p} /></Page>
   }),
 
   page("/projects/:id/edit", () => {
