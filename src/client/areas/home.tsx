@@ -30,7 +30,7 @@ const hs = stylex.create({
   cardDesc: { fontSize: text.sm, color: color.muted, margin: 0, flexGrow: 1 },
   tag: {
     alignSelf: "flex-start", paddingBlock: 4, paddingInline: 9, borderRadius: radius.pill, backgroundColor: color.primary, color: color.onPrimary,
-    fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
+    fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
   },
   pin: { position: "absolute", zIndex: 1, top: 14, right: 14, minHeight: 28, paddingBlock: 4, paddingInline: 10, fontSize: text.xs, backgroundColor: color.sheet },
   columns: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, gap: space.s4, marginTop: space.s6 },
@@ -58,7 +58,7 @@ const hs = stylex.create({
   todayLine: { position: "absolute", top: 0, bottom: 0, width: 2, marginLeft: -1, borderRadius: 2, backgroundColor: color.accent, pointerEvents: "none" },
   todayLabel: {
     position: "absolute", top: 0, transform: "translateX(-50%)", paddingBlock: 3, paddingInline: 8, borderRadius: radius.pill,
-    backgroundColor: color.accent, color: color.onAccent, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
+    backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
   },
 })
 

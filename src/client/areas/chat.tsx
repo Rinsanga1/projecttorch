@@ -3,17 +3,17 @@
 // New lines arrive through sync, so the conversation re-renders by itself.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
-import { useContext, useEffect, useRef } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import { InWindow } from "../ui/window-router.tsx"
 import { Navigate, useParams, useSearchParams } from "react-router"
 import { db, isTemp, submit, temp } from "../store.ts"
 import { me, account, accountPeople, findProject, findRecording, projectPeople, boostsOn, recordings, useVisit, NoAccess, NotFound } from "../data.ts"
 import { isAdmin, isClient, isOutOfOffice, toolName, type Project, type Recording } from "../../shared/domain.ts"
 import { excerpt, fmtDate, fmtTime, ms, plural } from "../../shared/format.ts"
-import { Face, Fmt, sx } from "../ui/kit.tsx"
-import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
+import { Face, Fmt, kit, sx } from "../ui/kit.tsx"
+import { Form, PeopleCheckboxes, submitOwnForm } from "../ui/forms.tsx"
 import { Page, projectCrumbs, page, type Crumb } from "../ui/page.tsx"
-import { color, radius, space, text } from "../ui/tokens.stylex.ts"
+import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 
 // A conversation: each line as avatar + name/time + text, days split by a centered date, the composer in a tile.
 const cs = stylex.create({
@@ -34,7 +34,13 @@ const cs = stylex.create({
   field: { width: "100%", maxWidth: "none", minHeight: "3.5em", backgroundColor: color.sheet, margin: 0 },
   composerRow: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s3, margin: 0, maxWidth: "none" },
   composerHint: { margin: 0 },
-  attach: { margin: 0, fontSize: text.sm },
+  // A file input dressed as a button: the native "Choose File / No file chosen" box is hidden, the name shows once picked.
+  attach: {
+    display: "inline-flex", alignItems: "center", minHeight: 34, maxWidth: "100%", margin: 0, paddingBlock: 7, paddingInline: space.s4, borderRadius: radius.pill,
+    backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.tileHover } }, fontSize: text.sm, fontWeight: 600, cursor: "pointer",
+    outline: { default: null, ":focus-within": `2px solid ${color.focus}` }, outlineOffset: 2,
+  },
+  fileName: { marginLeft: space.s2, fontWeight: 400, color: color.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "16rem" },
 })
 
 /** Where a conversation lives: a project's Campfire or a Ping. */
@@ -103,6 +109,7 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
   const pool = projectPeople(p).filter((x) => x.id !== m.id)
   const base = convUrl(p)
   const field = useRef<HTMLTextAreaElement>(null)
+  const [file, setFile] = useState("")
 
   // A line arriving while the page is open scrolls into view, like the old live stream did.
   const last = lines.at(-1)?.id
@@ -142,14 +149,15 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
         ])}
       </ul>
       {p.status === "active" ? (
-        <Form id="say" action={`${base}/lines`} encType="multipart/form-data" optimistic={say} onDone={() => field.current?.form?.reset()} {...sx(cs.composer)}>
+        <Form id="say" action={`${base}/lines`} encType="multipart/form-data" optimistic={say} onDone={() => { field.current?.form?.reset(); setFile("") }} {...sx(cs.composer)}>
           <textarea
             ref={field} name="body" rows={2} cols={70} placeholder="Type a message…" aria-label="Message" {...sx(cs.field)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit() } }}
           />
           <p {...sx(cs.composerRow)}>
-            <label {...sx(cs.attach)}>Attach a file <input type="file" name="file" /></label>
-            <button>Send</button>
+            <label {...sx(cs.attach)}>Attach a file{file && <span {...sx(cs.fileName)}>{file}</span>}
+              <input type="file" name="file" onChange={(e) => setFile(e.currentTarget.files?.[0]?.name ?? "")} {...sx(kit.srOnly)} /></label>
+            <button data-primary>Send</button>
           </p>
           <p {...sx(cs.composerHint)}><small>Enter sends, Shift+Enter for a new line.{pool.length > 0 && <> Mention someone with @: {pool.map((x) => `@${x.name.split(" ")[0]}`).join(", ")}</>}</small></p>
         </Form>
@@ -169,13 +177,16 @@ const Campfire = observer(({ p }: { p: Project }) => {
     <Page title={toolName(p, "campfire")} crumbs={projectCrumbs(p)}>
       <h1>{toolName(p, "campfire")}</h1>
       <Conversation p={p} blank="Chat with the group. Ask quick questions and share stuff." />
-      <Form action={`/projects/${p.id}/chat/notify`}>
-        <fieldset key={setting}><legend>Notify me about</legend>
-          <label><input type="radio" name="notify" value="everything" defaultChecked={setting === "everything"} /> Everything</label>
-          <label><input type="radio" name="notify" value="mentions" defaultChecked={setting === "mentions"} /> Only @mentions</label>
-          <button>Save</button>
-        </fieldset>
-      </Form>
+      {/* A setting you change once: one quiet line that opens, and saves as soon as you pick. */}
+      <details>
+        <summary>Notifications: {setting === "everything" ? "Everything" : "Only @mentions"}</summary>
+        <Form action={`/projects/${p.id}/chat/notify`}>
+          <fieldset key={setting}><legend>Notify me about</legend>
+            <label><input type="radio" name="notify" value="everything" defaultChecked={setting === "everything"} onChange={submitOwnForm} /> Everything</label>
+            <label><input type="radio" name="notify" value="mentions" defaultChecked={setting === "mentions"} onChange={submitOwnForm} /> Only @mentions</label>
+          </fieldset>
+        </Form>
+      </details>
       {!isClient(m) && <p><a href="/bots">Set up bots</a></p>}
     </Page>
   )

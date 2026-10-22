@@ -101,6 +101,14 @@ export const Errors = ({ list }: { list: ReadonlyArray<string> }) =>
 /** Submit the form this control is in (a select that saves on change). */
 export const submitOwnForm = (e: { currentTarget: { form: HTMLFormElement | null } }) => e.currentTarget.form?.requestSubmit()
 
+/** `ref={submitOnChange}` on a filter form: it applies as soon as a field changes, with no Filter button. */
+export const submitOnChange = (form: HTMLFormElement | null) => {
+  if (!form) return
+  const go = () => form.requestSubmit()
+  form.addEventListener("change", go)
+  return () => form.removeEventListener("change", go)
+}
+
 // ---------- shared form pieces ----------
 
 /** Checkbox list of people, grouped by company. Used by every "who" field. */

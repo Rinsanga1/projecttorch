@@ -122,7 +122,7 @@ const s = stylex.create({
   ticking: { animationName: fillIn, animationDuration: "300ms", animationTimingFunction: motion.out, animationFillMode: "both" },
   tickDraw: { display: "block", animationName: wipe, animationDuration: "350ms", animationTimingFunction: motion.out, animationFillMode: "both" },
   struck: { animationName: strikeIn, animationDuration: "400ms", animationTimingFunction: motion.out, animationFillMode: "both" },
-  stage: { fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", paddingBlock: 4, paddingInline: 8, borderRadius: radius.pill, backgroundColor: color.sheet },
+  stage: { fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", paddingBlock: 4, paddingInline: 8, borderRadius: radius.pill, backgroundColor: color.sheet },
   label: { marginTop: space.s3, marginBottom: 0, textAlign: "center", fontSize: text.xs, color: color.muted },
 
   section: { paddingBlock: { default: space.s8, [DESKTOP]: 120 } },

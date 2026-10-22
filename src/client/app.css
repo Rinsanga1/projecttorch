@@ -15,3 +15,9 @@
 [data-window-body] h1 { font-size: 1.5rem; }
 /* At a window's start page its title bar already names the tool: the page heading stays for screen readers only. */
 [data-window-root] h1 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* A row's quiet action ("Move to…") shows while the row is hovered or has focus. On touch it's always there. */
+@media (hover: hover) and (pointer: fine) {
+  [data-row-action] { opacity: 0; transition: opacity 150ms ease; }
+  li:is(:hover, :focus-within) [data-row-action] { opacity: 1; }
+}

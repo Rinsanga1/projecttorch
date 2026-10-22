@@ -101,7 +101,7 @@ typography:
     letterSpacing: "0.05em"
   tag:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "10.5px"
+    fontSize: "11px"
     fontWeight: 700
     lineHeight: 1
     letterSpacing: "0.04em"
@@ -363,7 +363,7 @@ The orange is identical in both themes.
 - **Body, small** (400, 0.84375rem): card descriptions, row meta, bylines, tables, breadcrumbs, toolbars and `<small>`.
 - **Label** (600, 0.84375rem): buttons, nav links and summary pills.
 - **Group label** (600, 0.75rem, +0.05em, uppercase, muted): table headers, nested fieldset legends, group headings above card grids, day dividers in chat and check-ins, and "on hold" notes in board columns.
-- **Tag** (700, 10.5px, +0.04em, uppercase, line-height 1): text inside small pills (HQ, All-access, Pinned, a category, Today, a hill stage).
+- **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (HQ, All-access, Pinned, a category, Today, a hill stage).
 
 ### Named Rules
 **The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, headline-cut, giant wordmark) belong to marketing and signup.
@@ -428,9 +428,11 @@ Tiles and cards have no borders. Borders appear only as 1px hairlines between ro
 ### Buttons
 Soft, small and confident; pills that press in slightly.
 - **Shape:** full pill (999px), 34px minimum height, 7px 16px padding, label type.
-- **Primary:** Pill Black with white text. The base layer promotes it automatically in two cases. The first button or `a[data-button]` link-button in a `<p>` becomes primary. So does the button after the fields in a non-GET form, with or without a Cancel link after it, and the "Yes, …" button of a confirm form ("Yes, …" then "Never mind"). Everything else stays secondary. A plain link right after a button gets 8px of extra room.
+- **Primary:** Pill Black with white text. The base layer promotes it automatically in two cases. The first button or `a[data-button]` link-button in a `<p>` becomes primary. So does the button after the fields in a non-GET form, with or without a Cancel link after it, and the "Yes, …" button of a confirm form ("Yes, …" then "Never mind"). Everything else stays secondary. A page can also say so outright: `data-primary` promotes the one button that is the real next step ("Mark as done" on a card, "Send" in chat), and `data-quiet` keeps a button plain where the rule would wrongly promote it (React, "Add a card"). One primary per page, and it is the step that matters most. A plain link right after a button gets 8px of extra room.
 - **Secondary:** Tile Gray with Ink text, hovering to Tile Pressed. This is the default for a bare `<button>`, a `a[data-button]` link and file-selector buttons.
 - **Link-buttons:** an `<a data-button>` looks and behaves exactly like `<button>`, for navigation that reads as an action ("New list", "Make a new project").
+- **Text buttons** (`kit.linkButton`): a `<button>` that reads as an underlined text link, for a secondary action that still has to post ("Take this list off the progress hill").
+- **Plain on a tile:** a secondary button that sits on Tile Gray (a board column, the chat composer) takes Sheet White instead, so it doesn't vanish into the tile.
 - **Compact sizes:** 32px in filter toolbars, boost forms and composers; 28px on board cards; 24px for the round remove-boost control.
 - **Hover / Focus / Active:** the background shifts in 150ms, and hover applies only under `(hover: hover) and (pointer: fine)`. Active scales to 0.97 on the ease-out curve `cubic-bezier(.22, 1, .36, 1)`. Focus is a 2px Amber Focus outline at 2px offset. Disabled is 45% opacity. Tap highlight is off.
 - **Marketing pills:** 44px by default, 40px small, 54px large (26px padding, 1.0625rem, weight 650). The dark pill (Pill Black) and the light pill (Sheet White, hovering to Tile Gray) always appear as a pair in the hero and closing CTAs.
@@ -460,6 +462,10 @@ A person is their photo, or else up to two initials on a Pill Black disc (650 we
 - **In a tile:** comment boxes and the chat composer are Tile Gray cards whose full-width textarea stays Sheet White. The comment box keeps a 32px face column beside its field.
 - **Focus:** the border turns Amber Focus, plus the 3px orange Focus Halo; there is no outline.
 - **Error:** errors are listed above the form in an Alert Red on Alert Blush box (12px radius). Fields themselves do not turn red.
+- **Filters apply as you pick:** a filter or sort form (`ref={submitOnChange}`) submits the moment a field changes. There is no Filter or Apply button; "Clear" shows only while a filter is on. A filter row earns its place: Posts shows its category filter only past 5 posts.
+- **Row actions:** an action on every row of a list ("Move to…" on tasks, cards and files) is a quiet dropdown (`kit.quietSelect`: no box until hovered) that acts the moment you pick, with no separate Move button. On fine pointers it shows only while its row is hovered or focused (`data-row-action`, app.css); on touch it is always there.
+- **File inputs** are dressed as a secondary button ("Attach a file") with the native box hidden; the chosen file's name shows beside it.
+- **Settings you change once** ("Notify me about" in chat) fold into one quiet `<details>` line that names the current choice, and save as soon as you pick.
 
 ### Navigation
 - **App nav:** the account name is set as a 750-weight wordmark on the ground, followed by pill links (muted, 500 weight, 7px 12px). On fine pointers, hover tints the pill toward white (sheet at 60%). The current page is a solid Sheet White pill with Ink 600 text, and unread counts ride inside the pill. Find and Jump sit at the right end. The nav wraps on narrow screens rather than collapsing.
@@ -477,7 +483,7 @@ Each row is a 32px face, then a name and muted meta on one baseline, then the bo
 The to-do check is a 22px rounded square: 7px radius, 1.5px Control Gray stroke, Sheet White fill. On fine pointers, hover fills it with Peach Wash and turns the stroke Amber Focus. When done, it fills Kargul Orange with a drawn Burnt Ink tick (SVG, 1.8px stroke, round caps). A 28px / 9px-radius variant is used on a to-do's own page, and the marketing demo uses a 16px / 5px-radius static version.
 
 ### List Progress
-A to-do list card ends in a 6px pill track in Sheet White with a Kargul Orange fill, next to a muted xs tabular count.
+A to-do list card on the Tasks start page is a working preview: the list's title (the only link), a muted xs tabular count over a 6px pill track in Sheet White with a Kargul Orange fill, then up to 5 open tasks, late and soonest first, each with its real check button, its name and a muted xs line of who and when. A late date is set in Accent Text 600, the one place it needs attention now. "See all N open tasks" follows when there are more. The hill chart sits below the lists.
 
 ### Lineup Bars
 Each dated project is a 34px Tile Gray pill positioned on one shared track, with left and width set as percentages of the date range. The name is 600 weight and the dates muted 400. A 2px Kargul Orange vertical line marks today, topped by an orange "Today" pill in tag type.
@@ -499,7 +505,8 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
 - **Taskbar:** outside the card, centered on the Studio Gray ground 12px below it, never over the windows. In full screen it sits under the big window.
   - It is a Slab Charcoal pill (18px corners) of 38px icon buttons: Slab Ink fill for open tools, transparent for closed ones.
   - While a mouse is over it, or a keyboard is in it, the names slide out beside the icons (200ms, strong ease-out). The bar gets wider, never taller.
-  - The hovered tool shows its summary in a Slab tip above it, one fact per line, the first in Slab Ink 600. The tip scales up from 0.97 at its bottom edge; once one tip is showing, the next one appears instantly.
+  - The hovered tool shows its summary in a Slab tip above it, one fact per line, the first in Slab Ink 600. The tip scales up from 0.97 at its bottom edge; once one tip is showing, the next one appears instantly. Clicking a tool hides its tip until the pointer moves to another. Tips are desktop only.
+  - On phones the bar sticks to the bottom of the screen (safe-area padding), scrolls sideways, and fades at its end only while there is more to scroll to.
 - **Motion:** swapping windows by mouse glides with a view transition (240ms, cubic-bezier(0.32, 0.72, 0, 1)); the windows' pictures are clipped, never stretched. Keyboard swaps are instant. Reduced motion keeps the fades and drops the movement.
 
 ### Card Table

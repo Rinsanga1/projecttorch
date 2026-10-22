@@ -5,9 +5,10 @@ import { color, font, motion, radius, space, text } from "./tokens.stylex.ts"
 
 // Promoted to the primary (dark) pill: the first button or link-button in a <p>; in a form, the button after its
 // fields (with or without a Cancel link after it); and the "Yes, …" button of a confirm form ("Yes, …" then "Never mind").
-const PRIMARY = ":is(p>button:first-child,p>a[data-button]:first-child," +
+// A page can also say so outright: data-primary promotes a button, data-quiet keeps one plain.
+const PRIMARY = ":is([data-primary],p>button:first-child,p>a[data-button]:first-child," +
   "form:not([style],[method=get])>:not(input[type=hidden])+button:is(:last-child,:has(+a:last-child))," +
-  "form:not([style],[method=get])>button:first-child:has(+a:last-child))"
+  "form:not([style],[method=get])>button:first-child:has(+a:last-child)):not([data-quiet])"
 const base = `
 @font-face{font-family:"Geist";src:url(/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
 @layer base{

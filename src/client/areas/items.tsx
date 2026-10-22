@@ -123,7 +123,7 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
         {!readOnly && (
           <Form action={`/r/${r.id}/reactions`} optimistic={addBoost(r.id)} {...sx(fs.boostForm)}>
             <input name="content" maxLength={16} size={16} placeholder="React with an emoji or a few words" aria-label="Reaction" required {...sx(fs.boostInput)} />{" "}
-            <button {...sx(fs.boostButton)}>React</button>
+            <button data-quiet {...sx(fs.boostButton)}>React</button>
           </Form>
         )}
       </section>

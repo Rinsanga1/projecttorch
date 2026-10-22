@@ -98,8 +98,14 @@ const s = stylex.create({
   emptyTitle: { margin: 0, fontSize: text.md, fontWeight: 650, color: color.ink },
 
   // The taskbar, in its own strip under the card, on the page ground (in full screen, under the big window).
-  strip: { display: "flex", justifyContent: "center", paddingTop: 12 },
+  // On a phone the bar stays at the bottom of the screen, in thumb reach, while the windows scroll past.
+  strip: {
+    display: "flex", justifyContent: "center", paddingTop: 12, zIndex: 5,
+    position: { default: "sticky", [DESKTOP]: "static" }, bottom: 0, paddingBottom: { default: "max(8px, env(safe-area-inset-bottom))", [DESKTOP]: 0 },
+  },
   stripFull: { paddingTop: 0, paddingInline: 10, paddingBottom: 10 },
+  // When the windows don't all fit (a phone), the bar's end fades: there's more to scroll to.
+  barMore: { maskImage: "linear-gradient(to right, #000 calc(100% - 32px), transparent)" },
   bar: {
     display: "flex", gap: 4, padding: 5, borderRadius: 18, backgroundColor: color.slab, color: color.slabInk,
     width: { default: "100%", [DESKTOP]: "auto" }, justifyContent: { default: "space-between", [DESKTOP]: "flex-start" },
@@ -125,7 +131,8 @@ const s = stylex.create({
   // The hovered tool's details, stacked in a tip above it, so the bar never shifts under the pointer.
   // It grows from its bottom edge (the tool's side); after the first one, the rest appear instantly.
   tip: {
-    position: "absolute", left: "50%", bottom: "calc(100% + 10px)", display: "grid", gap: 1, minWidth: 140, maxWidth: 240, paddingBlock: 8, paddingInline: 11,
+    // Tips need a mouse; on a phone they'd only add phantom scroll room to the bar.
+    position: "absolute", left: "50%", bottom: "calc(100% + 10px)", display: { default: "none", [DESKTOP]: "grid" }, gap: 1, minWidth: 140, maxWidth: 240, paddingBlock: 8, paddingInline: 11,
     borderRadius: 10, backgroundColor: color.slab, color: color.slabMuted, fontSize: text.xs, fontWeight: 500, lineHeight: 1.35, textAlign: "left",
     whiteSpace: "normal", pointerEvents: "none", transformOrigin: "bottom center",
     opacity: 0, transform: { default: "translateX(-50%) scale(0.97)", [media.reduce]: "translateX(-50%)" },
@@ -223,6 +230,17 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
   const focusOut = (e: FocusEvent<HTMLElement>) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) leaveBar() }
 
   const [hovered, setHovered] = useState<string | null>(null)
+
+  // Does the bar have more to scroll to (a phone with more windows than fit)? Its end fades only then.
+  const [more, setMore] = useState(false)
+  const measureBar = (el: HTMLElement | null) => {
+    if (!el) return
+    const check = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+    check()
+    el.addEventListener("scroll", check)
+    addEventListener("resize", check)
+    return () => { el.removeEventListener("scroll", check); removeEventListener("resize", check) }
+  }
   const vt = (k: string) => ({ viewTransitionName: `desk-${k}` })
 
   return (
@@ -264,12 +282,12 @@ export const Desk = ({ windows, storageKey, startOpen = 5 }: { windows: Readonly
         )}
       </div>
       <div {...sx(s.strip, full && s.stripFull)}>
-        <nav aria-label="Taskbar: every tool in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} {...sx(s.bar)}>
+        <nav aria-label="Taskbar: every tool in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} ref={measureBar} {...sx(s.bar, more && s.barMore)}>
           {windows.map((w) => {
             const isOpen = open.includes(w.key)
             return (
               <button key={w.key} type="button" aria-pressed={isOpen} aria-label={`${w.name}${isOpen ? (w.key === master ? ", in the big window" : ", open") : ", closed"}`}
-                onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => showTip(w.key)} onFocus={(e) => focusIn(e, w.key)}
+                onClick={(e) => { bring(w.key, e.nativeEvent); setTipFor(null) }} onPointerEnter={() => showTip(w.key)} onFocus={(e) => focusIn(e, w.key)}
                 {...sx(s.tool, isOpen && s.toolOpen)}>
                 <Icon name={w.icon} size={18} />
                 <span aria-hidden="true" {...sx(s.label, wide && s.labelShown, wide === "keyboard" && s.still)}><span {...sx(s.labelText)}>{w.name}</span></span>

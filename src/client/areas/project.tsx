@@ -12,7 +12,7 @@ import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAME
 import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
 import { ActivityList } from "../ui/activity.tsx"
 import { Face, Fmt, kit, menu, sx } from "../ui/kit.tsx"
-import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
+import { Form, PeopleCheckboxes, submitOnChange } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, font, radius, space, text } from "../ui/tokens.stylex.ts"
 import { togglePin } from "./home.tsx"
@@ -438,8 +438,8 @@ export const routes = [
     return (
       <Page title="Project activity" crumbs={projectCrumbs(p)}>
         <h1>Activity on {p.name}</h1>
-        <GetForm method="get" {...sx(kit.toolbar)}><label>Show only what <select name="person" defaultValue={personId ?? ""} {...sx(kit.toolbarControl)}><option value="">everyone</option>
-          {projectPeople(p).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> did</label> <button {...sx(kit.toolbarControl)}>Filter</button></GetForm>
+        <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}><label>Show only what <select name="person" defaultValue={personId ?? ""} {...sx(kit.toolbarControl)}><option value="">everyone</option>
+          {projectPeople(p).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> did</label></GetForm>
         {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={me().time_zone} /> : <p {...sx(kit.empty)}>Nothing's happened yet. Activity shows up here as people post, comment, and check things off.</p>}
         {evs.length > 50 && <p><a href={`?page=${pageN + 1}${personId ? `&person=${personId}` : ""}`}>Show more</a></p>}
       </Page>

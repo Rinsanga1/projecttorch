@@ -66,7 +66,7 @@ export const kit = stylex.create({
   tags: { display: "flex", flexWrap: "wrap", gap: 6, margin: 0, marginBottom: space.s3, maxWidth: "none" },
   tag: {
     display: "inline-flex", alignItems: "center", gap: 6, paddingBlock: 5, paddingInline: 10, borderRadius: radius.pill,
-    backgroundColor: color.tile, color: color.ink, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
+    backgroundColor: color.tile, color: color.ink, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
     textDecoration: "none",
   },
   tagAccent: { backgroundColor: color.accentSoft, color: color.ink },
@@ -80,6 +80,11 @@ export const kit = stylex.create({
   rowText: { marginTop: space.s1, marginBottom: 0, color: color.muted, fontSize: text.sm, maxWidth: "80ch" },
   toolbar: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2, marginBottom: space.s4, fontSize: text.sm },
   toolbarControl: { minHeight: 32, paddingBlock: 3, fontSize: text.sm },
+  // A dropdown that is an action ("Move to…"): no box until hovered, so a row of them stays quiet.
+  quietSelect: {
+    width: "auto", minHeight: 28, margin: 0, paddingBlock: 2, paddingLeft: 10, fontSize: text.sm, color: color.muted,
+    borderColor: "transparent", backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
+  },
   links: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s6, marginBottom: 0, maxWidth: "none", fontSize: text.sm },
   empty: { maxWidth: "none", paddingBlock: space.s7, paddingInline: space.s5, borderRadius: radius.xl, backgroundColor: color.tile, textAlign: "center", color: color.muted },
   // A day heading: a group label, then a hairline to the edge.
@@ -87,6 +92,12 @@ export const kit = stylex.create({
     letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
   dayRule: { flexGrow: 1, height: 1, backgroundColor: color.line },
   // Read by screen readers, not shown.
+  // A button that reads as a text link: for secondary actions that still have to post ("Take this list off the hill").
+  linkButton: {
+    minHeight: 0, padding: 0, borderRadius: 0, fontSize: "inherit", fontWeight: "inherit", color: "inherit", textDecoration: "underline",
+    textUnderlineOffset: "0.22em", textDecorationThickness: 1, textDecorationColor: { default: "color-mix(in srgb, currentColor 30%, transparent)", ":hover": "currentColor" },
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } }, transform: { default: null, ":active": "none" },
+  },
   srOnly: { position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clipPath: "inset(50%)", whiteSpace: "nowrap", borderWidth: 0 },
 })
 
