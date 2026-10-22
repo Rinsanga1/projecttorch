@@ -3,7 +3,8 @@
 // New lines arrive through sync, so the conversation re-renders by itself.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
-import { useEffect, useRef } from "react"
+import { useContext, useEffect, useRef } from "react"
+import { InWindow } from "../ui/window-router.tsx"
 import { Navigate, useParams, useSearchParams } from "react-router"
 import { db, isTemp, submit, temp } from "../store.ts"
 import { me, account, accountPeople, findProject, findRecording, projectPeople, boostsOn, recordings, useVisit, NoAccess, NotFound } from "../data.ts"
@@ -110,6 +111,12 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
     if (last !== undefined && last !== prev.current) document.getElementById(`line-${last}`)?.scrollIntoView({ block: "nearest" })
     prev.current = last
   }, [last])
+  // In a project window, chat opens where the talk is: the newest lines and the composer, not the top of the day.
+  const inWindow = useContext(InWindow)
+  useEffect(() => {
+    const body = field.current?.closest("[data-window-body]")
+    if (inWindow && body) body.scrollTop = body.scrollHeight
+  }, [inWindow])
 
   // Lines without a file show up right away; the server's row replaces the stand-in.
   const say = (fd: FormData) => {

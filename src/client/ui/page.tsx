@@ -3,14 +3,16 @@
 // Routes are declared with `page(path, Component)`; a thrown NotFound/NoAccess/Deleted renders its edge page.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
-import { useEffect, type FC, type ReactNode } from "react"
+import { useContext, useEffect, type FC, type ReactNode } from "react"
 import { isRouteErrorResponse, useRouteError, type RouteObject } from "react-router"
 import { state } from "../store.ts"
 import { projectUrl, toolName, toolUrl, TYPE_TOOL, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
 import { sx } from "./kit.tsx"
+import { InWindow, windowGo } from "./window-router.tsx"
 import { color, media, radius, space, text } from "./tokens.stylex.ts"
 
 const DESKTOP = "@media (min-width: 768px)"
+const rise = stylex.keyframes({ from: { opacity: 0, transform: "translate(-50%, 8px)" } })
 const s = stylex.create({
   crumbs: {
     display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s2, rowGap: 2, fontSize: text.sm,
@@ -28,13 +30,23 @@ const s = stylex.create({
     backgroundColor: color.sheet, borderRadius: { default: radius.lg, [DESKTOP]: radius.xl },
     paddingBlock: { default: space.s5, [DESKTOP]: 40 }, paddingInline: { default: 20, [DESKTOP]: space.s7 }, minHeight: 280,
   },
+  // The page draws its own card: the project page sets a white head over its desk, with the taskbar below the card.
+  flush: { paddingBlock: 0, paddingInline: 0, backgroundColor: "transparent", borderRadius: 0 },
+  // On a page that fits the screen, the flash floats just above the taskbar instead of pushing everything down.
+  flashFloat: {
+    position: "fixed", zIndex: 60, bottom: 76, left: "50%", transform: "translateX(-50%)", marginBottom: 0, boxShadow: "0 6px 20px -8px rgba(0,0,0,.25)",
+    animationName: { default: rise, [media.reduce]: "none" }, animationDuration: "220ms", animationTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+  },
 })
 
 export type Crumb = readonly [label: string, href: string]
 
-export const Page = observer(({ title, crumbs, children }: { title: string; crumbs?: ReadonlyArray<Crumb>; children: ReactNode }) => {
-  useEffect(() => { document.title = `${title} · Saintsflow` }, [title])
+export const Page = observer(({ title, crumbs, flush, children }: { title: string; crumbs?: ReadonlyArray<Crumb>; flush?: boolean; children: ReactNode }) => {
+  // In a project window the window is the frame: no crumbs, sheet or flash of its own, and the tab keeps the project's title.
+  const inWindow = useContext(InWindow)
+  useEffect(() => { if (!inWindow) document.title = `${title} · Saintsflow` }, [title, inWindow])
   const f = state.flash
+  if (inWindow) return <>{children}</>
   return (
     <>
       {crumbs?.length ? (
@@ -48,11 +60,11 @@ export const Page = observer(({ title, crumbs, children }: { title: string; crum
         </nav>
       ) : null}
       {f && (
-        <p role="status" data-flash {...sx(s.flash)}>
-          <span {...sx(s.dot)} /><b>{f.msg}</b>{f.href && <> <a href={f.href}>{f.label ?? "Go there"}</a></>}
+        <p role="status" data-flash {...sx(s.flash, flush && s.flashFloat)}>
+          <span {...sx(s.dot)} /><b>{f.msg}</b>{f.href && <> <a href={f.href} onClick={(e) => f.win && windowGo(f.win, f.href!) && e.preventDefault()}>{f.label ?? "Go there"}</a></>}
         </p>
       )}
-      <main {...sx(s.sheet)}>{children}</main>
+      <main {...sx(s.sheet, flush && s.flush)}>{children}</main>
     </>
   )
 })

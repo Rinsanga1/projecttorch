@@ -355,7 +355,7 @@ The orange is identical in both themes.
 - **Headline** (750, clamp up to 3.25rem, 1.05): marketing section headings.
 - **Headline, cut** (700, clamp 1.375 to 2rem, -0.03em): the struck-through feature names in the marketing "fewer features" list. It is set in Slab Muted with a 2px orange line-through, a fluid step between title and headline used only for that list.
 - **Wordmark, giant** (800, clamp 3.5 to 14rem, 0.8, -0.06em): the marketing footer wordmark, cropped by the page bottom. One per page, marketing only.
-- **Title, page** (700, 2rem, 1.15): the app `<h1>`, set through `pageHead()` with actions beside it. The project page lifts it to 2.5rem on desktop, and that is the ceiling inside the app.
+- **Title, page** (700, 2rem, 1.15): the app `<h1>`, set through `pageHead()` with actions beside it, and the ceiling inside the app. The project page sets it smaller (1.625rem) so its windows get the screen.
 - **Title** (650, 1.25rem, 1.3): the app `<h2>`. Calendar captions use 700 at this size.
 - **Title, small** (650, 1.0625rem): `<h3>`, card and tile titles, record-row titles (600), and the app wordmark.
 - **Prose** (400, 1.0625rem, 1.65, max 68ch): the readable body of messages, docs and other long-form records.
@@ -375,7 +375,8 @@ The orange is identical in both themes.
 The app frame is a single centered column, max 1200px wide. Side padding is 16px (8px for the frame on phones), growing to 32px at 768px. The chrome (wordmark, pill nav, Find/Jump) sits on the gray ground above the sheet. Breadcrumbs and the flash pill also sit on the ground, between the nav and the sheet. The `<main>` sheet pads 24px/20px on phones and 40px/48px on desktop.
 
 Each tool page follows one order: heading with actions (wraps under the title on narrow screens), optional tags and byline, then the content, then a quiet row of small muted links at the foot (32px above). Content comes in four shapes:
-- **Tile grids:** project cards auto-fill at 260px, tool tiles, list cards and question cards at 300px, and file cards at 200px. Gaps are 12-16px.
+- **Tile grids:** project cards auto-fill at 260px, list cards and question cards at 300px, and file cards at 200px. Gaps are 12-16px.
+- **Windows:** the project page shows its tools as windows in a master and stack (see Project Windows below).
 - **Record rows:** a `32px 1fr` grid with the face in the first column. Comments, chat lines, check-in answers and message rows all use it; vault rows use a 40px icon column instead.
 - **The board:** card-table columns 256px wide (82vw at most), laid in one row that scrolls sideways with snap points.
 - **Ruled tables:** timesheets and the month calendar.
@@ -416,7 +417,7 @@ Smaller radii are functional, a fixed inline step set:
 - 6px for inline code, kbd, calendar event pills and the focus outline;
 - 4px for `<mark>` highlights, the smallest step, sized so a highlight inside running text hugs the glyphs instead of reading as a pill.
 
-Tiles and cards have no borders. Borders appear only as 1px hairlines between rows, on fieldsets, around and inside the ruled month calendar, as the 1px Control Gray stroke on inputs, the 1.5px stroke on checks, and the 2px Sheet White ring that separates stacked faces.
+Tiles and cards have no borders. Borders appear only as 1px hairlines between rows, as the 1.5px Hairline outline on project windows, on fieldsets, around and inside the ruled month calendar, as the 1px Control Gray stroke on inputs, the 1.5px stroke on checks, and the 2px Sheet White ring that separates stacked faces.
 
 **The Pill-Or-Card Rule.** If you can click it and it is not a container, it is a pill. If it holds content, it is a rounded card with no border: 24px at the top level, 16px when nested.
 
@@ -480,6 +481,26 @@ A to-do list card ends in a 6px pill track in Sheet White with a Kargul Orange f
 
 ### Lineup Bars
 Each dated project is a 34px Tile Gray pill positioned on one shared track, with left and width set as percentages of the date range. The name is 600 weight and the dates muted 400. A 2px Kargul Orange vertical line marks today, topped by an orange "Today" pill in tag type.
+
+### Project Windows
+The project page shows its tools as windows, not a grid of tiles. The decision and the exploration behind it are in `docs/project_ui_explore/`.
+- **Head:** the project page drops the breadcrumb and keeps its head short: the title at 1.625rem, the description, then one line of facts, padded 24px/28px on desktop. The page draws its own card (`<Page flush>` drops the sheet): this white head is its top half, with the sheet's top corners, and the desk is its bottom half.
+- **Desk:** a Tile Gray band, edge to edge under the head and carrying the sheet's bottom corners, that holds the windows with 10px gaps and padding. On desktop it fills the screen below the head (`max(460px, 100dvh - 272px)`). The **master** (the big window) takes every pixel left of the **stack**, a 300px column on the right whose windows share its height. On phones everything stacks top to bottom.
+- **Window:** a Sheet White card with 12px corners and a 1.5px Hairline outline, the one bordered card in the app: white on Tile Gray alone loses its edge. The outline is a border, not a shadow, so view transitions carry it.
+  - Its title bar is 40px with a hairline under it: a 16px tool icon, the name (650, 0.875rem), a one-line muted summary (xs), then the actions. The body pads 12px/14px.
+  - The master's actions are two 28px icon buttons: full screen (a square; four inward corners while on) and close. Its outline is 2px Kargul Orange, the focus state of the page.
+  - In a stack window the whole title is a button that brings it forward, plus a close button.
+- **The master is where you work:** it runs the tool's real pages on a router of its own (`ui/window-router.tsx`). Links, forms and redirects inside it move the window, never the page; only links that leave the project open as pages. Deeper than the tool's start, a back chevron takes the icon's place. A window sent to the stack comes back on the page it was on.
+  - Pages inside drop their own frame: no breadcrumb, sheet or tab title, headings at 1.5rem, and at the tool's start the page heading is kept for screen readers only (the title bar names the tool). Chat opens at its newest lines.
+  - A flash raised while working in a window floats just above the taskbar (it rises 8px in, 220ms ease-out) instead of pushing the page down, and its Undo runs in that window.
+- **Full screen** lifts the desk over the whole page: the master alone above the taskbar, the page under it held still. Switching tools from the taskbar keeps it on; Escape or the button comes back out. It isn't remembered across visits.
+- **Stack windows** are previews: they show the start of their body, fading out at the bottom, and stay inert until brought forward. A tool with nothing in it yet waits as its title bar alone. Drag one by its title to reorder the stack (a 3px orange rule marks where it lands; the dragged window dims to 45%), or move it with Alt+Up/Down. Hovering one turns its outline Control Gray and fades "Bring forward" in over the end of its title, taking no room from the summary.
+- **Nothing under the desk** but the taskbar: "Add a link" and "See all activity" live in the ••• project menu.
+- **Taskbar:** outside the card, centered on the Studio Gray ground 12px below it, never over the windows. In full screen it sits under the big window.
+  - It is a Slab Charcoal pill (18px corners) of 38px icon buttons: Slab Ink fill for open tools, transparent for closed ones.
+  - While a mouse is over it, or a keyboard is in it, the names slide out beside the icons (200ms, strong ease-out). The bar gets wider, never taller.
+  - The hovered tool shows its summary in a Slab tip above it, one fact per line, the first in Slab Ink 600. The tip scales up from 0.97 at its bottom edge; once one tip is showing, the next one appears instantly.
+- **Motion:** swapping windows by mouse glides with a view transition (240ms, cubic-bezier(0.32, 0.72, 0, 1)); the windows' pictures are clipped, never stretched. Keyboard swaps are instant. Reduced motion keeps the fades and drops the movement.
 
 ### Card Table
 The board is a single row of 256px Tile Gray columns that scrolls sideways (snap to column start, overscroll contained). Each column head carries a 9px label dot, the column name and a Sheet White count pill. Cards inside are Sheet White with 16px corners and 12px padding, with 28px compact controls for moving them.
