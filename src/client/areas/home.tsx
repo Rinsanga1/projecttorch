@@ -2,10 +2,12 @@
 import * as stylex from "@stylexjs/stylex"
 import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
-import { me, account, findProject, visibleProjects, accountPeople, canCreateProjects, canInvite, recordings, NoAccess, type ProjectRow } from "../data.ts"
-import { isClient, projectUrl, type Recording } from "../../shared/domain.ts"
-import { fmtDate, excerpt, ms, today } from "../../shared/format.ts"
-import { sx } from "../ui/kit.tsx"
+import { observer } from "mobx-react-lite"
+import { me, account, findProject, visibleProjects, accountPeople, canCreateProjects, canInvite, projectPeople, recordings, NoAccess, type ProjectRow } from "../data.ts"
+import { isClient, projectUrl, toolName, type Recording, type ToolType } from "../../shared/domain.ts"
+import { addDays, fmtDate, excerpt, ms, today } from "../../shared/format.ts"
+import { Face, kit, sx } from "../ui/kit.tsx"
+import { lateTasks, newsSince } from "../news.ts"
 import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
@@ -38,6 +40,35 @@ const hs = stylex.create({
   panelTitle: { marginTop: 0, fontSize: text.md },
   row: { display: "flex", gap: space.s3, alignItems: "baseline", borderTopColor: color.line },
   when: { flexShrink: 0, width: "4.5em", fontSize: text.sm, fontWeight: 600, fontVariantNumeric: "tabular-nums" },
+  // Home: the projects first, each card saying what moved since you last looked.
+  homeHead: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s4, marginBottom: space.s4 },
+  homeTitle: { margin: 0, fontSize: text.lg },
+  homeCards: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: space.s3, margin: 0 },
+  hcard: {
+    position: "relative", display: "flex", flexDirection: "column", gap: 6, minHeight: 176, padding: space.s5, borderRadius: radius.xl, borderTopWidth: 0,
+    transitionProperty: "background-color", transitionDuration: motion.fast,
+    backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
+  },
+  hdesc: { margin: 0, fontSize: text.sm, color: color.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  hdates: { fontSize: text.xs, color: color.muted, fontVariantNumeric: "tabular-nums" },
+  // The card's news, the same as the project's window row: "Chat 5 · Files 2", and what's late, outlined.
+  hnews: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: 0, marginTop: "auto", paddingTop: space.s2, fontSize: text.sm, fontWeight: 600 },
+  hnewsItem: { display: "inline-flex", alignItems: "center", gap: 5 },
+  hnum: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, paddingInline: 5, borderRadius: radius.pill,
+    backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+  },
+  hlate: { paddingBlock: 1, paddingInline: 8, borderRadius: radius.pill, color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
+  hcalm: { fontWeight: 400, color: color.muted },
+  hfaces: { display: "flex", paddingLeft: 4, marginTop: space.s2 },
+  hface: { marginLeft: -4, borderRadius: radius.pill, boxShadow: `0 0 0 2px ${color.tile}`, display: "inline-flex" },
+  hmore: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s3, marginBottom: 0, fontSize: text.sm },
+  // Two short lists under the projects: what's due for you, what's coming up.
+  lists: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, gap: space.s3, marginTop: space.s7 },
+  listTitle: { marginTop: 0, marginBottom: space.s2, fontSize: text.md },
+  late: { color: color.accentText, fontWeight: 650 },
+  quiet: { margin: 0, color: color.muted },
+  timeline: { marginTop: space.s7 },
   // Timeline: each dated project as a bar on one shared track, with today marked.
   lineup: { marginBottom: space.s6 },
   lineupHead: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: space.s3 },
@@ -89,7 +120,7 @@ const Lineup = ({ ps }: { ps: ReadonlyArray<ProjectRow> }) => {
 }
 
 const PinButton = ({ p }: { p: ProjectRow }) => (
-  <Form action={`/projects/${p.id}/pin`} style={{ display: "inline" }} optimistic={togglePin(p.id)}><button {...sx(hs.pin)}>{p.pinned ? "Unpin" : "Pin"}</button></Form>
+  <Form action={`/projects/${p.id}/pin`} style={{ display: "inline" }} optimistic={togglePin(p.id)}><button data-row-action {...sx(hs.pin)}>{p.pinned ? "Unpin" : "Pin"}</button></Form>
 )
 
 const Cards = ({ ps, pin = true }: { ps: ReadonlyArray<ProjectRow>; pin?: boolean }) => (
@@ -106,26 +137,50 @@ const Cards = ({ ps, pin = true }: { ps: ReadonlyArray<ProjectRow>; pin?: boolea
   </ul>
 )
 
+/** A project on Home: its name, a line of description, its dates, what moved since you last looked, and its people. */
+const HomeCard = observer(({ p }: { p: ProjectRow }) => {
+  const m = me()
+  const since = m.prefs.project_seen?.[String(p.id)] ?? null
+  const enabled = new Set(p.tools.filter((t) => t.enabled).map((t) => t.type))
+  const news = [...newsSince(p.id, since, m.id)].filter(([t]) => enabled.has(t as ToolType)).sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const late = enabled.has("todos") ? lateTasks(p.id) : 0
+  const people = projectPeople(p)
+  return (
+    <li {...sx(hs.hcard)}>
+      <a href={projectUrl(p)} {...sx(hs.cardName)}>{p.name}</a>
+      {p.is_hq && <span {...sx(hs.tag)}>HQ</span>}
+      {p.description && <p {...sx(hs.hdesc)}>{excerpt(p.description, 120)}</p>}
+      {(p.starts_on || p.ends_on) && <small {...sx(hs.hdates)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</small>}
+      <p {...sx(hs.hnews)}>
+        {news.map(([t, n]) => <span key={t} {...sx(hs.hnewsItem)}>{toolName(p, t as ToolType)}<span {...sx(hs.hnum)} aria-label={`${n} new`}>{n}</span></span>)}
+        {late > 0 && <span {...sx(hs.hlate)}>{late} late</span>}
+        {!news.length && !late && since && <span {...sx(hs.hcalm)}>All caught up.</span>}
+      </p>
+      {people.length > 0 && <span aria-label={`People: ${people.map((x) => x.name).join(", ")}`} {...sx(hs.hfaces)}>{people.slice(0, 6).map((x) => <span key={x.id} {...sx(hs.hface)}><Face p={x} px={24} /></span>)}</span>}
+      {p.kind === "project" && !p.is_hq && <PinButton p={p} />}
+    </li>
+  )
+})
+
 type Upcoming = Recording & { project_name: string; on_date?: string }
 
-/** What's on my plate / my next dates, for the Home cards. */
+/** What's on my plate (soonest due first, so late leads) and my events in the next two weeks, for Home's two lists. */
 const myUpcoming = (limit = 5) => {
   const m = me()
   const live = (r: Recording) => r.status === "active" && db.projects.get(String(r.project_id))?.status === "active"
   const mine = (r: Recording) => ((r.data.assignee_ids ?? []) as number[]).includes(m.id) && !r.data.completed_at
   const named = (r: Recording, extra: Partial<Upcoming> = {}): Upcoming => ({ ...r, project_name: db.projects.get(String(r.project_id))?.name ?? "", ...extra })
-  const assigned = recordings((r) => ["todo", "card", "step"].includes(r.type) && live(r) && mine(r))
+  const allAssigned = recordings((r) => ["todo", "card", "step"].includes(r.type) && live(r) && mine(r))
     .sort((a, b) => (a.data.due_on ? (b.data.due_on ? a.data.due_on.localeCompare(b.data.due_on) : -1) : b.data.due_on ? 1 : 0) || a.id - b.id)
-    .slice(0, limit)
-    .map((r) => named(r))
+  const assigned = allAssigned.slice(0, limit).map((r) => named(r))
   const t = today()
-  const dates = recordings((r) => live(r) && (
-    (r.type === "event" && (((r.data.participant_ids ?? []) as number[]).includes(m.id) || r.creator_id === m.id) && r.data.starts_at >= t)
-    || (["todo", "card"].includes(r.type) && mine(r) && r.data.due_on >= t)))
+  const until = addDays(t, 14)
+  const dates = recordings((r) => live(r) && r.type === "event" && (((r.data.participant_ids ?? []) as number[]).includes(m.id) || r.creator_id === m.id)
+    && r.data.starts_at >= t && r.data.starts_at.slice(0, 10) <= until)
     .map((r) => named(r, { on_date: r.data.starts_at ?? r.data.due_on }))
     .sort((a, b) => a.on_date!.localeCompare(b.on_date!))
     .slice(0, limit)
-  return { assigned, dates }
+  return { assigned, dates, assignedTotal: allAssigned.length }
 }
 
 const NewProjectForm = ({ templateId }: { templateId: string }) => {
@@ -157,50 +212,56 @@ export const routes = [
     const hq = all.filter((p) => p.is_hq)
     const pinned = all.filter((p) => p.pinned && !p.is_hq)
     const recentIds = (m.prefs.recent_projects ?? []).filter((id) => !pinned.some((p) => p.id === id) && !hq.some((p) => p.id === id))
-    const recent = recentIds.map((id) => all.find((p) => p.id === id)).filter((p): p is ProjectRow => !!p).slice(0, 6)
-    const others = pinned.length + recent.length ? [] : all.filter((p) => !p.is_hq).slice(0, 6)
+    const recent = recentIds.map((id) => all.find((p) => p.id === id)).filter((p): p is ProjectRow => !!p)
+    // HQ, then pinned, then recent, up to 8; with none pinned or visited yet, the first projects there are.
+    const rest = all.filter((p) => !p.is_hq && !pinned.includes(p) && !recent.includes(p))
+    const shown = [...hq, ...pinned, ...recent, ...(pinned.length + recent.length ? [] : rest)].slice(0, 8)
     const dated = all.filter((p) => p.starts_on && p.ends_on)
-    const { assigned, dates } = myUpcoming()
+    const { assigned, dates, assignedTotal } = myUpcoming()
+    const t = today()
     return (
       <Page title="Home">
-        <div {...sx(hs.head)}>
-          <h1 {...sx(hs.title)}>Home</h1>
-          <p {...sx(hs.actions)}>
-            {canCreateProjects() && <a href="/projects/new" data-button>Make a new project</a>}
-            {canInvite() && <a href="/people/invite" data-button>Invite people</a>}
-          </p>
-        </div>
-        <section aria-label="Timeline" {...sx(hs.lineup)}>
-          <div {...sx(hs.lineupHead)}><h2 {...sx(hs.lineupTitle)}><a href="/timeline">Timeline</a></h2>{dated.length > 0 && <a href="/timeline"><small>Open the Timeline</small></a>}</div>
-          {dated.length
-            ? <Lineup ps={dated} />
-            : <p>Projects with start and end dates show up here. <a href="/timeline">Open the Timeline</a></p>}
-        </section>
+        <h1 {...sx(kit.srOnly)}>Home</h1>
         {all.length === 0 ? (
-          <><p>Welcome to Home. Projects you make or get added to show up here.</p>{canCreateProjects() && <p><a href="/projects/new">Make a new project</a></p>}</>
+          <div {...sx(kit.empty)}>
+            <p>Welcome. Make your first project, then invite the people working on it.</p>
+            {canCreateProjects() && <p><a href="/projects/new" data-button>Make a new project</a></p>}
+          </div>
         ) : (
-          <>
-            {hq.length > 0 && <Cards ps={hq} pin={false} />}
-            {pinned.length > 0 && <><h2 {...sx(hs.group)}>Pinned</h2><Cards ps={pinned} /></>}
-            {recent.length > 0 && <><h2 {...sx(hs.group)}>Recently visited</h2><Cards ps={recent} /></>}
-            {others.length > 0 && <><h2 {...sx(hs.group)}>Projects</h2><Cards ps={others} /></>}
-          </>
+          <section aria-labelledby="projects">
+            <div {...sx(hs.homeHead)}>
+              <h2 id="projects" {...sx(hs.homeTitle)}>Projects</h2>
+              {canCreateProjects() && <a href="/projects/new" data-button>Make a new project</a>}
+            </div>
+            <ul {...sx(hs.homeCards)}>{shown.map((p) => <HomeCard key={p.id} p={p} />)}</ul>
+            <p {...sx(hs.hmore)}><a href="/projects">All projects ({all.length})</a><a href="/templates">Templates</a></p>
+          </section>
         )}
-        <p><small><a href="/projects">View all projects</a> · <a href="/templates">Templates</a></small></p>
-        <div {...sx(hs.columns)}>
-          <section aria-label="Your Calendar" {...sx(hs.panel)}>
-            <h2 {...sx(hs.panelTitle)}><a href="/my/calendar">Your Calendar</a></h2>
+        <div {...sx(hs.lists)}>
+          <section aria-labelledby="due" {...sx(hs.panel)}>
+            <h2 id="due" {...sx(hs.listTitle)}><a href="/my/assignments">Due for you</a></h2>
+            {assigned.length ? (
+              <ul>{assigned.map((r) => {
+                const late = r.data.due_on && r.data.due_on < t
+                return <li key={r.id} {...sx(hs.row)}><span><a href={`/r/${r.id}/go`}>{r.title}</a> <small>{r.project_name}{r.data.due_on && <>, <span {...sx(late && hs.late)}>{late ? `was due ${fmtDate(r.data.due_on)}` : `due ${fmtDate(r.data.due_on)}`}</span></>}</small></span></li>
+              })}</ul>
+            ) : <p {...sx(hs.quiet)}>Nothing's due for you. Enjoy it.</p>}
+            {assignedTotal > assigned.length && <p {...sx(hs.hmore)}><a href="/my/assignments">See all {assignedTotal}</a></p>}
+          </section>
+          <section aria-labelledby="coming" {...sx(hs.panel)}>
+            <h2 id="coming" {...sx(hs.listTitle)}><a href="/my/calendar">Coming up</a></h2>
             {dates.length
               ? <ul>{dates.map((r) => <li key={r.id} {...sx(hs.row)}><span {...sx(hs.when)}>{fmtDate(r.on_date)}</span><span><a href={`/r/${r.id}/go`}>{r.title}</a> <small>{r.project_name}</small></span></li>)}</ul>
-              : <p>No upcoming dates for you.</p>}
-          </section>
-          <section aria-label="Your Assignments" {...sx(hs.panel)}>
-            <h2 {...sx(hs.panelTitle)}><a href="/my/assignments">Your Assignments</a></h2>
-            {assigned.length
-              ? <ul>{assigned.map((r) => <li key={r.id} {...sx(hs.row)}><span><a href={`/r/${r.id}/go`}>{r.title}</a> <small>{r.project_name}{r.data.due_on ? `, due ${fmtDate(r.data.due_on)}` : ""}</small></span></li>)}</ul>
-              : <p>Nothing's assigned to you right now.</p>}
+              : <p {...sx(hs.quiet)}>Nothing on your calendar in the next two weeks.</p>}
           </section>
         </div>
+        {dated.length > 0 && (
+          <section aria-label="Timeline" {...sx(hs.lineup, hs.timeline)}>
+            <div {...sx(hs.lineupHead)}><h2 {...sx(hs.lineupTitle)}><a href="/timeline">Timeline</a></h2><a href="/timeline"><small>Open the Timeline</small></a></div>
+            <Lineup ps={dated} />
+          </section>
+        )}
+        <p {...sx(hs.hmore)}><a href="/activity">See all activity</a>{canInvite() && <a href="/people/invite">Invite people</a>}</p>
       </Page>
     )
   }),

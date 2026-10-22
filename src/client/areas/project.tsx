@@ -9,8 +9,8 @@ import { me, findProject, projectPeople, accountPeople, memberIds, recordings, c
 import { Desk, type DeskWindow } from "../ui/desk.tsx"
 import { Icon } from "../ui/icons.tsx"
 import { ToolWindow, windowAt, windowBack } from "../ui/window-router.tsx"
-import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, TYPE_TOOL, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
-import { daysFromToday, fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
+import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, type Project, type Recording, type ToolType } from "../../shared/domain.ts"
+import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
 import { ActivityList } from "../ui/activity.tsx"
 import { Face, Fmt, kit, menu, sx } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, submitOnChange } from "../ui/forms.tsx"
@@ -18,6 +18,7 @@ import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, font, radius, space, text } from "../ui/tokens.stylex.ts"
 import { togglePin } from "./home.tsx"
 import { fmtHours } from "./timesheet.tsx"
+import { lateTasks, newsSince, sinceLabel } from "../news.ts"
 
 // The pages off the project menu: activity and gauge updates as rows led by a face, trashed and archived items as
 // rows with their action at the end, a tile around the forms that add something (a webhook, a gauge update).
@@ -86,8 +87,9 @@ const ps = stylex.create({
   meter: { display: "block", width: "min(100%, 280px)", height: 6, marginTop: space.s2, borderRadius: radius.pill, backgroundColor: color.tile, overflow: "hidden" },
   fill: (w: string) => ({ display: "block", height: "100%", width: w, borderRadius: radius.pill, backgroundColor: color.accent }),
   todo: { display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: space.s2, marginTop: space.s2, fontSize: text.sm },
-  box: { width: 14, height: 14, flexShrink: 0, alignSelf: "center", borderRadius: 4, borderWidth: 1.5, borderStyle: "solid", borderColor: color.control },
   todoMeta: { fontSize: text.xs },
+  // Late is the case orange is kept for: it needs attention now.
+  late: { color: color.accentText, fontWeight: 650 },
 })
 
 const byPosition = (a: Recording, b: Recording) => a.position - b.position || a.id - b.id
@@ -121,19 +123,21 @@ const windowBody = (p: Project, t: ToolType): ReactNode => {
         row(r.id, <>{link(r)}{r.data.pinned && <span {...sx(kit.tag, kit.tagAccent, ps.tag)}>Pinned</span>}</>,
           `${who(r.creator_id)} · ${fmtDate(r.created_at, tz)} · ${plural(commentCount(r.id), "comment")}`,
           r.body && <span {...sx(ps.excerpt)}>{excerpt(r.body, 150)}</span>)))
-    case "todos":
-      return list(activeIn(p, "todolist").sort(byPosition).map((l) => {
+    case "todos": {
+      // What's late leads, in orange: it's the thing that needs someone now. Then each list and its next tasks.
+      const lists = activeIn(p, "todolist").sort(byPosition)
+      const firstNames = (x: Recording) => (x.data.assignee_ids ?? []).map((id: number) => who(id).split(" ")[0]).join(", ")
+      const late = lists.flatMap(todosOf).filter((x) => !x.data.completed_at && x.data.due_on && x.data.due_on < today()).sort((a, b) => String(a.data.due_on).localeCompare(String(b.data.due_on)))
+      const lead = late[0] && row(-1, <><span {...sx(ps.late)}>{late.length} late:</span> {link(late[0])}</>, [firstNames(late[0]), `was due ${fmtDate(late[0].data.due_on)}`].filter(Boolean).join(" · "))
+      return list([lead, ...lists.map((l) => {
         const ts = todosOf(l), done = ts.filter((x) => x.data.completed_at).length
-        const next = ts.filter((x) => !x.data.completed_at).sort((a, b) => String(a.data.due_on ?? "9").localeCompare(String(b.data.due_on ?? "9"))).slice(0, 3)
+        const next = ts.filter((x) => !x.data.completed_at && x.id !== late[0]?.id).sort((a, b) => String(a.data.due_on ?? "9").localeCompare(String(b.data.due_on ?? "9"))).slice(0, 3)
         return row(l.id, link(l), `${done} of ${ts.length} done`, <>
           <span {...sx(ps.meter)}><span {...sx(ps.fill(ts.length ? `${(done / ts.length) * 100}%` : "0%"))} /></span>
-          {next.map((x) => {
-            const late = x.data.due_on && x.data.due_on < today()
-            const names = (x.data.assignee_ids ?? []).map((id: number) => who(id).split(" ")[0]).join(", ")
-            return <span key={x.id} {...sx(ps.todo)}><span aria-hidden="true" {...sx(ps.box)} />{link(x)}<small {...sx(ps.todoMeta)}>{[names, x.data.due_on && (late ? `late, was due ${fmtDate(x.data.due_on)}` : fmtDate(x.data.due_on))].filter(Boolean).join(" · ")}</small></span>
-          })}
+          {next.map((x) => <span key={x.id} {...sx(ps.todo)}>{link(x)}<small {...sx(ps.todoMeta)}>{[firstNames(x), x.data.due_on && fmtDate(x.data.due_on)].filter(Boolean).join(" · ")}</small></span>)}
         </>)
-      }))
+      })].filter(Boolean))
+    }
     case "vault":
       return list(activeIn(p, ["folder", "doc", "upload", "cloudfile"]).filter((r) => r.parent_id === null).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 8).map((r) =>
         row(r.id, link(r), `${KIND[r.type]} · ${who(r.creator_id)} · ${fmtDate(r.updated_at, tz)}`)))
@@ -173,33 +177,6 @@ const minutesThisMonth = (p: Project) => {
   return [...db.time_entries.values()].filter((e) => e.project_id === p.id && e.on_date >= month).reduce((n, e) => n + e.minutes, 0)
 }
 
-/** Open tasks in the project past their due date. */
-const lateTasks = (p: Project) =>
-  activeIn(p, "todolist").flatMap(todosOf).filter((x) => !x.data.completed_at && x.data.due_on && x.data.due_on < today()).length
-
-/** What other people added to each window since `since`. Comments count in the window of what they comment on; structure
- * (board columns, task groups, card steps) isn't news. */
-const NOT_NEWS = new Set(["column", "todogroup", "step"])
-const newsSince = (p: Project, since: string | null, meId: number) => {
-  const n = new Map<string, number>()
-  if (!since) return n
-  for (const r of recordings((r) => r.project_id === p.id && r.status === "active" && r.created_at > since && r.creator_id !== meId && !NOT_NEWS.has(r.type))) {
-    const on = r.type === "comment" ? db.recordings.get(String(r.parent_id))?.type : r.type
-    const tool = on && TYPE_TOOL[on]
-    if (tool) n.set(tool, (n.get(tool) ?? 0) + 1)
-  }
-  return n
-}
-
-/** When you last opened the project, in words: "Since yesterday", "Since Tuesday", "Since Oct 12". */
-const sinceLabel = (iso: string) => {
-  const ago = -daysFromToday(iso)
-  if (ago <= 0) return "Since earlier today"
-  if (ago === 1) return "Since yesterday"
-  if (ago < 7) return `Since ${new Date(iso).toLocaleDateString("en-US", { weekday: "long" })}`
-  return `Since ${fmtDate(iso)}`
-}
-
 /** One line about what's new in a tool, for its window's title bar and its taskbar tip. */
 const summary = (p: Project, t: ToolType): string => {
   switch (t) {
@@ -210,12 +187,12 @@ const summary = (p: Project, t: ToolType): string => {
     case "todos": {
       const ts = activeIn(p, "todolist").flatMap(todosOf)
       const done = ts.filter((x) => x.data.completed_at).length
-      const late = lateTasks(p)
+      const late = lateTasks(p.id)
       return ts.length ? `${done} of ${ts.length} done${late ? ` · ${late} late` : ""}` : "No tasks yet"
     }
     case "vault": {
       const n = activeIn(p, ["doc", "upload", "cloudfile"]).length
-      return n ? plural(n, "file") : "Nothing here yet"
+      return n ? plural(n, "file") : "No files yet"
     }
     case "campfire": {
       const last = activeIn(p, "line").sort(newestFirst)[0]
@@ -279,8 +256,9 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
   const tools = isClient(m) ? enabledTools(p).filter((t) => t.type !== "timesheet") : enabledTools(p)
   const doors = recordings((r) => r.project_id === p.id && r.type === "door" && r.status === "active").sort(byPosition)
   const gauge = [...db.gauge_updates.values()].filter((g) => g.project_id === p.id).sort((a, b) => b.id - a.id)[0]
-  const news = newsSince(p, sinceAt, m.id)
-  const late = lateTasks(p)
+  const news = newsSince(p.id, sinceAt, m.id)
+  const since = sinceAt ? { at: sinceAt, label: sinceLabel(sinceAt) } : null
+  const late = lateTasks(p.id)
   // The big window shows the tool's own pages to work in; the stack shows the preview.
   const windows: DeskWindow[] = tools.map((t) => {
     const body = windowBody(p, t.type)
@@ -288,7 +266,7 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
     return {
       key: t.type, name: t.name, icon: t.type, summary: summary(p, t.type),
       body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.type) ?? 0, late: t.type === "todos" ? late : 0,
-      work: <ToolWindow start={start} home={`/projects/${p.id}`} />, back: at.depth > 0 ? () => windowBack(start) : undefined,
+      work: <ToolWindow start={start} home={`/projects/${p.id}`} since={since} />, back: at.depth > 0 ? () => windowBack(start) : undefined,
     }
   })
   if (doors.length) windows.push({
@@ -323,9 +301,8 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
             {p.description && <Fmt text={p.description} {...sx(ps.lede)} />}
             <p {...sx(ps.facts)}>
               {(p.starts_on || p.ends_on) && <span {...sx(ps.fact, ps.factInk)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</span>}
-              {gauge
-                ? <a href={`/projects/${p.id}/status`} {...sx(ps.fact)}>Status <meter min={0} max={100} value={gauge.value} {...sx(ps.gauge)}>{gauge.value}%</meter> <span {...sx(ps.factInk)}>{gauge.value}%</span></a>
-                : !isClient(m) && <a href={`/projects/${p.id}/status`}>Set the status</a>}
+              {/* The status shows once someone sets it; setting it lives in the ••• menu, not on the most-seen screen. */}
+              {gauge && <a href={`/projects/${p.id}/status`} {...sx(ps.fact)}>Status <meter min={0} max={100} value={gauge.value} {...sx(ps.gauge)}>{gauge.value}%</meter> <span {...sx(ps.factInk)}>{gauge.value}%</span></a>}
               {clients.length > 0 && !isClient(m) && <span>Clients see only what you share. <a href={`/projects/${p.id}/clients`}>Client access</a></span>}
             </p>
           </div>
@@ -338,7 +315,8 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
           </div>
         </div>
       </div>
-      <Desk windows={windows} storageKey={`saintsflow:desk:${p.id}`} since={sinceAt ? sinceLabel(sinceAt) : undefined}
+      <Desk windows={windows} storageKey={`saintsflow:desk:${p.id}`} since={since?.label}
+        note={windows.every((w) => w.empty) ? "A fresh start. Invite the people on it, then post what this project is about." : undefined}
         addHref={!isClient(m) && p.status === "active" ? `/projects/${p.id}/tools` : undefined} />
     </Page>
   )
@@ -415,6 +393,7 @@ export const routes = [
         <menu.Wrap>
           {staff && <menu.Group label="Project" items={[
             <menu.Link href={`/projects/${p.id}/edit`}>Edit name, description & dates</menu.Link>,
+            <menu.Link href={`/projects/${p.id}/status`}>Set the status</menu.Link>,
             <menu.Link href={`/projects/${p.id}/tools`}>Change tools</menu.Link>,
             p.status === "active" && <menu.Link href={`/projects/${p.id}/links/new`}>Add a link to another tool (Figma, GitHub, a Drive folder)</menu.Link>,
             <menu.Link href={`/projects/${p.id}/people`}>Add/remove people</menu.Link>,

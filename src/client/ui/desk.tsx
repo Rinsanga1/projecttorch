@@ -1,10 +1,11 @@
 // A project's windows: master and stack. The big window (master) is the one you're working in: its real pages, not a
-// preview. The other open ones wait in a column beside it, in the order you drag them into. Full screen lifts the desk
+// preview. Four others wait in a column beside it, sorted for you: late first, then the ones with news, then the rest in
+// project order, empty ones last. Nothing to close or drag: they're the project, not tabs. Full screen lifts the desk
 // over the whole page. Above the desk, one row names every window and carries the news: "Since Tuesday:" then each
 // window, with a count of what's new, the late one outlined. Under 900px that row is the dark taskbar at the bottom of
 // the screen instead, in thumb reach. Design and history: docs/project_ui_explore, docs/app_terms.
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
+import { useEffect, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react"
 import { flushSync } from "react-dom"
 import { fadeOverflow, sx } from "./kit.tsx"
 import { Icon, type IconName } from "./icons.tsx"
@@ -22,7 +23,7 @@ export type DeskWindow = {
   work?: ReactNode
   /** Back a page inside the big window, when it has gone deeper than the tool's start. */
   back?: () => void
-  /** Nothing in the window yet: in the stack it shows blank placeholder lines instead of a preview. */
+  /** Nothing in the window yet: in the stack it says so in one sentence (its summary) and sorts last. */
   empty?: boolean
   /** How many things others added since your last visit; shown until you open the window. */
   news?: number
@@ -50,9 +51,6 @@ const s = stylex.create({
   },
   deskFull: { gridTemplateColumns: "minmax(0, 1fr)", flexGrow: 1, minHeight: 0, height: { default: "auto", [DESKTOP]: "auto" }, borderRadius: 0 },
   stack: { position: "relative", display: "flex", flexDirection: "column", gap: 10, minHeight: 0 },
-  // Where a dragged window will land: a short orange rule in the gap.
-  dropLine: { position: "absolute", left: 6, right: 6, height: 3, marginTop: -6.5, borderRadius: 2, backgroundColor: color.accent, pointerEvents: "none" },
-  dragging: { opacity: 0.45 },
 
   // A hairline outline keeps a window's edge against the desk (white on light gray alone disappears). It's a border,
   // not a shadow, so the view-transition picture carries it while windows glide.
@@ -95,11 +93,10 @@ const s = stylex.create({
   },
   body: { flexGrow: 1, overflow: "auto", overscrollBehavior: "contain", paddingBlock: 12, paddingInline: 14 },
   peek: { overflow: "hidden", fontSize: text.sm, maskImage: "linear-gradient(#000 55%, transparent)", pointerEvents: "none" },
-  // A window with nothing in it yet keeps its size and shows a few still placeholder lines (no shimmer: nothing is
-  // loading). Its title bar already says what's missing ("No posts yet").
-  blank: { display: "grid", alignContent: "start", gap: 10, paddingTop: 16 },
-  blankLine: { height: 10, borderRadius: radius.pill, backgroundColor: color.tile },
-  blankWidth: (w: string) => ({ width: w }),
+  // A window with nothing in it yet says so in one plain sentence ("No files yet."), and sorts to the bottom of the stack.
+  blank: { margin: 0, color: color.muted, fontSize: text.sm },
+  // Sorted last and with nothing to show, an empty window takes only the room its sentence needs.
+  quiet: { flexGrow: 0, flexBasis: "auto" },
 
   // The row of every window, under the project head: the head's white, the head's padding.
   row: {
@@ -178,33 +175,40 @@ const s = stylex.create({
   tipFirst: { color: color.slabInk, fontWeight: 600 },
 })
 
-type Saved = { open: string[]; full: boolean }
-// Which windows are open, in order, is remembered; full screen isn't (coming back to a page that covers itself is odd).
+type Saved = { master: string | null; full: boolean }
+// Which window is in front is remembered; full screen isn't (coming back to a page that covers itself is odd).
 const load = (key: string): Saved | null => {
-  try { const v = JSON.parse(localStorage.getItem(key) ?? "null"); return v ? { open: v.open, full: false } : null } catch { return null }
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? "null")
+    return v ? { master: v.master ?? v.open?.[0] ?? null, full: false } : null
+  } catch { return null }
 }
+/** How many windows wait beside the big one. */
+const STACK = 4
 
-export const Desk = ({ windows, storageKey, startOpen = 5, since, addHref }: {
-  windows: ReadonlyArray<DeskWindow>; storageKey: string; startOpen?: number
+export const Desk = ({ windows, storageKey, since, note, addHref }: {
+  windows: ReadonlyArray<DeskWindow>; storageKey: string
   /** "Since Tuesday": when you last opened the project. Without it (a first visit), the row names the windows only. */
   since?: string
+  /** Said in place of the news, when there's something better to say (a brand-new project). */
+  note?: string
   /** Where "+" goes to add or remove windows; none for people who can't. */
   addHref?: string
 }) => {
-  const keys = windows.map((w) => w.key)
-  const [state, setState] = useState<Saved>(() => load(storageKey) ?? { open: keys.slice(0, startOpen), full: false })
-  // Tools can be switched off or on elsewhere; only ever show the ones that exist.
-  const open = state.open.filter((k) => keys.includes(k))
-  const byKey = new Map(windows.map((w) => [w.key, w]))
-  const [master, ...waiting] = open
-  const m = master ? byKey.get(master)! : undefined
-  const full = state.full && !!master
+  const [state, setState] = useState<Saved>(() => load(storageKey) ?? { master: null, full: false })
+  // Windows can be switched off elsewhere; fall back to the first one there is.
+  const m = windows.find((w) => w.key === state.master) ?? windows[0]
+  const master = m?.key
+  const full = state.full && !!m
   // Opening a window is reading it: its news count goes for the rest of this visit.
   const [read, setRead] = useState<ReadonlySet<string>>(() => new Set())
   const newsOf = (w: DeskWindow) => (read.has(w.key) ? 0 : w.news ?? 0)
   const anyNews = windows.some((w) => newsOf(w) > 0)
+  // The stack sorts itself: late first, then news, then project order; empty windows last.
+  const rank = (w: DeskWindow) => ((w.late ?? 0) > 0 ? 0 : newsOf(w) > 0 ? 1 : w.empty ? 3 : 2)
+  const waiting = windows.filter((w) => w.key !== master).map((w, i) => ({ w, i })).sort((a, b) => rank(a.w) - rank(b.w) || a.i - b.i).slice(0, STACK).map((x) => x.w)
 
-  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify({ open })) } catch {} }, [storageKey, open.join()])
+  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify({ master })) } catch {} }, [storageKey, master])
 
   // Full screen: the page under it holds still, and Escape comes back out (unless something inside used the key).
   useEffect(() => {
@@ -224,45 +228,9 @@ export const Desk = ({ windows, storageKey, startOpen = 5, since, addHref }: {
     if (byPointer && !reduce && document.startViewTransition) document.startViewTransition(() => flushSync(() => setState(next)))
     else setState(next)
   }
-  // Full screen stays on while you switch tools from the taskbar; it ends when nothing is left open.
-  const bring = (k: string, e?: MouseEvent) => { change({ open: [k, ...open.filter((x) => x !== k)], full }, e); setRead((r) => new Set(r).add(k)) }
-  const close = (k: string, e?: MouseEvent) => change({ open: open.filter((x) => x !== k), full }, e)
-  const toggleFull = (e: MouseEvent) => change({ open, full: !full }, e)
-  // Put a waiting window before or after another one in the stack.
-  const move = (k: string, to: string, after: boolean, e?: UIEvent) => {
-    if (k === to) return
-    const rest = open.filter((x) => x !== k)
-    rest.splice(rest.indexOf(to) + (after ? 1 : 0), 0, k)
-    change({ open: rest, full }, e)
-  }
-
-  // Dragging a stack window by its title reorders the stack. The drop lands above or below the window under the
-  // pointer, whichever half it's over; an orange rule shows where.
-  const [drag, setDrag] = useState<string | null>(null)
-  const [drop, setDrop] = useState<{ k: string; after: boolean; y: number } | null>(null)
-  const dragStart = (e: DragEvent, k: string) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", k); setDrag(k) }
-  const dragOver = (e: DragEvent<HTMLElement>, k: string) => {
-    if (!drag) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-    const el = e.currentTarget
-    const after = e.clientY > el.getBoundingClientRect().top + el.offsetHeight / 2
-    const y = el.offsetTop + (after ? el.offsetHeight + 10 : 0)
-    if (drop?.k !== k || drop.after !== after) setDrop({ k, after, y })
-  }
-  const dropOn = (e: DragEvent) => {
-    e.preventDefault()
-    if (drag && drop) move(drag, drop.k, drop.after)
-    setDrag(null); setDrop(null)
-  }
-  const dragEnd = () => { setDrag(null); setDrop(null) }
-  // From the keyboard: Alt+Up and Alt+Down on a stack window's title move it, instantly.
-  const moveKey = (e: KeyboardEvent, k: string) => {
-    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return
-    e.preventDefault()
-    const i = waiting.indexOf(k), j = i + (e.key === "ArrowUp" ? -1 : 1)
-    if (j >= 0 && j < waiting.length) move(k, waiting[j]!, e.key === "ArrowDown", e.nativeEvent)
-  }
+  // Full screen stays on while you switch windows.
+  const bring = (k: string, e?: MouseEvent) => { change({ master: k, full }, e); setRead((r) => new Set(r).add(k)) }
+  const toggleFull = (e: MouseEvent) => change({ master: master ?? null, full: !full }, e)
 
   // The taskbar opens (names, and a tip for the hovered tool) while a mouse is over it or a keyboard is in it.
   // From the keyboard it opens instantly. The first tip fades in; moving along the bar, the next ones are instant.
@@ -280,9 +248,9 @@ export const Desk = ({ windows, storageKey, startOpen = 5, since, addHref }: {
   const vt = (k: string) => ({ viewTransitionName: `desk-${k}` })
 
   return (
-    <section aria-label="Tools" {...sx(full && s.wrapFull)}>
+    <section aria-label="Windows" {...sx(full && s.wrapFull)}>
       <nav aria-label="Every window in this project" {...sx(s.row, full && s.rowFull)}>
-        {since && (anyNews ? <span {...sx(s.lead)}>{since}:</span> : <span {...sx(s.calm)}>All caught up.</span>)}
+        {note ? <span {...sx(s.calm)}>{note}</span> : since && (anyNews ? <span {...sx(s.lead)}>{since}:</span> : <span {...sx(s.calm)}>All caught up.</span>)}
         {windows.map((w) => {
           const cur = w.key === master, n = newsOf(w), late = w.late ?? 0
           return (
@@ -301,46 +269,38 @@ export const Desk = ({ windows, storageKey, startOpen = 5, since, addHref }: {
           <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master, !full && !!m.work && s.masterTall)}>
             <WindowHead w={m}>
               <button type="button" onClick={(e) => toggleFull(e.nativeEvent)} aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen (Esc)" : "Full screen"} {...sx(s.iconBtn)}><Icon name={full ? "shrink" : "full"} size={16} /></button>
-              <button type="button" onClick={(e) => close(m.key, e.nativeEvent)} aria-label={`Close ${m.name}`} title="Close" {...sx(s.iconBtn)}><Icon name="close" size={16} /></button>
             </WindowHead>
             <div data-window-body {...sx(s.body)}>{m.work ?? m.body}</div>
           </section>
         ) : (
-          <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>Nothing is open</p><p>Pick a tool from the bar below to open it.</p></div>
+          <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p><p>Add one with + above.</p></div>
         )}
         {m && !full && waiting.length > 0 && (
-          <div onDragOver={(e) => drag && e.preventDefault()} onDrop={dropOn} {...sx(s.stack)}>
-            {waiting.map((k) => {
-              const w = byKey.get(k)!
-              return (
-                <section key={k} aria-label={w.name} style={vt(k)} onClick={(e) => bring(k, e.nativeEvent)} title="Click to bring forward. Drag to reorder."
-                  draggable onDragStart={(e) => dragStart(e, k)} onDragOver={(e) => dragOver(e, k)} onDragEnd={dragEnd}
-                  onPointerEnter={() => setHovered(k)} onPointerLeave={() => setHovered(null)} {...sx(s.win, s.waiting, drag === k && s.dragging)}>
-                  <div {...sx(s.head)}>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); bring(k, e.nativeEvent) }} onKeyDown={(e) => moveKey(e, k)}
-                      aria-label={`Bring ${w.name} forward`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" {...sx(s.bring)}>
-                      <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
-                      {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : <span {...sx(s.summary)}>{w.summary}</span>}
-                      <span aria-hidden="true" {...sx(s.hint, hovered === k && !drag && s.hintShown)}>Bring forward</span>
-                    </button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); close(k, e.nativeEvent) }} aria-label={`Close ${w.name}`} title="Close" {...sx(s.iconBtn)}><Icon name="close" size={16} /></button>
-                  </div>
-                  {w.empty
-                    ? <div aria-hidden="true" {...sx(s.body, s.blank)}>{["72%", "92%", "56%"].map((x) => <span key={x} {...sx(s.blankLine, s.blankWidth(x))} />)}</div>
-                    : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
-                </section>
-              )
-            })}
-            {drop && <span aria-hidden="true" style={{ top: drop.y }} {...sx(s.dropLine)} />}
+          <div {...sx(s.stack)}>
+            {waiting.map((w) => (
+              <section key={w.key} aria-label={w.name} style={vt(w.key)} onClick={(e) => bring(w.key, e.nativeEvent)}
+                onPointerEnter={() => setHovered(w.key)} onPointerLeave={() => setHovered(null)} {...sx(s.win, s.waiting, w.empty && s.quiet)}>
+                <div {...sx(s.head)}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} aria-label={`Bring ${w.name} forward`} {...sx(s.bring)}>
+                    <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
+                    {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
+                    <span aria-hidden="true" {...sx(s.hint, hovered === w.key && s.hintShown)}>Bring forward</span>
+                  </button>
+                </div>
+                {w.empty
+                  ? <div {...sx(s.body)}><p {...sx(s.blank)}>{w.summary}.</p></div>
+                  : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
+              </section>
+            ))}
           </div>
         )}
       </div>
       <div {...sx(s.strip, full && s.stripFull)}>
-        <nav aria-label="Taskbar: every tool in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} ref={fadeOverflow} {...sx(s.bar)}>
+        <nav aria-label="Every window in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} ref={fadeOverflow} {...sx(s.bar)}>
           {windows.map((w) => {
-            const isOpen = open.includes(w.key)
+            const isOpen = w.key === master
             return (
-              <button key={w.key} type="button" aria-pressed={isOpen} aria-label={`${w.name}${isOpen ? (w.key === master ? ", in the big window" : ", open") : ", closed"}`}
+              <button key={w.key} type="button" aria-current={isOpen || undefined} aria-label={[w.name, newsOf(w) > 0 && `${newsOf(w)} new`, (w.late ?? 0) > 0 && `${w.late} late`].filter(Boolean).join(", ")}
                 onClick={(e) => { bring(w.key, e.nativeEvent); setTipFor(null) }} onPointerEnter={() => showTip(w.key)} onFocus={(e) => focusIn(e, w.key)}
                 {...sx(s.tool, isOpen && s.toolOpen)}>
                 <Icon name={w.icon} size={18} />

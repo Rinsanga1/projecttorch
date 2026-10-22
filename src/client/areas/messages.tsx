@@ -7,6 +7,7 @@ import { isAdmin, isClient, toolUrl, urlFor, type Category, type Project, type R
 import { excerpt, fmtDate, ms } from "../../shared/format.ts"
 import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
+import { NewTag } from "../ui/window-router.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 
@@ -93,7 +94,7 @@ export const routes = [
                   <Face p={author ?? { name: "Someone" }} />
                   <div>
                     <Tags r={x} cat={catOf(cats, x)} pinned="Pinned" />
-                    <a href={urlFor(x)} {...sx(kit.rowTitle)}>{x.title}</a>
+                    <a href={urlFor(x)} {...sx(kit.rowTitle)}>{x.title}</a><NewTag r={x} />
                     <span {...sx(kit.rowMeta)}>{author?.name ?? "Someone"} · {fmtDate(x.created_at, m.time_zone)}{n ? ` · ${n} comment${n === 1 ? "" : "s"}` : ""}</span>
                     <p {...sx(kit.rowText)}>{excerpt(x.body)}</p>
                   </div>

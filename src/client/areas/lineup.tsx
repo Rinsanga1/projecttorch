@@ -4,14 +4,12 @@ import { useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
 import { me, visibleProjects, NoAccess, NotFound } from "../data.ts"
 import { isClient, projectUrl, type Marker } from "../../shared/domain.ts"
-import { fmtDate, isoDate, today } from "../../shared/format.ts"
+import { addDays, fmtDate, isoDate, today } from "../../shared/format.ts"
 import { Form } from "../ui/forms.tsx"
 import { Page, page } from "../ui/page.tsx"
 
 const WEEKS = 12
-const DAY = 86_400_000
 
-const addDays = (d: string, n: number) => isoDate(new Date(Date.parse(d + "T00:00:00Z") + n * DAY))
 /** The Monday on or before `d`. */
 const monday = (d: string) => addDays(d, -((new Date(d + "T00:00:00Z").getUTCDay() + 6) % 7))
 

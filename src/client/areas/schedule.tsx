@@ -8,7 +8,7 @@ import { useParams, useSearchParams } from "react-router"
 import { InWindow } from "../ui/window-router.tsx"
 import { me, findProject, findRecording, projectPeople, personById, peopleByIds, recordings, useApi, useVisit, NoAccess } from "../data.ts"
 import { isClient, titleOf, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
-import { fmtDate, today } from "../../shared/format.ts"
+import { addDays, fmtDate, today } from "../../shared/format.ts"
 import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
@@ -17,7 +17,6 @@ import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 
 // ---------- dates ----------
 const DAY = 86_400_000
-const addDays = (d: string, n: number) => new Date(Date.parse(d + "T00:00:00Z") + n * DAY).toISOString().slice(0, 10)
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / DAY)
 const addMonths = (d: string, n: number) => {
   const [y, m, day] = d.split("-").map(Number) as [number, number, number]

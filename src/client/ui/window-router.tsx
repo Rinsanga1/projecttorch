@@ -3,15 +3,25 @@
 // leaves the project opens as a page as usual; the project's own home sends the window back to the tool's start.
 import { observable, reaction, runInAction } from "mobx"
 import { observer } from "mobx-react-lite"
-import { createContext, useEffect, useRef, type MouseEvent } from "react"
+import { createContext, useContext, useEffect, useRef, type MouseEvent } from "react"
 import { createMemoryRouter, RouterProvider, UNSAFE_LocationContext, UNSAFE_RouteContext, useNavigate, type RouteObject } from "react-router"
 import { state } from "../store.ts"
+import { me } from "../data.ts"
+import { kit, sx } from "./kit.tsx"
 
 /** The app's routes, filled once by main.tsx (an area importing main would be a cycle). */
 export const windowRoutes: RouteObject[] = []
 
 /** True inside a project window: pages there drop their own frame (see Page). */
 export const InWindow = createContext(false)
+/** When you last opened the project, so its windows can mark what's new: `at` (ISO) and `label` ("Since Tuesday"). */
+export type Since = { at: string; label: string }
+const WindowSince = createContext<Since | null>(null)
+/** The project's "since" inside a window: `isNew(r)` is true for what someone else added after it. Outside a window, nothing is new. */
+export const useSince = () => {
+  const since = useContext(WindowSince)
+  return { since, isNew: (r: { created_at: string; creator_id: number | null }) => !!since && r.created_at > since.at && r.creator_id !== me().id }
+}
 
 type Router = ReturnType<typeof createMemoryRouter>
 // One router per window start, kept while the app runs, so a window sent to the stack comes back where you left it.
@@ -34,7 +44,7 @@ const routerFor = (start: string) => {
 // would match the window's paths under the project page's route.
 const NO_ROUTE = { outlet: null, matches: [], isDataRoute: false }
 
-export const ToolWindow = observer(({ start, home }: { start: string; home: string }) => {
+export const ToolWindow = observer(({ start, home, since = null }: { start: string; home: string; since?: Since | null }) => {
   const router = routerFor(start)
   const page = useNavigate()
   const box = useRef<HTMLDivElement>(null)
@@ -88,11 +98,15 @@ export const ToolWindow = observer(({ start, home }: { start: string; home: stri
     <div ref={box} onClickCapture={onClick} data-window-root={windowAt(start).path === start || undefined}>
       <UNSAFE_LocationContext.Provider value={null as never}>
         <UNSAFE_RouteContext.Provider value={NO_ROUTE}>
-          <InWindow.Provider value={true}>
+          <InWindow.Provider value={true}><WindowSince.Provider value={since}>
             <RouterProvider router={router} />
-          </InWindow.Provider>
+          </WindowSince.Provider></InWindow.Provider>
         </UNSAFE_RouteContext.Provider>
       </UNSAFE_LocationContext.Provider>
     </div>
   )
 })
+
+/** "New" beside something someone else added since your last visit to the project; nothing outside a window. */
+export const NewTag = ({ r }: { r: { created_at: string; creator_id: number | null } }) =>
+  useSince().isNew(r) ? <span {...sx(kit.tag, kit.tagNew)}>New</span> : null

@@ -81,6 +81,8 @@ export const kit = stylex.create({
     textDecoration: "none",
   },
   tagAccent: { backgroundColor: color.accentSoft, color: color.ink },
+  // "New since your last visit": solid orange, so it never reads as Pinned (Peach Wash).
+  tagNew: { backgroundColor: color.accent, color: color.onAccent, marginLeft: space.s2, verticalAlign: 2 },
   by: { display: "flex", alignItems: "center", gap: space.s2, marginBottom: space.s5, fontSize: text.sm, color: color.muted },
   byName: { color: color.ink, fontWeight: 600, textDecoration: "none", ":hover": { textDecoration: "underline" } },
   prose: { fontSize: text.md, lineHeight: 1.65, maxWidth: "68ch" },
