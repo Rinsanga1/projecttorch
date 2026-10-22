@@ -159,9 +159,16 @@ export type Reply = {
 }
 
 let temps: Array<[Table, string]> = []
-/** Inside an optimistic update: add a stand-in row with a negative id. It's removed when the real one arrives. */
+const TEMP_IDS = 2 ** 52
+let tempId = TEMP_IDS
+/** A stand-in row from `temp`, not saved yet. */
+export const isTemp = (id: number) => id >= TEMP_IDS
+/**
+ * Inside an optimistic update: add a stand-in row. It's removed when the real one arrives. Its id is above any real
+ * one, so lists ordered by id put it last, where the new row will land.
+ */
 export const temp = <T extends Table>(tbl: T, row: Omit<Tables[T], "id"> & Partial<Pick<Tables[T], "id" & keyof Tables[T]>>) => {
-  const r = { id: -Date.now() - Math.random(), ...row } as Row
+  const r = { id: tempId++, ...row } as Row
   const k = keyOf(tbl, r)
   anyDb[tbl].set(k, r)
   temps.push([tbl, k])

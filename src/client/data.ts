@@ -124,7 +124,7 @@ export const clientVisible = (r: Recording): boolean =>
 
 /** GET a JSON reply from /api (history, the dev inbox, public links…). `data` is the reply's `data`. */
 export const useApi = <T,>(path: string | null) => {
-  const [res, set] = useState<{ data?: T; error?: string; loading: boolean }>({ loading: true })
+  const [res, set] = useState<{ data?: T; error?: string; loading: boolean }>({ loading: path !== null })
   const [n, reload] = useState(0)
   useEffect(() => {
     if (!path) return

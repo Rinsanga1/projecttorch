@@ -1,13 +1,12 @@
 // The front door: sign up, first run, sign in (password, emailed link, Google), forgot/reset password,
 // two-step verification, accepting an invitation, the account chooser, account on hold, sign out.
+// The pages are client/areas/frontdoor.tsx; these are their posts, plus lookups signed-out pages need.
 //
 // ponytail: no real auth. Passwords are checked for shape only and never stored; "signing in" just sets the
 // `pid` cookie for the person with that email. Swap in hashed passwords + sessions when this goes live.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { HttpServerResponse } from "effect/http"
-import { html, raw, fmtDate, today, type Raw } from "../lib/html.ts"
-import { get, post, pubGet, pubPost, redirect, render, str, num, errors, isAdmin, type Ctx, type PubCtx, type Person, type Account } from "../lib/web.ts"
+import { get, post, pubGet, pubPost, redirect, invalid, json, withCookie, resync, str, num, type Ctx, type Person, type Account } from "../lib/web.ts"
 import { defaultTools, createRecording, logEvent, sendEmail, type Project } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
@@ -15,8 +14,8 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const LINK_MINUTES = 15
 const RESET_HOURS = 2
 
-const signInAs = (to: string, personId: number, flash?: string) =>
-  redirect(to, flash).pipe(HttpServerResponse.setCookieUnsafe("pid", String(personId), { path: "/" }))
+/** Become this person: the browser drops its copy and bootstraps as them. */
+const signInAs = (to: string, personId: number, flash?: string) => resync(withCookie(redirect(to, flash), "pid", String(personId)))
 
 /** Joined, active people with this email, one per account. */
 const peopleByEmail = (email: string) =>
@@ -36,50 +35,14 @@ const setPrefs = (personId: number, prefs: Record<string, unknown>) =>
 /** Where to land after signing in: two-step check, then the account chooser if there's more than one account. */
 const finishSignIn = (person: Person, accounts: number) =>
   person.prefs.two_factor
-    ? redirect("/signin/verify").pipe(HttpServerResponse.setCookieUnsafe("pending_pid", String(person.id), { path: "/" }))
+    ? withCookie(redirect("/signin/verify"), "pending_pid", String(person.id))
     : signInAs(accounts > 1 ? "/accounts" : "/", person.id)
 
-// ---------- forms ----------
-
-const signupForm = (v: Record<string, string>, errs: string[]) => html`
-<h1>Sign up</h1>
-<p>Start a new account. One short form, then you're inside.</p>
-${errors(errs)}
-<form method="post" action="/signup">
-  <p><label>Your name<br><input name="name" value="${v.name ?? ""}" required autofocus></label></p>
-  <p><label>Email address<br><input type="email" name="email" value="${v.email ?? ""}" required></label></p>
-  <p><label>Company or team name<br><input name="company" value="${v.company ?? ""}" required></label></p>
-  <p><label>Password<br><input type="password" name="password"></label></p>
-  <p><button>Start my free trial</button> <button name="google" value="1">Sign up with Google</button></p>
-</form>
-<p><a href="/signin">Already have an account? Sign in</a></p>`
-
-const signinEmailStep = (email: string, errs: Raw | string = "") => html`
-<h1>Sign in</h1>
-${errs}
-<form method="get" action="/signin">
-  <p><label>Email address<br><input type="email" name="email" value="${email}" required autofocus></label></p>
-  <button>Next</button>
-</form>
-<p><a href="/signup">New here? Try it free</a></p>`
-
-const signinPasswordStep = (email: string, errs: string[] = []) => html`
-<h1>Sign in</h1>
-${errors(errs)}
-<form method="post" action="/signin">
-  <input type="hidden" name="email" value="${email}">
-  <p>Signing in as <b>${email}</b> <a href="/signin">(not you?)</a></p>
-  <p><label>Password<br><input type="password" name="password" autofocus></label></p>
-  <p><button>Sign in</button> <button name="google" value="1">Sign in with Google</button></p>
-</form>
-<form method="post" action="/signin/link"><input type="hidden" name="email" value="${email}"><button>Email me a link to sign in instead</button></form>
-<p><a href="/forgot?email=${encodeURIComponent(email)}">Forgot your password?</a> · <a href="/signup">New here? Try it free</a></p>`
+const UNKNOWN_EMAIL = "We don't know that email address. Check for typos, or sign up."
 
 // ---------- routes ----------
 export const routes = [
   // Sign up
-  pubGet("/signup", (c) => render(c, "Sign up", signupForm({}, []))),
-
   pubPost("/signup", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -93,7 +56,7 @@ export const routes = [
         ...(google || str(fd, "password").length >= 8 ? [] : ["Pick a longer password. At least 8 characters."]),
       ]
       if (!errs.length && (yield* peopleByEmail(v.email)).length) errs.push("That email is already on an account. Sign in instead?")
-      if (errs.length) return yield* render(c, "Sign up", html`${signupForm(v, errs)}${errs.some((e) => e.includes("Sign in instead")) ? html`<p><a href="/signin?email=${encodeURIComponent(v.email)}">Sign in</a></p>` : ""}`, undefined, 422)
+      if (errs.length) return invalid(errs)
 
       const [account] = yield* sql<Account>`insert into accounts ${sql.insert({
         name: v.company, status: "trial", trial_ends_on: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10), billing_email: v.email,
@@ -123,21 +86,6 @@ export const routes = [
     })),
 
   // First run
-  get("/welcome", (c) =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const [sample] = yield* sql<{ id: number }>`select p.id from projects p join project_people pp on pp.project_id = p.id
-        where pp.person_id = ${c.me.id} and p.name like 'Sample project%' and p.status = 'active' limit 1`
-      return yield* render(c, "Welcome", html`
-<h1>Welcome! Let's get your first project going.</h1>
-<form method="post" action="/welcome">
-  <p><label>What are you working on?<br><input name="name" required autofocus placeholder="e.g. Website redesign"></label></p>
-  <button>Make this project</button>
-</form>
-${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample project</a> first. It's yours to trash.</p>` : ""}
-<p><a href="/">Skip, take me Home</a></p>`)
-    })),
-
   post("/welcome", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -152,13 +100,10 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
     })),
 
   // Sign in: email first, then a password, an emailed link, or Google.
+  /** Does this email have an account? The sign-in page asks before showing the password step. */
   pubGet("/signin", (c) =>
     Effect.gen(function* () {
-      const email = (c.query.get("email") ?? "").trim()
-      if (!email) return yield* render(c, "Sign in", signinEmailStep(""))
-      if (!(yield* peopleByEmail(email)).length)
-        return yield* render(c, "Sign in", signinEmailStep(email, errors(["We don't know that email address. Check for typos, or sign up."])), undefined, 422)
-      return yield* render(c, "Sign in", signinPasswordStep(email))
+      return json({ known: (yield* peopleByEmail((c.query.get("email") ?? "").trim())).length > 0 })
     })),
 
   pubPost("/signin", (c) =>
@@ -166,10 +111,10 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
       const fd = yield* c.form
       const email = str(fd, "email")
       const people = yield* peopleByEmail(email)
-      if (!people.length) return yield* render(c, "Sign in", signinEmailStep(email, errors(["We don't know that email address. Check for typos, or sign up."])), undefined, 422)
+      if (!people.length) return invalid([UNKNOWN_EMAIL])
       // ponytail: any non-empty password works; nothing is stored to compare against.
       if (fd.get("google") !== "1" && !str(fd, "password"))
-        return yield* render(c, "Sign in", signinPasswordStep(email, ["That email and password don't match. Try again, or we can email you a sign-in link."]), undefined, 422)
+        return invalid(["That email and password don't match. Try again, or we can email you a sign-in link."])
       return finishSignIn(people[0]!, people.length)
     })),
 
@@ -189,40 +134,18 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
       return redirect(`/signin/link-sent?email=${encodeURIComponent(email)}`)
     })),
 
-  pubGet("/signin/link-sent", (c) =>
-    Effect.gen(function* () {
-      const email = c.query.get("email") ?? ""
-      return yield* render(c, "Check your email", html`
-<h1>Check your email</h1>
-<p>We sent a sign-in link to <b>${email}</b>. It works once and expires in ${LINK_MINUTES} minutes.</p>
-<form method="post" action="/signin/link"><input type="hidden" name="email" value="${email}"><button>Didn't get it? Send it again</button></form>
-<p><a href="/signin?email=${encodeURIComponent(email)}">Sign in with a password instead</a></p>
-<p><small>Nothing really gets emailed yet. Open it in the <a href="/inbox?to=${encodeURIComponent(email)}">dev inbox</a>.</small></p>`)
-    })),
-
-  pubGet("/signin/link/:token", (c) =>
+  // Was a GET: opening the emailed link signs you in. The page posts here when it opens.
+  pubPost("/signin/link/:token", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const [person] = yield* sql<Person>`select * from people where prefs->>'signin_token' = ${c.params.token ?? ""} and removed_at is null`
       const at = (person?.prefs as any)?.signin_token_at
-      if (!person || !at || Date.now() - Date.parse(at) > LINK_MINUTES * 60_000)
-        return yield* render(c, "Link expired", html`<h1>This link has expired</h1><p>Sign-in links work once and expire after ${LINK_MINUTES} minutes.</p><p><a href="/signin">Ask for a new one</a></p>`, undefined, 410)
+      if (!person || !at || Date.now() - Date.parse(at) > LINK_MINUTES * 60_000) return json({ expired: true })
       yield* setPrefs(person.id, { signin_token: null, signin_token_at: null })
       return finishSignIn(person, (yield* peopleByEmail(person.email)).length)
     })),
 
   // Forgot / reset password
-  pubGet("/forgot", (c) =>
-    render(c, "Forgot password", c.query.get("sent")
-      ? html`<h1>Check your email</h1><p>If there's an account for <b>${c.query.get("email") ?? ""}</b>, we sent reset instructions to it.</p>
-        <p><a href="/signin">Back to sign in</a> · <small><a href="/inbox">Dev inbox</a></small></p>`
-      : html`<h1>Forgot your password?</h1>
-<form method="post" action="/forgot">
-  <p><label>Email address<br><input type="email" name="email" value="${c.query.get("email") ?? ""}" required autofocus></label></p>
-  <button>Send me reset instructions</button>
-</form>
-<p><a href="/signin">Never mind, back to sign in</a></p>`)),
-
   pubPost("/forgot", (c) =>
     Effect.gen(function* () {
       const email = str(yield* c.form, "email")
@@ -238,30 +161,23 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
       return redirect(`/forgot?sent=1&email=${encodeURIComponent(email)}`)
     })),
 
+  /** Is this reset link still good? */
   pubGet("/reset/:token", (c) =>
     Effect.gen(function* () {
-      const person = yield* resetPerson(c.params.token)
-      if (!person) return yield* render(c, "Link expired", html`<h1>This reset link has expired</h1><p><a href="/forgot">Ask for a new one</a></p>`, undefined, 410)
-      return yield* render(c, "Choose a new password", resetForm(c.params.token!, []))
+      return json({ ok: !!(yield* resetPerson(c.params.token)) })
     })),
 
   pubPost("/reset/:token", (c) =>
     Effect.gen(function* () {
       const person = yield* resetPerson(c.params.token)
-      if (!person) return yield* render(c, "Link expired", html`<h1>This reset link has expired</h1><p><a href="/forgot">Ask for a new one</a></p>`, undefined, 410)
-      if (str(yield* c.form, "password").length < 8) return yield* render(c, "Choose a new password", resetForm(c.params.token!, ["Pick a longer password. At least 8 characters."]), undefined, 422)
+      if (!person) return invalid(["This reset link has expired."])
+      if (str(yield* c.form, "password").length < 8) return invalid(["Pick a longer password. At least 8 characters."])
       // ponytail: the new password isn't stored (no auth yet). The token is spent either way.
       yield* setPrefs(person.id, { reset_token: null, reset_token_at: null })
       return signInAs((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/", person.id, "Password saved. You're signed in.")
     })),
 
   // Two-step verification
-  pubGet("/signin/verify", (c) =>
-    Effect.gen(function* () {
-      if (!num(c.req.cookies.pending_pid)) return redirect("/signin")
-      return yield* render(c, "Two-step verification", verifyForm(c.query.get("backup") === "1", []))
-    })),
-
   pubPost("/signin/verify", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -272,31 +188,32 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
       const code = str(fd, "code").replace(/\s/g, "")
       // ponytail: any well-formed code passes. Real TOTP check goes here with auth.
       if (backup ? !/^[a-z0-9-]{8,}$/i.test(code) : !/^\d{6}$/.test(code))
-        return yield* render(c, "Two-step verification", verifyForm(backup, [backup ? "That backup code didn't work. Each one works once." : "That code didn't work. Codes change every 30 seconds, so try the newest one."]), undefined, 422)
+        return invalid([backup ? "That backup code didn't work. Each one works once." : "That code didn't work. Codes change every 30 seconds, so try the newest one."])
       const [person] = yield* sql<Person>`select * from people where id = ${pid} and removed_at is null`
       if (!person) return redirect("/signin")
-      return signInAs((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/", person.id)
-        .pipe(HttpServerResponse.expireCookieUnsafe("pending_pid", { path: "/" }))
+      return withCookie(signInAs((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/", person.id), "pending_pid", null)
     })),
 
   // Accept an invitation
+  /** The invitation behind a token, as the join page shows it. */
   pubGet("/join/:token", (c) =>
     Effect.gen(function* () {
       const inv = yield* invitation(c.params.token)
-      if (inv.state !== "open") return yield* render(c, "Invitation", invitationGone(inv), undefined, 410)
-      return yield* render(c, `Join ${inv.account.name}`, joinForm(c.params.token!, inv, inv.person.name, []))
+      return json(inv.state === "open"
+        ? { state: "open", account: inv.account.name, inviter: inv.inviter, name: inv.person.name, email: inv.person.email, time_zone: inv.person.time_zone }
+        : inv.state === "used" ? { state: "used", account: inv.account?.name ?? null, email: inv.email } : { state: "gone" })
     })),
 
   pubPost("/join/:token", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const inv = yield* invitation(c.params.token)
-      if (inv.state !== "open") return yield* render(c, "Invitation", invitationGone(inv), undefined, 410)
+      if (inv.state !== "open") return invalid([inv.state === "used" ? "This invitation was already used." : "This invitation was cancelled."])
       const fd = yield* c.form
       const name = str(fd, "name")
       const google = fd.get("google") === "1"
       const errs = [...(name ? [] : ["Tell us your name."]), ...(google || str(fd, "password").length >= 8 ? [] : ["Pick a longer password. At least 8 characters."])]
-      if (errs.length) return yield* render(c, `Join ${inv.account.name}`, joinForm(c.params.token!, inv, name, errs), undefined, 422)
+      if (errs.length) return invalid(errs)
       const tz = str(fd, "time_zone")
       const validTz = (() => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return !!tz } catch { return false } })()
       yield* sql`update people set name = ${name}, time_zone = ${validTz ? tz : inv.person.time_zone}, joined_at = now(), invite_token = null,
@@ -306,21 +223,10 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
       return signInAs(first ? `/projects/${first.project_id}` : "/", inv.person.id, `Welcome to ${inv.account.name}!`)
     })),
 
-  // Account chooser
-  pubGet("/accounts", (c) =>
+  // Account chooser: the other accounts aren't in the browser's copy.
+  get("/accounts", (c) =>
     Effect.gen(function* () {
-      if (!c.me) return redirect("/signin")
-      const mine = yield* peopleByEmail(c.me.email)
-      return yield* render(c, "Your accounts", html`
-<h1>Your accounts</h1>
-<p>Signed in as ${c.me.email}.</p>
-<ul>${mine.map((p) => html`<li>
-  <form method="post" action="/accounts" style="display:inline">
-    <input type="hidden" name="person_id" value="${p.id}">
-    ${p.logo_url ? html`<img src="${p.logo_url}" alt="" width="24" height="24"> ` : ""}<button>${p.account_name}</button>${p.id === c.me!.id ? " (you're here now)" : ""}
-  </form></li>`)}</ul>
-<p><a href="/my/security">Your login & security</a></p>
-<form method="post" action="/signout"><button>Sign out</button></form>`)
+      return json((yield* peopleByEmail(c.me.email)).map((p) => ({ id: p.id, account_name: p.account_name, logo_url: p.logo_url })))
     })),
 
   pubPost("/accounts", (c) =>
@@ -333,36 +239,7 @@ ${sample ? html`<p>Or look around <a href="/projects/${sample.id}">a sample proj
     })),
 
   // Signing out sets pid=out, which web.ts loadMe treats as nobody.
-  pubPost("/signout", () =>
-    Effect.succeed(redirect("/signin", "You're signed out.").pipe(HttpServerResponse.setCookieUnsafe("pid", "out", { path: "/" })))),
-
-  // Account on hold
-  get("/lockout", (c) =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const a = c.account
-      if (a.status === "active" || a.status === "trial") return redirect("/")
-      const owners = yield* sql<{ name: string }>`select name from people where account_id = ${a.id} and role = 'owner' and removed_at is null order by name`
-      const owner = c.me.role === "owner"
-      if (a.status === "cancelled") {
-        const gone = a.cancelled_at ? fmtDate(new Date(new Date(a.cancelled_at).getTime() + 30 * 86400_000)) : "in 30 days"
-        return yield* render(c, "Account cancelled", html`
-<h1>${a.name} was cancelled</h1>
-<p>Everything in it will be deleted for good on ${gone}.</p>
-${owner ? html`<p><a href="/admin/cancel">Changed your mind? Reactivate the account</a></p><p><a href="/admin/export">Export your data</a></p>`
-  : html`<p>Ask an account owner (${owners.map((o) => o.name).join(", ")}) if you think this is a mistake.</p>`}
-<p><a href="/accounts">Switch accounts</a></p>`)
-      }
-      const trialOver = !!a.trial_ends_on && a.trial_ends_on <= today()
-      return yield* render(c, "Account on hold", html`
-<h1>${a.name} is on hold</h1>
-${owner
-  ? html`<p>${trialOver ? "Your trial is over. Add payment info to keep going." : "Your last payment didn't go through. Update your card to keep going."} Everything is right where you left it.</p>
-    <p><a href="/admin/billing" data-button>Add payment info</a></p>`
-  : html`<p>This account is on hold. Ask an account owner (${owners.map((o) => o.name).join(", ")}) to update billing. Everything is right where you left it.</p>`}
-${owner || isAdmin(c.me) ? html`<p><a href="/admin/export">Export your data</a></p>` : ""}
-<p><a href="/accounts">Switch accounts</a></p>`)
-    })),
+  pubPost("/signout", () => Effect.succeed(resync(withCookie(redirect("/signin", "You're signed out."), "pid", "out")))),
 ]
 
 // Trials that ran out go on hold. Everything stays; Billing and Export keep working.
@@ -382,25 +259,6 @@ const resetPerson = (token: string | undefined) =>
     const at = (p?.prefs as any)?.reset_token_at
     return p && at && Date.now() - Date.parse(at) < RESET_HOURS * 3600_000 ? p : null
   })
-
-const resetForm = (token: string, errs: string[]) => html`
-<h1>Choose a new password</h1>
-${errors(errs)}
-<form method="post" action="/reset/${token}">
-  <p><label>New password<br><input type="password" name="password" required autofocus></label></p>
-  <button>Save and sign in</button>
-</form>`
-
-const verifyForm = (backup: boolean, errs: string[]) => html`
-<h1>Two-step verification</h1>
-${errors(errs)}
-<form method="post" action="/signin/verify">
-  ${backup
-    ? html`<input type="hidden" name="backup" value="1"><p><label>Enter one of your backup codes<br><input name="code" required autofocus autocomplete="off"></label></p>`
-    : html`<p><label>Enter the 6-digit code from your authenticator app<br><input name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" required autofocus autocomplete="one-time-code"></label></p>`}
-  <button>Verify</button>
-</form>
-<p>${backup ? html`<a href="/signin/verify">Use your authenticator app instead</a>` : html`<a href="/signin/verify?backup=1">Use a backup code instead</a>`} · <a href="/help">Lost your device? Get help</a></p>`
 
 type Invitation =
   | { state: "open"; person: Person; account: Account; inviter: string | null }
@@ -424,25 +282,6 @@ const invitation = (token: string | undefined) =>
     }
     return { state: "gone" } as Invitation
   })
-
-const invitationGone = (inv: Invitation) =>
-  inv.state === "used"
-    ? html`<h1>This invitation was already used</h1><p><a href="/signin?email=${encodeURIComponent(inv.email)}">Sign in to get to ${inv.account?.name ?? "your account"}</a></p>`
-    : html`<h1>This invitation was cancelled</h1><p>Ask whoever invited you to send a new one.</p>`
-
-const joinForm = (token: string, inv: Extract<Invitation, { state: "open" }>, name: string, errs: string[]) => html`
-<h1>Join ${inv.account.name}</h1>
-<p>${inv.inviter ?? "Someone"} invited you to join ${inv.account.name} on Saintsflow.</p>
-${errors(errs)}
-<form method="post" action="/join/${token}">
-  <p><label>Your name<br><input name="name" value="${name}" required autofocus></label></p>
-  <p>Email: ${inv.person.email}</p>
-  <p><label>Password<br><input type="password" name="password"></label></p>
-  <p><label>Time zone (guessed from your browser)<br><input name="time_zone" id="tz" value="${inv.person.time_zone}"></label></p>
-  <p><button>Join ${inv.account.name}</button> <button name="google" value="1">Join with Google</button></p>
-</form>
-<p><a href="/signin">Already have a Saintsflow login? Sign in to accept</a></p>
-<script>try { document.getElementById("tz").value = Intl.DateTimeFormat().resolvedOptions().timeZone } catch {}</script>`
 
 export const seed = (s: Seed) =>
   Effect.gen(function* () {

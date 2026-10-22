@@ -10,11 +10,11 @@ import { plural } from "../../shared/format.ts"
 import type { PersonWithCompany } from "../data.ts"
 
 /** Follow a reply: flash, then navigate unless the server said to stay. Shared by <Form> and usePost. */
-const useFollow = () => {
+const useFollow = (opts: { replace?: boolean } = {}) => {
   const navigate = useNavigate()
   return (r: Reply) => {
     if (r.flash) flash(r.flash)
-    if (r.redirect && (!r.back || r.redirect === "/signin" || r.redirect === "/lockout")) navigate(r.redirect)
+    if (r.redirect && (!r.back || r.redirect === "/signin" || r.redirect === "/lockout")) navigate(r.redirect, { replace: opts.replace })
   }
 }
 
@@ -22,8 +22,8 @@ const useFollow = () => {
  * Post without a form element: toggles, drag-and-drop orders, a select that saves on change.
  * `post("/projects/1/tasks/2/complete", { done: "1" }, () => { …change db… })`
  */
-export const usePost = () => {
-  const follow = useFollow()
+export const usePost = (opts: { replace?: boolean } = {}) => {
+  const follow = useFollow(opts)
   return async (action: string, fields: Record<string, string | string[] | Blob> | FormData = {}, optimistic?: () => void) => {
     const fd = fields instanceof FormData ? fields : new FormData()
     if (!(fields instanceof FormData))
@@ -40,7 +40,8 @@ export const usePost = () => {
  * "open this notification"): the old GET routes that changed things are posts now, and their page renders this.
  */
 export const PostOnOpen = ({ action, fields }: { action: string; fields?: Record<string, string> }) => {
-  const post = usePost()
+  // Replace this page in history, so Back doesn't land here and post again.
+  const post = usePost({ replace: true })
   const done = useRef(false)
   useEffect(() => {
     if (done.current) return
@@ -78,7 +79,8 @@ export const Form = ({ action, optimistic, onDone, reset = true, children, ...re
       setErrors(r.errors ?? [])
       if (r.errors?.length) return
       onDone?.(r)
-      if (reset && (r.back || !r.redirect)) form.reset()
+      // Staying on this page (back, no redirect, or a redirect to this same path): clear what was typed.
+      if (reset && (r.back || !r.redirect || r.redirect.split(/[?#]/)[0] === location.pathname)) form.reset()
       follow(r)
     } finally {
       busy.current = false

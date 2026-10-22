@@ -1,7 +1,7 @@
 // The look: StyleX themes and the `sx` helper, faces, the kit tool pages share, menus and the hill.
 // Write `<div {...sx(styles.box)}>`; bare elements are styled by the base layer (base.ts).
 import * as stylex from "@stylexjs/stylex"
-import type { ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
 import { fmt, fmtDateTime } from "../../shared/format.ts"
 import { color, dark, font, light, media, radius, space, text } from "./tokens.stylex.ts"
 import { Form } from "./forms.tsx"
@@ -96,7 +96,7 @@ export const PageHead = ({ title, actions = [] }: { title: ReactNode; actions?: 
   return (
     <div {...sx(kit.head)}>
       <h1 {...sx(kit.headTitle)}>{title}</h1>
-      {xs.length > 0 && <p {...sx(kit.actions)}>{xs}</p>}
+      {xs.length > 0 && <p {...sx(kit.actions)}>{xs.map((x, i) => <Fragment key={i}>{x}</Fragment>)}</p>}
     </div>
   )
 }

@@ -164,9 +164,16 @@ const refresh = (conn: Conn, batch: ReadonlyArray<Change>) =>
   })
 
 let head = -1
+let epoch = ""
 /** Poll the log and fan new rows out to every open connection. */
 const broadcast = Effect.gen(function* () {
-  if (head < 0) head = (yield* sync).head
+  const m = yield* sync
+  // A database reset (new epoch) starts the log over: every open copy is stale.
+  if (m.epoch !== epoch) {
+    if (epoch) for (const conn of conns) conn.send(JSON.stringify({ resync: true }))
+    epoch = m.epoch
+    head = m.head
+  }
   const rows = yield* logAfter(head, 2000)
   if (!rows.length) return
   head = rows.at(-1)!.id
