@@ -279,3 +279,40 @@ create table emails (
   reply_person_id int references people on delete set null,
   created_at  timestamptz not null default now()
 );
+
+-- ---------- sync ----------
+-- Every change to a synced table lands here (trigger below); the server streams it to browsers over WebSocket.
+-- `epoch` changes on every reset, so browsers holding an older copy start over.
+create table sync_meta (epoch text not null, pruned_to bigint not null default 0);
+insert into sync_meta (epoch) values (md5(random()::text));
+
+create table sync_log (
+  id          bigserial primary key,
+  tbl         text not null,
+  op          text not null,   -- upsert | delete
+  row         jsonb not null,
+  created_at  timestamptz not null default now()
+);
+
+-- The advisory lock makes writers take ids in commit order, so a reader never skips a row that commits late.
+-- ponytail: one global lock serializes writes; per-account locks if write throughput ever matters.
+create function log_sync() returns trigger language plpgsql as $$
+begin
+  perform pg_advisory_xact_lock(7262);
+  if tg_op = 'DELETE' then
+    insert into sync_log (tbl, op, row) values (tg_table_name, 'delete', to_jsonb(old));
+  else
+    insert into sync_log (tbl, op, row) values (tg_table_name, 'upsert', to_jsonb(new));
+  end if;
+  return null;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['accounts','companies','people','projects','project_people','pins','recordings','subscriptions',
+    'boosts','bookmarks','bubble_ups','notifications','events','categories','markers','hill_updates','gauge_updates',
+    'time_entries','chatbots','webhooks','public_links','exports','connected_apps'] loop
+    execute format('create trigger sync after insert or update or delete on %I for each row execute function log_sync()', t);
+  end loop;
+end $$;

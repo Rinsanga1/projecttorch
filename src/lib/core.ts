@@ -18,12 +18,14 @@
 //   comment:   (body only)
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { html, raw, fmtDate, fmtDateTime, plural, esc, type Raw } from "./html.ts"
+import { fmtDate, esc } from "../shared/format.ts"
+import { CLIENT_INHERITS, TYPE_NAMES, titleOf, urlFor, mentionedIds, canSeeProject, type Tool } from "../shared/domain.ts"
 import { NotFound, NoAccess, Deleted, isAdmin, isClient, isQuiet, type Ctx, type Person } from "./web.ts"
-import { face, kit, sx } from "./ui.ts"
 
-export type Tool = { type: ToolType; name: string; enabled: boolean }
-export type ToolType = "message_board" | "todos" | "vault" | "campfire" | "schedule" | "checkins" | "cardtable" | "forwards" | "timesheet"
+export {
+  TOOL_PATHS, defaultTools, toolName, toolUrl, projectUrl, TYPE_TOOL, TYPE_NAMES, urlFor, titleOf, canSeeProject, mentionedIds, CLIENT_INHERITS,
+} from "../shared/domain.ts"
+export type { Tool, ToolType } from "../shared/domain.ts"
 
 export type Project = {
   id: number
@@ -62,84 +64,6 @@ export type Recording = {
   updated_at: Date
 }
 
-export const TOOL_PATHS: Record<ToolType, string> = {
-  message_board: "posts",
-  todos: "tasks",
-  vault: "files",
-  campfire: "chat",
-  schedule: "calendar",
-  checkins: "questions",
-  cardtable: "board",
-  forwards: "forwards",
-  timesheet: "timesheet",
-}
-
-export const defaultTools = (): Tool[] => [
-  { type: "message_board", name: "Posts", enabled: true },
-  { type: "todos", name: "Tasks", enabled: true },
-  { type: "vault", name: "Files", enabled: true },
-  { type: "campfire", name: "Chat", enabled: true },
-  { type: "schedule", name: "Calendar", enabled: true },
-  { type: "checkins", name: "Team questions", enabled: true },
-  { type: "cardtable", name: "Board", enabled: false },
-  { type: "forwards", name: "Forwarded emails", enabled: false },
-  { type: "timesheet", name: "Timesheet", enabled: false },
-]
-
-export const toolName = (p: Project, t: ToolType) => p.tools.find((x) => x.type === t)?.name ?? defaultTools().find((x) => x.type === t)!.name
-export const toolUrl = (p: Project | number, t: ToolType) => `/projects/${typeof p === "number" ? p : p.id}/${TOOL_PATHS[t]}`
-export const projectUrl = (p: Project | number) => {
-  if (typeof p !== "number" && p.kind === "ping") return `/chats/${p.id}`
-  return `/projects/${typeof p === "number" ? p : p.id}`
-}
-
-/** Which tool a recording type lives in (for breadcrumbs). */
-export const TYPE_TOOL: Record<string, ToolType> = {
-  message: "message_board",
-  todolist: "todos", todogroup: "todos", todo: "todos",
-  folder: "vault", doc: "vault", upload: "vault", cloudfile: "vault",
-  line: "campfire",
-  event: "schedule",
-  question: "checkins", answer: "checkins",
-  column: "cardtable", card: "cardtable", step: "cardtable",
-  forward: "forwards",
-}
-
-export const TYPE_NAMES: Record<string, string> = {
-  message: "post", todolist: "task list", todogroup: "group", todo: "task", folder: "folder", doc: "doc",
-  upload: "file", cloudfile: "link", event: "event", question: "question", answer: "answer", column: "column",
-  card: "card", step: "step", forward: "forwarded email", door: "link", line: "chat line", comment: "comment",
-}
-
-/** Where a recording lives. Groups, steps, columns, lines and comments point into their parent's page. */
-export const urlFor = (r: Pick<Recording, "id" | "type" | "project_id" | "parent_id" | "data">): string => {
-  const p = `/projects/${r.project_id}`
-  switch (r.type) {
-    case "message": return `${p}/posts/${r.id}`
-    case "todolist": return `${p}/lists/${r.id}`
-    case "todogroup": return `${p}/lists/${r.parent_id}#group-${r.id}`
-    case "todo": return `${p}/tasks/${r.id}`
-    case "folder": return `${p}/folders/${r.id}`
-    case "doc": return `${p}/docs/${r.id}`
-    case "upload": return `${p}/uploads/${r.id}`
-    case "cloudfile": return `${p}/cloudfiles/${r.id}`
-    case "event": return `${p}/events/${r.id}`
-    case "question": return `${p}/questions/${r.id}`
-    case "answer": return `${p}/answers/${r.id}`
-    case "column": return `${p}/board#column-${r.id}`
-    case "card": return `${p}/cards/${r.id}`
-    case "step": return `${p}/cards/${r.parent_id}#step-${r.id}`
-    case "forward": return `${p}/forwards/${r.id}`
-    case "door": return `${p}/links/${r.id}`
-    case "line": return `/r/${r.id}/line`
-    case "comment": return `/r/${r.parent_id}/go#comment-${r.id}`
-    default: return `/r/${r.id}/go`
-  }
-}
-
-export const titleOf = (r: Pick<Recording, "type" | "title" | "body">) =>
-  r.title || (r.body ? r.body.replace(/\s+/g, " ").slice(0, 60) : `Untitled ${TYPE_NAMES[r.type] ?? r.type}`)
-
 // ---------- people ----------
 export const personById = (id: number) =>
   Effect.gen(function* () {
@@ -170,16 +94,7 @@ export const projectPeople = (project: Project) =>
       order by c.name nulls first, p.name`
   })
 
-export const avatar = (p: Pick<Person, "name" | "avatar_url"> | null | undefined) =>
-  p ? (p.avatar_url ? html`<img src="${p.avatar_url}" alt="" width="24" height="24"> ${p.name}` : html`${p.name}`) : html`(someone)`
-
-export const personLink = (p: Pick<Person, "id" | "name"> | null | undefined) =>
-  p ? html`<a href="/people/${p.id}">${p.name}</a>` : html`(someone)`
-
 // ---------- access ----------
-export const canSeeProject = (me: Person, p: Project, memberIds: ReadonlyArray<number>) =>
-  p.account_id === me.account_id && (memberIds.includes(me.id) || (p.all_access && !isClient(me)) || (isAdmin(me) && p.kind !== "ping"))
-
 /** Load a project the current person can see, or fail with NotFound/NoAccess/Deleted. */
 export const findProject = (c: Ctx, id: number | string | undefined, opts: { allowTrashed?: boolean } = {}) =>
   Effect.gen(function* () {
@@ -214,7 +129,7 @@ export const clientVisible = (r: Recording) =>
       with recursive chain as (
         select id, parent_id, visible_to_clients, type from recordings where id = ${r.id}
         union all select x.id, x.parent_id, x.visible_to_clients, x.type from recordings x join chain on x.id = chain.parent_id)
-      select bool_and(visible_to_clients or type in ('comment','line','step','todogroup','answer','column')) as ok from chain`
+      select bool_and(visible_to_clients or type in ${sql.in(CLIENT_INHERITS)}) as ok from chain`
     return !!row?.ok
   })
 
@@ -293,12 +208,6 @@ export const notify = (c: Ctx, n: { personIds: ReadonlyArray<number>; recording?
         })
     }
   })
-
-/** People @mentioned in `text` (by first name or full name, no spaces), limited to `pool`. */
-export const mentionedIds = (text: string, pool: ReadonlyArray<Pick<Person, "id" | "name">>) => {
-  const handles = new Set([...text.matchAll(/(?:^|\s)@(\w+)/g)].map((m) => m[1]!.toLowerCase()))
-  return pool.filter((p) => handles.has(p.name.split(" ")[0]!.toLowerCase()) || handles.has(p.name.replace(/\s+/g, "").toLowerCase())).map((p) => p.id)
-}
 
 // ---------- recordings ----------
 export type NewRecording = {
@@ -397,30 +306,7 @@ export const commentCount = (recordingId: number) =>
     return (yield* sql<{ n: number }>`select count(*)::int as n from recordings where parent_id = ${recordingId} and type = 'comment' and status = 'active'`)[0]!.n
   })
 
-// ---------- shared form pieces ----------
-
-/** Checkbox list of people, grouped by company. Used by every "who" field. */
-export const peopleCheckboxes = (name: string, people: ReadonlyArray<Person & { company_name?: string | null }>, checkedIds: ReadonlyArray<number> = []) => {
-  const groups = new Map<string, typeof people[number][]>()
-  for (const p of people) {
-    const k = p.company_name ?? ""
-    groups.set(k, [...(groups.get(k) ?? []), p])
-  }
-  return html`<fieldset><legend>People</legend>${[...groups].map(([company, ps]) => html`
-    ${company ? html`<p><i>${company}</i></p>` : ""}
-    ${ps.map((p) => html`<label><input type="checkbox" name="${name}" value="${p.id}"${checkedIds.includes(p.id) ? raw(" checked") : ""}> ${p.name}${p.role === "client" ? " (client)" : ""}</label><br>`)}`)}
-  </fieldset>`
-}
-
-/** "When I post this, notify…" — Everyone / Only the people I select / Nobody. */
-export const notifyPicker = (people: ReadonlyArray<Person & { company_name?: string | null }>, me: Person) => html`
-<fieldset>
-  <legend>When I post this, notify…</legend>
-  <label><input type="radio" name="notify" value="everyone" checked> All ${plural(people.filter((p) => p.id !== me.id).length, "person", "people")} on this project</label><br>
-  <label><input type="radio" name="notify" value="selected"> Only the people I select…</label><br>
-  ${peopleCheckboxes("notify_ids", people.filter((p) => p.id !== me.id))}
-  <label><input type="radio" name="notify" value="nobody"> Nobody</label>
-</fieldset>`
+// ---------- forms ----------
 
 /** Read the notify picker's answer. */
 export const notifyIdsFrom = (fd: FormData, people: ReadonlyArray<Person>, me: Person) => {
@@ -430,27 +316,7 @@ export const notifyIdsFrom = (fd: FormData, people: ReadonlyArray<Person>, me: P
   return people.filter((p) => p.id !== me.id).map((p) => p.id)
 }
 
-/** "Clients see this?" switch on new things, only when the project has clients. */
-export const clientSwitch = (project: Project, people: ReadonlyArray<Person>, current?: boolean) =>
-  people.some(isClient)
-    ? html`<p><label><input type="checkbox" name="visible_to_clients"${(current ?? project.clients_see_new) ? raw(" checked") : ""}> Clients see this</label></p>`
-    : ""
-
-export const textField = (label: string, name: string, value = "", opts: { required?: boolean; placeholder?: string; type?: string } = {}) =>
-  html`<p><label>${label}<br><input type="${opts.type ?? "text"}" name="${name}" value="${value}"${opts.required ? raw(" required") : ""}${opts.placeholder ? html` placeholder="${opts.placeholder}"` : ""}></label></p>`
-
-export const textArea = (label: string, name: string, value = "", placeholder = "") =>
-  html`<p><label>${label}<br><textarea name="${name}" rows="8" cols="70" placeholder="${placeholder}">${value}</textarea></label></p>`
-
-/** Crumbs for anything inside a project: Project › Tool. */
-export const projectCrumbs = (p: Project, tool?: ToolType) =>
-  [[p.name, projectUrl(p)] as const, ...(tool ? [[toolName(p, tool), toolUrl(p, tool)] as const] : [])]
-
-export const byLine = (who: Pick<Person, "id" | "name"> & { avatar_url?: string | null } | null | undefined, when: Date | string, tz = "UTC") =>
-  html`<p${sx(kit.by)}>${face(who, 24)}<span>${who ? html`<a href="/people/${who.id}"${sx(kit.byName)}>${who.name}</a>` : "(someone)"} · ${fmtDateTime(when, tz)}</span></p>`
-
 export { NotFound, NoAccess, Deleted, fmtDate, esc }
-export type { Raw }
 
 // ---------- project lists ----------
 

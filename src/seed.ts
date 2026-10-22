@@ -19,7 +19,6 @@ export const seedCtx = (me: Person, account: Account): Ctx => ({
   url: new URL("http://localhost/"),
   params: {},
   query: new URLSearchParams(),
-  flash: null,
   me,
   account,
   form: Effect.succeed(new FormData()),
