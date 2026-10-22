@@ -1,3 +1,17 @@
 /* The app's one stylesheet. The StyleX plugin appends every compiled rule here at build time.
    Base styles for plain elements live in ui/base.ts (they need the token variables). */
 @layer base;
+
+/* Swapping windows on the project page glides (view transitions, see ui/desk.tsx).
+   Only the windows move: the page itself doesn't crossfade. A window's picture keeps its size inside the moving
+   frame (clipped, never stretched), and the old and new pictures cross over quickly. */
+::view-transition-group(*) { animation-duration: 240ms; animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1); }
+::view-transition-image-pair(*) { overflow: hidden; border-radius: 12px; }
+::view-transition-old(*), ::view-transition-new(*) { width: 100%; height: 100%; object-fit: none; object-position: left top; animation-duration: 160ms; }
+::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-image-pair(root) { overflow: visible; border-radius: 0; }
+
+/* A page inside a project window: its title steps down a size, since the window, not the page, is the frame. */
+[data-window-body] h1 { font-size: 1.5rem; }
+/* At a window's start page its title bar already names the tool: the page heading stays for screen readers only. */
+[data-window-root] h1 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
