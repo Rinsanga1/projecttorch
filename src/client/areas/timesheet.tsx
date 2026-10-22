@@ -6,7 +6,7 @@ import { db } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, visibleProjects, recordings, NoAccess, NotFound } from "../data.ts"
 import { isAdmin, isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, today } from "../../shared/format.ts"
-import { Form } from "../ui/forms.tsx"
+import { Form, submitOnChange } from "../ui/forms.tsx"
 import { kit, PageHead, sx } from "../ui/kit.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, radius, space, text } from "../ui/tokens.stylex.ts"
@@ -59,14 +59,14 @@ const qs = (f: Filters) => {
 }
 
 const FilterForm = ({ action, f, people, projects }: { action: string; f: Filters; people: ReadonlyArray<{ id: number; name: string }>; projects?: ReadonlyArray<{ id: number; name: string }> }) => (
-  <GetForm method="get" action={action} {...sx(kit.toolbar)}>
+  <GetForm method="get" action={action} ref={submitOnChange} {...sx(kit.toolbar)}>
     <label>From <input type="date" name="from" defaultValue={f.from} /></label>
     <label>To <input type="date" name="to" defaultValue={f.to} /></label>
     <label>Person <select name="person" defaultValue={f.personId ?? ""}><option value="">Everyone</option>
       {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
     {projects && <label>Project <select name="project" defaultValue={f.projectId ?? ""}><option value="">All projects</option>
       {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
-    <button {...sx(kit.toolbarControl)}>Filter</button> <a href={action}>Clear</a>
+    {(f.from || f.to || f.personId || f.projectId) && <a href={action}>Clear</a>}
   </GetForm>
 )
 

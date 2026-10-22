@@ -10,9 +10,9 @@ import {
   type PersonWithCompany,
 } from "../data.ts"
 import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
-import { daysFromToday, excerpt, fmtDate, fmtDateTime, isoDate, plural } from "../../shared/format.ts"
+import { daysFromToday, fmtDate, fmtDateTime, isoDate, plural } from "../../shared/format.ts"
 import { Fmt, PageHead, hill, kit, sx } from "../ui/kit.tsx"
-import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, TextArea, TextField } from "../ui/forms.tsx"
+import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
@@ -22,8 +22,6 @@ const ts = stylex.create({
   title: { fontWeight: 500, textDecoration: "none", ":hover": { textDecoration: "underline" } },
   meta: { display: "inline-flex", flexWrap: "wrap", columnGap: space.s3 },
   move: { marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: space.s2 },
-  moveSelect: { minHeight: 30, paddingBlock: 3, fontSize: text.sm },
-  moveButton: { minHeight: 30, paddingBlock: 4 },
   check: {
     width: 22, height: 22, minHeight: 22, padding: 0, flexShrink: 0, borderRadius: 7, backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.accentSoft } },
     borderWidth: 1.5, borderStyle: "solid", borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.focus } }, color: color.onAccent,
@@ -45,16 +43,20 @@ const CheckMark = ({ t }: { t: Recording }) => (
 // The lists as cards with a progress bar; the Hill Chart drawn as the hill, one orange dot per tracked list.
 const ls = stylex.create({
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: space.s3, margin: 0, marginBottom: space.s5 },
-  card: {
-    position: "relative", borderTopWidth: 0, padding: space.s5, borderRadius: radius.xl, display: "grid", gap: space.s2, alignContent: "start", minHeight: 140,
-    backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
-  },
-  cardTitle: { fontSize: text.md, fontWeight: 650, letterSpacing: "-0.02em", textDecoration: "none",
-    "::after": { content: '""', position: "absolute", inset: 0, borderRadius: "inherit" } },
+  // A list on the Tasks start page: its title and progress, then its next open tasks to tick off in place.
+  card: { borderTopWidth: 0, padding: space.s5, borderRadius: radius.xl, display: "grid", gap: space.s2, alignContent: "start", backgroundColor: color.tile },
+  cardTitle: { fontSize: text.md, fontWeight: 650, letterSpacing: "-0.02em", textDecoration: "none", ":hover": { textDecoration: "underline" } },
   cardText: { margin: 0, fontSize: text.sm, color: color.muted },
-  bar: { height: 6, borderRadius: radius.pill, backgroundColor: color.sheet, overflow: "hidden", marginTop: "auto" },
+  bar: { height: 6, borderRadius: radius.pill, backgroundColor: color.sheet, overflow: "hidden" },
+  tasks: { display: "grid", gap: space.s1, margin: 0, marginTop: space.s2 },
+  task: { display: "flex", alignItems: "flex-start", gap: 10, borderTopWidth: 0, paddingBlock: 3 },
+  taskTitle: { fontSize: text.sm, fontWeight: 500, textDecoration: "none", ":hover": { textDecoration: "underline" } },
+  taskMeta: { display: "block", fontSize: text.xs, color: color.muted },
+  // Late is the case orange is kept for: it needs attention now.
+  late: { color: color.accentText, fontWeight: 600 },
+  more: { fontSize: text.sm, marginTop: space.s1 },
   fill: (w: string) => ({ width: w }),
-  fillBox: { height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
+  fillBox: { display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
   count: { fontSize: text.xs, fontWeight: 600, color: color.muted, fontVariantNumeric: "tabular-nums" },
   hillCard: { padding: { default: space.s3, "@media (min-width: 768px)": space.s5 }, borderRadius: radius.xl, backgroundColor: color.tile, marginBottom: space.s5 },
   hillHead: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: space.s2 },
@@ -119,6 +121,8 @@ const CheckButton = ({ p, t, large = false }: { p: Project; t: Recording; large?
 // ---------- reads ----------
 
 const byPosition = (a: Recording, b: Recording) => a.position - b.position || a.id - b.id
+/** Late and soonest due first, then the ones with no date in list order. */
+const soonestFirst = (a: Recording, b: Recording) => String(a.data.due_on ?? "9").localeCompare(String(b.data.due_on ?? "9")) || byPosition(a, b)
 
 /** Active to-dos on a list, counting to-dos inside its groups too, by position. */
 const todosIn = (listId: number) => {
@@ -178,8 +182,11 @@ const TodoRow = observer(({ p, t, people, moveTargets, readOnly }: { p: Project;
           {...sx(ts.move)}
           style={{ display: "inline" }}
         >
-          <label><small>Move to…</small> <select name="parent_id" defaultValue={t.parent_id ?? undefined} {...sx(ts.moveSelect)}>{moveTargets.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>{" "}
-          <button {...sx(ts.moveButton)}>Move</button>
+          {/* Picking a place moves it: no separate Move button. Quiet until the row is hovered or focused (app.css). */}
+          <select name="parent_id" defaultValue="" onChange={submitOwnForm} aria-label={`Move “${t.title}” to…`} data-row-action {...sx(kit.quietSelect)}>
+            <option value="" disabled hidden>Move to…</option>
+            {moveTargets.filter((m) => m.id !== t.parent_id).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
         </Form>
       )}
     </li>
@@ -238,6 +245,7 @@ export const routes = [
     const tracked = lists.filter((l) => l.data.tracked)
     const pos = hillPositions(p.id)
     const reorder = q.get("reorder") === "1" && !isClient(m)
+    const people = projectPeople(p)
     return (
       <Page title="Tasks" crumbs={projectCrumbs(p)}>
         <PageHead title="Tasks" actions={[p.status === "active" && <a key="new" href={`/projects/${p.id}/lists/new`} data-button>New list</a>]} />
@@ -249,14 +257,36 @@ export const routes = [
             <button>Save order</button> <a href={toolUrl(p, "todos")}>Cancel</a>
           </Form>
         ) : (
+          // Each list shows its next open tasks, late ones first, to tick off right here; the list page has the rest.
           <ul {...sx(ls.grid)}>{lists.map((l) => {
             const all = todosIn(l.id)
             const s = { done: all.filter((t) => t.data.completed_at).length, total: all.length }
+            const open = all.filter((t) => !t.data.completed_at).sort(soonestFirst)
             return (
               <li key={l.id} {...sx(ls.card)}>
-                <a href={urlFor(l)} {...sx(ls.cardTitle)}>{l.title}</a>{l.body && <p {...sx(ls.cardText)}>{excerpt(l.body)}</p>}
+                <a href={urlFor(l)} {...sx(ls.cardTitle)}>{l.title}</a>
                 <span {...sx(ls.count)}>{s.done}/{s.total} completed</span>
                 <span {...sx(ls.bar)} aria-hidden="true"><span {...sx(ls.fillBox, ls.fill(`${s.total ? Math.round((s.done / s.total) * 100) : 0}%`))} /></span>
+                {open.length > 0 ? (
+                  <ul {...sx(ls.tasks)}>{open.slice(0, 5).map((t) => {
+                    const late = t.data.due_on && daysFromToday(t.data.due_on) < 0
+                    return (
+                      <li key={t.id} {...sx(ls.task)}>
+                        {p.status === "active" ? <CheckButton p={p} t={t} /> : <CheckMark t={t} />}
+                        <span>
+                          <a href={urlFor(t)} {...sx(ls.taskTitle)}>{t.title}</a>
+                          {(t.data.assignee_ids?.length > 0 || t.data.due_on) && (
+                            <small {...sx(ls.taskMeta)}>
+                              {names(people, t.data.assignee_ids)}{t.data.assignee_ids?.length > 0 && t.data.due_on && " · "}
+                              {t.data.due_on && <span {...sx(late && ls.late)}>{dueText(t)}</span>}
+                            </small>
+                          )}
+                        </span>
+                      </li>
+                    )
+                  })}</ul>
+                ) : <p {...sx(ls.cardText)}>{s.total ? "All done." : "No tasks yet."}</p>}
+                {open.length > 5 && <a href={urlFor(l)} {...sx(ls.more)}>See all {open.length} open tasks</a>}
               </li>
             )
           })}</ul>
@@ -316,7 +346,7 @@ export const routes = [
           {!readOnly && !isClient(m) && <> · <a href={`/projects/${p.id}/lists/${list.id}/edit`}>Edit</a></>}</p>
         {!readOnly && !isClient(m) && (
           <Form action={`/projects/${p.id}/lists/${list.id}/track`}>
-            <button>{list.data.tracked ? "Take this list off the progress hill" : "Show this list on the progress hill"}</button>
+            <button data-quiet {...sx(kit.linkButton)}>{list.data.tracked ? "Take this list off the progress hill" : "Show this list on the progress hill"}</button>
             {list.data.tracked && <> <a href={`/projects/${p.id}/progress`}>See the hill</a></>}
           </Form>
         )}

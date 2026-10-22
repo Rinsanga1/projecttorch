@@ -9,7 +9,7 @@ import { me, findProject, findRecording, projectPeople, peopleByIds, personById,
 import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, ms, plural } from "../../shared/format.ts"
 import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
-import { ClientSwitch, Form, PeopleCheckboxes, TextArea } from "../ui/forms.tsx"
+import { ClientSwitch, Form, PeopleCheckboxes, submitOnChange, TextArea } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
@@ -196,9 +196,9 @@ export const routes = [
           </div>
         )}
         {(answerers.length > 1 || personId) && (
-          <GetForm method="get" {...sx(kit.toolbar)}>
+          <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}>
             <label>Show answers from <select name="person" key={personId ?? ""} defaultValue={personId ?? ""} {...sx(kit.toolbarControl)}><option value="">everyone</option>
-              {answerers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label> <button {...sx(kit.toolbarControl)}>Filter</button>
+              {answerers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
           </GetForm>
         )}
         {!answers.length ? (

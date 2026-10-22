@@ -6,7 +6,7 @@ import { me, findProject, findRecording, projectPeople, personById, recordings, 
 import { isAdmin, isClient, toolUrl, urlFor, type Category, type Project, type Recording } from "../../shared/domain.ts"
 import { excerpt, fmtDate, ms } from "../../shared/format.ts"
 import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
-import { ClientSwitch, Form, NotifyPicker, TextArea, TextField } from "../ui/forms.tsx"
+import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 
@@ -76,10 +76,11 @@ export const routes = [
     return (
       <Page title="Posts" crumbs={projectCrumbs(p)}>
         <PageHead title="Posts" actions={[p.status === "active" && <a key="new" href={`/projects/${p.id}/posts/new`} data-button>Write a post</a>]} />
-        <GetForm method="get" {...sx(kit.toolbar)}>
+        {/* The category filter earns its row once there are enough posts to sort through. */}
+        {(msgs.length > 5 || catId) && <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}>
           <label>Category <select name="category" key={catId ?? ""} defaultValue={catId ?? ""} {...sx(kit.toolbarControl)}><option value="">All posts</option>
-            {cats.map((k) => <option key={k.id} value={k.id}>{k.emoji} {k.name}</option>)}</select></label> <button {...sx(kit.toolbarControl)}>Filter</button>
-        </GetForm>
+            {cats.map((k) => <option key={k.id} value={k.id}>{k.emoji} {k.name}</option>)}</select></label>
+        </GetForm>}
         {msgs.length === 0 ? (
           <p {...sx(kit.empty)}>{catId ? "No posts in this category." : "Share news, ideas, and updates with the team. Start with “Write a post”."}</p>
         ) : (

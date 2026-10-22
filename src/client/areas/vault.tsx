@@ -8,7 +8,7 @@ import { me, findProject, findRecording, projectPeople, personById, recordings, 
 import { isClient, titleOf, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, plural } from "../../shared/format.ts"
 import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
-import { ClientSwitch, Form, NotifyPicker, TextArea, TextField } from "../ui/forms.tsx"
+import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
@@ -106,7 +106,7 @@ const ItemLabel = observer(({ r }: { r: Recording }) => {
       {r.type === "upload" && r.data.size ? <> <small>({fmtSize(r.data.size)})</small></> : null}
       <span {...sx(vs.meta)}>
         <span>{personById(r.creator_id)?.name ?? "Someone"} · {fmtDate(r.updated_at, me().time_zone)}{comments ? ` · ${plural(comments, "comment")}` : ""}</span>
-        <a href={`/r/${r.id}/move?mode=move`} {...sx(vs.quiet)}>Move</a>
+        <a href={`/r/${r.id}/move?mode=move`} data-row-action {...sx(vs.quiet)}>Move</a>
       </span>
     </div>
   )
@@ -133,14 +133,13 @@ const Listing = ({ items, view }: { items: ReadonlyArray<Recording>; view: strin
   )
 
 const SortViewForm = ({ sort, view }: { sort: string; view: string }) => (
-  <GetForm method="get" {...sx(kit.toolbar)}>
+  <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}>
     <label>Sort <select name="sort" defaultValue={sort} {...sx(kit.toolbarControl)}>
       <option value="position">Your order</option>
       <option value="newest">Newest</option>
       <option value="alpha">A–Z</option>
     </select></label>
     <label>View <select name="view" defaultValue={view} {...sx(kit.toolbarControl)}><option value="list">List</option><option value="grid">Grid</option></select></label>
-    <button {...sx(kit.toolbarControl)}>Apply</button>
   </GetForm>
 )
 

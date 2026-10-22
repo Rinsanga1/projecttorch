@@ -8,11 +8,11 @@ import { me, findProject, findRecording, projectPeople, children, recordings, pe
 import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, isoDate } from "../../shared/format.ts"
 import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
-import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, TextArea, TextField } from "../ui/forms.tsx"
+import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 import { reorderLocal } from "./todos.tsx"
-import { color, radius, space, text } from "../ui/tokens.stylex.ts"
+import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 
 // The table: columns side by side (scrolling sideways when they don't fit), cards as white cards in each column.
 const DOT: Record<string, string> = { red: "#e5484d", orange: "#f99c00", yellow: "#f5c518", green: "#30a46c", blue: "#3e7bfa", purple: "#8e4ec6", gray: "#8b8d98" }
@@ -36,7 +36,8 @@ const ks = stylex.create({
   cardMeta: { display: "flex", flexWrap: "wrap", columnGap: space.s2, fontSize: text.xs, color: color.muted },
   cardActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 },
   small: { minHeight: 28, paddingBlock: 2, fontSize: text.xs, whiteSpace: "nowrap" },
-  smallSelect: { minHeight: 28, paddingBlock: 2, paddingLeft: 8, fontSize: text.xs, maxWidth: "9.5rem", margin: 0 },
+  // A plain button on a Tile Gray column: it takes the sheet's white so it doesn't vanish into the column.
+  onTile: { backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.tileHover } } },
   none: { margin: 0, paddingInline: 6, paddingBlock: space.s2, fontSize: text.sm, color: color.muted },
   held: { margin: 0, marginTop: space.s2, paddingInline: 6, fontSize: text.xs, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
   add: { display: "flex", gap: 6, margin: 0 },
@@ -86,8 +87,8 @@ const flipLocal = (r: Recording, change: (d: Record<string, any>) => Record<stri
 
 // ---------- pieces ----------
 
-const ColumnSelect = ({ cols, current, name = "column_id", small = false }: { cols: ReadonlyArray<Recording>; current: number | null; name?: string; small?: boolean }) => (
-  <select name={name} defaultValue={current ?? undefined} {...(small ? sx(ks.smallSelect) : {})}>{cols.map((col) => <option key={col.id} value={col.id}>{col.title}</option>)}</select>
+const ColumnSelect = ({ cols, current, name = "column_id", onChange }: { cols: ReadonlyArray<Recording>; current: number | null; name?: string; onChange?: typeof submitOwnForm }) => (
+  <select name={name} defaultValue={current ?? undefined} onChange={onChange}>{cols.map((col) => <option key={col.id} value={col.id}>{col.title}</option>)}</select>
 )
 
 const ColorSelect = ({ current }: { current: string }) => (
@@ -110,7 +111,10 @@ const CardItem = observer(({ p, k, col, cols, people, active }: { p: Project; k:
       {active && (
         <span {...sx(ks.cardActions)}>
           <Form action={`/projects/${p.id}/cards/${k.id}/move`} style={{ display: "inline" }} optimistic={(fd) => moveLocal(k, fd.get("column_id"))}>
-            <label><span {...sx(kit.srOnly)}>Move to…</span><ColumnSelect cols={cols} current={col.id} small /></label> <button {...sx(ks.small)}>Move</button>
+            <select name="column_id" defaultValue="" onChange={submitOwnForm} aria-label={`Move “${k.title}” to…`} data-row-action {...sx(kit.quietSelect)}>
+              <option value="" disabled hidden>Move to…</option>
+              {cols.filter((c) => c.id !== col.id).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
           </Form>
           {col.data.on_hold && (
             <Form action={`/projects/${p.id}/cards/${k.id}/hold`} style={{ display: "inline" }} optimistic={() => flipLocal(k, (d) => ({ on_hold: !d.on_hold }))}>
@@ -168,7 +172,7 @@ export const routes = [
                     {active && col.data.kind !== "done" && (
                       <Form key={loc.key} action={`/projects/${p.id}/cards`} {...sx(ks.add)}>
                         <input type="hidden" name="column_id" value={col.id} />
-                        <input name="title" required placeholder="Card title" aria-label="Card title" {...sx(ks.addInput)} /> <button {...sx(ks.small)}>Add a card</button>
+                        <input name="title" required placeholder="Card title" aria-label="Card title" {...sx(ks.addInput)} /> <button data-quiet {...sx(ks.small, ks.onTile)}>Add a card</button>
                       </Form>
                     )}
                   </>
@@ -177,14 +181,15 @@ export const routes = [
             )
           })}
         </div>
-        {active && !isClient(m) && cols.some((col) => col.data.kind === "custom") && (
-          <>
-            <h2>Reorder your columns</h2>
+        {/* Reordering takes two of your own columns; folded away until wanted. */}
+        {active && !isClient(m) && cols.filter((col) => col.data.kind === "custom").length > 1 && (
+          <details>
+            <summary>Reorder columns</summary>
             <Form key={loc.key} action={`/projects/${p.id}/columns/order`} optimistic={reorderLocal}>
               {cols.filter((col) => col.data.kind === "custom").map((col, i) => <span key={col.id}><label>{col.title} <input type="number" name={`pos_${col.id}`} defaultValue={i + 1} min={1} size={3} /></label><br /></span>)}
               <button>Save order</button>
             </Form>
-          </>
+          </details>
         )}
       </Page>
     )
@@ -262,7 +267,7 @@ export const routes = [
         <ClientBanner r={r} hasClients={people.some(isClient)} />
         <article>
           {live
-            ? <Form key={r.parent_id} action={`/projects/${project.id}/cards/${r.id}/move`} optimistic={(fd) => moveLocal(r, fd.get("column_id"))}><label>In column <ColumnSelect cols={cols} current={r.parent_id} /></label> <button>Move</button></Form>
+            ? <Form key={r.parent_id} action={`/projects/${project.id}/cards/${r.id}/move`} optimistic={(fd) => moveLocal(r, fd.get("column_id"))}><label>In column <ColumnSelect cols={cols} current={r.parent_id} onChange={submitOwnForm} /></label></Form>
             : <p>In column: {col?.title ?? "?"}</p>}
           {r.data.on_hold && <p>⏸ On hold</p>}
           {r.data.completed_at && <p>✓ Done {fmtDate(r.data.completed_at, m.time_zone)}</p>}
@@ -274,7 +279,7 @@ export const routes = [
           {live && (
             <>
               <p><a href={`/projects/${project.id}/cards/${r.id}/edit`}>Edit</a></p>
-              {col?.data.kind !== "done" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button>Mark as done</button></Form>}
+              {col?.data.kind !== "done" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
               {col?.data.on_hold && (
                 <Form action={`/projects/${project.id}/cards/${r.id}/hold`} optimistic={() => flipLocal(r, (d) => ({ on_hold: !d.on_hold }))}>
                   <button>{r.data.on_hold ? "Take off hold" : "Put on hold"}</button>
