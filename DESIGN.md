@@ -468,7 +468,7 @@ A person is their photo, or else up to two initials on a Pill Black disc (650 we
 - **Settings you change once** ("Notify me about" in chat) fold into one quiet `<details>` line that names the current choice, and save as soon as you pick.
 
 ### Navigation
-- **App nav:** the account name is set as a 750-weight wordmark on the ground, followed by pill links (muted, 500 weight, 7px 12px). On fine pointers, hover tints the pill toward white (sheet at 60%). The current page is a solid Sheet White pill with Ink 600 text, and unread counts ride inside the pill. Find and Jump sit at the right end. The nav wraps on narrow screens rather than collapsing.
+- **App nav:** half a bar, on purpose: `Acme · Private chats · Updates · Find · (your face)`. The account name is a 750-weight wordmark on the ground and it is Home; Private chats and Updates are pill links (muted, 500 weight, 7px 12px) with their unread counts inside. On fine pointers, hover tints the pill toward white (sheet at 60%); the current page is a solid Sheet White pill with Ink 600 text. At the right end, Find (its title names Ctrl/⌘ + K for Go to), then your face (30px) linking to Me, ringed in Ink on your own pages. Timeline and Activity are reached from Home. The nav wraps on narrow screens rather than collapsing.
 - **Breadcrumbs:** small muted links on the ground, separated by Control Gray slashes.
 - **Quiet link row:** a wrapping row of small links at the foot of a tool page.
 - **Marketing nav:** the text links are hidden under 900px; the Log in text link and a small light Sign up pill stay visible.
@@ -488,19 +488,36 @@ A to-do list card on the Tasks start page is a working preview: the list's title
 ### Lineup Bars
 Each dated project is a 34px Tile Gray pill positioned on one shared track, with left and width set as percentages of the date range. The name is 600 weight and the dates muted 400. A 2px Kargul Orange vertical line marks today, topped by an orange "Today" pill in tag type.
 
+### Home
+Home is the dashboard, and it answers "where do I need to be today?" There is no visible title (the wordmark says where you are).
+- **Projects first:** "Projects" (lg) with "Make a new project" beside it, then one grid of cards (260px min, 12px gaps): HQ first, then pinned, then recently visited, up to 8, then "All projects (N)" and Templates.
+- **A project card** (Tile Gray, 24px corners, the whole card is the link): the name, HQ's tag, one line of description, the dates, then the card's news, the same as the project's window row: up to three windows by name with an 18px orange count ("Files 6 · Chat 5 · Posts 3"), "N late" outlined in orange, or "All caught up." in muted text. A row of 24px faces sits under it, and "Pin" shows only while the card is hovered or focused (always on touch).
+- **Two lists under the projects:** "Due for you" (your tasks and cards, soonest due first, so late leads, its date in Accent Text 650: "was due Oct 20") and "Coming up" (your events in the next two weeks, never the tasks that are already due for you). Five each, with "See all N".
+- **Then the Timeline** (the Lineup), and a quiet row: "See all activity", "Invite people".
+- **States:** no projects yet: "Welcome. Make your first project, then invite the people working on it." Nothing due: "Nothing's due for you. Enjoy it." Nothing coming up: "Nothing on your calendar in the next two weeks."
+- There is no separate "What's new" list: the cards are what's new, and Updates has the rest.
+
 ### Project Windows
 The project page shows its tools as windows, not a grid of tiles. The decision and the exploration behind it are in `docs/project_ui_explore/`.
-- **Head:** the project page drops the breadcrumb and keeps its head short: the title at 1.625rem, the description, then one line of facts, padded 24px/28px on desktop. The page draws its own card (`<Page flush>` drops the sheet): this white head is its top half, with the sheet's top corners, and the desk is its bottom half.
+- **Head:** the project page drops the breadcrumb and keeps its head short: the title at 1.625rem, the description (what someone wrote for the project, always kept), then one line of facts: the dates, the status once someone has set it ("Set the status" lives in the ••• menu, not on the most-seen screen), and client access. It is padded 24px/28px on desktop. The page draws its own card (`<Page flush>` drops the sheet): this white head is its top half, with the sheet's top corners, and the desk is its bottom half.
 - **Desk:** a Tile Gray band, edge to edge under the head and carrying the sheet's bottom corners, that holds the windows with 10px gaps and padding. On desktop it fills the screen below the head (`max(460px, 100dvh - 272px)`). The **master** (the big window) takes every pixel left of the **stack**, a 300px column on the right whose windows share its height. On phones everything stacks top to bottom.
 - **Window:** a Sheet White card with 12px corners and a 1.5px Hairline outline, the one bordered card in the app: white on Tile Gray alone loses its edge. The outline is a border, not a shadow, so view transitions carry it.
   - Its title bar is 40px with a hairline under it: a 16px tool icon, the name (650, 0.875rem), a one-line muted summary (xs), then the actions. The body pads 12px/14px.
-  - The master's actions are two 28px icon buttons: full screen (a square; four inward corners while on) and close. Its outline is 2px Kargul Orange, the focus state of the page.
-  - In a stack window the whole title is a button that brings it forward, plus a close button.
+  - The master's one action is a 28px full-screen button (a square; four inward corners while on). There is no close: picking another window from the row swaps it. Its outline is 2px Kargul Orange, the focus state of the page.
+  - In a stack window the whole title is a button that brings it forward. Nothing else: no close.
 - **The master is where you work:** it runs the tool's real pages on a router of its own (`ui/window-router.tsx`). Links, forms and redirects inside it move the window, never the page; only links that leave the project open as pages. Deeper than the tool's start, a back chevron takes the icon's place. A window sent to the stack comes back on the page it was on.
   - Pages inside drop their own frame: no breadcrumb, sheet or tab title, headings at 1.5rem, and at the tool's start the page heading is kept for screen readers only (the title bar names the tool). Chat opens at its newest lines.
   - A flash raised while working in a window floats just above the taskbar (it rises 8px in, 220ms ease-out) instead of pushing the page down, and its Undo runs in that window.
 - **Full screen** lifts the desk over the whole page: the master alone above the taskbar, the page under it held still. Switching tools from the taskbar keeps it on; Escape or the button comes back out. It isn't remembered across visits.
-- **Stack windows** are previews: they show the start of their body, fading out at the bottom, and stay inert until brought forward. A window with nothing in it yet keeps its size like the others and shows three still placeholder lines (10px Tile Gray pills at 72%, 92% and 56% width, no shimmer since nothing is loading); its title bar says what is missing ("No posts yet"). Drag one by its title to reorder the stack (a 3px orange rule marks where it lands; the dragged window dims to 45%), or move it with Alt+Up/Down. Hovering one turns its outline Control Gray and fades "Bring forward" in over the end of its title, taking no room from the summary.
+- **Stack windows** are previews: they show the start of their body, fading out at the bottom, and stay inert until brought forward. The page sorts them, so there is nothing to close, drag or arrange: the four shown are late first, then the ones with news, then the rest in project order, empty ones last. They're the project, not tabs to manage. Only which window is in front is remembered.
+  - A window with nothing in it yet says so in one muted sentence, its summary ("No files yet."), and takes only the room that needs. No placeholder bars: gray bars say "loading", and nothing is.
+  - The Tasks preview leads with what's late, in Accent Text 650: "1 late: Pick the type pairing", then who and "was due Oct 20". Previews draw no checkboxes; they'd look tickable and aren't.
+  - Hovering one turns its outline Control Gray and fades "Bring forward" in over the end of its title, taking no room from the summary.
+- **What's new, inside a window:** the project's "since" moment reaches the window's pages (`useSince`).
+  - Chat draws HEY's line, "New since Tuesday" (the day rule and label in orange), before the first new line, and opens there.
+  - Lists (Posts, Files, Team questions answers) mark each new item with a solid Kargul Orange "New" tag beside its title (`NewTag`), never Peach Wash, which is Pinned. It works whichever way a list runs.
+  - New means someone else added it after your last visit; what you wrote yourself is never new to you.
+- **A brand-new project** (every window empty) says one line in the row's lead instead of the news: "A fresh start. Invite the people on it, then post what this project is about."
 - **Nothing under the desk** but the taskbar: "Add a link" and "See all activity" live in the ••• project menu.
 - **Window row** (desktop, 900px and up): the last line of the project head, on its white, padded like it. It is both the way around and the news, so there is no taskbar on desktop.
   - It leads with when you last opened the project, in words and 650 weight ("Since Tuesday:", "Since yesterday:", "Since Oct 12:"), or "All caught up." in muted text when nothing is new. A first visit shows no lead.

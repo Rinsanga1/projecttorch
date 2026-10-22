@@ -5,7 +5,7 @@ import { createHmac, timingSafeEqual } from "node:crypto"
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { HttpServerResponse } from "effect/http"
-import { today } from "../shared/format.ts"
+import { addDays, today } from "../shared/format.ts"
 import { get, post, pubGet, redirect, invalid, json, str, ids, bool, isClient, NoAccess, NotFound, type Ctx, type Person, type Account } from "../lib/web.ts"
 import {
   findProject, findRecording, projectPeople, createRecording, updateRecording, urlFor, titleOf, clientFilter, notify, visibleProjects,
@@ -14,8 +14,6 @@ import {
 import { seedCtx, type Seed } from "../seed.ts"
 
 // ---------- dates ----------
-const DAY = 86_400_000
-const addDays = (d: string, n: number) => new Date(Date.parse(d + "T00:00:00Z") + n * DAY).toISOString().slice(0, 10)
 
 const REPEATS = { never: "Never", daily: "Every day", weekly: "Every week", monthly: "Every month", yearly: "Every year" } as const
 type Repeat = keyof typeof REPEATS

@@ -44,6 +44,9 @@ export const isoDate = (d: When) => {
 
 export const today = () => new Date().toISOString().slice(0, 10)
 
+/** "2026-10-22" plus `n` days, as a date string. */
+export const addDays = (d: string, n: number) => new Date(Date.parse(d.slice(0, 10) + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10)
+
 /** Whole days from today to `d` (negative = in the past). */
 export const daysFromToday = (d: Date | string) => {
   const day = isoDate(d)

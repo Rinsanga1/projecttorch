@@ -4,7 +4,7 @@
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
 import { useContext, useEffect, useRef, useState } from "react"
-import { InWindow } from "../ui/window-router.tsx"
+import { InWindow, useSince } from "../ui/window-router.tsx"
 import { Navigate, useParams, useSearchParams } from "react-router"
 import { db, isTemp, submit, temp } from "../store.ts"
 import { me, account, accountPeople, findProject, findRecording, projectPeople, boostsOn, recordings, useVisit, NoAccess, NotFound } from "../data.ts"
@@ -30,6 +30,9 @@ const cs = stylex.create({
   day: { display: "flex", alignItems: "center", gap: space.s3, paddingBlock: space.s4, borderTopWidth: 0, color: color.muted },
   dayRule: { flexGrow: 1, height: 1, backgroundColor: color.line },
   dayLabel: { margin: 0, fontSize: text.xs, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
+  // HEY's line: where what's new since your last visit begins, in the orange kept for "needs you".
+  newRule: { backgroundColor: `color-mix(in srgb, ${color.accent} 45%, transparent)` },
+  newLabel: { color: color.accentText },
   composer: { padding: space.s4, borderRadius: radius.xl, backgroundColor: color.tile, display: "grid", gap: space.s2 },
   // In a window the composer stays at the window's bottom while you read back; the shadow paints the window's white into
   // the gap under it, so older lines don't peek through.
@@ -121,11 +124,16 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
     if (last !== undefined && last !== prev.current) document.getElementById(`line-${last}`)?.scrollIntoView({ block: "nearest" })
     prev.current = last
   }, [last])
-  // In a project window, chat opens where the talk is: the newest lines and the composer, not the top of the day.
+  // In a project window, chat opens where the talk is: at the line where what's new since your last visit begins, or
+  // else at the newest lines and the composer, not the top of the day.
   const inWindow = useContext(InWindow)
+  const { since, isNew } = useSince()
+  const firstNew = lines.find(isNew)?.id
   useEffect(() => {
     const body = field.current?.closest("[data-window-body]")
-    if (inWindow && body) body.scrollTop = body.scrollHeight
+    if (!inWindow || !body) return
+    const line = body.querySelector("[data-new-line]")
+    body.scrollTop = line ? body.scrollTop + line.getBoundingClientRect().top - body.getBoundingClientRect().top - 12 : body.scrollHeight
   }, [inWindow])
 
   // Lines without a file show up right away; the server's row replaces the stand-in.
@@ -148,7 +156,12 @@ const Conversation = observer(({ p, blank }: { p: Project; blank: string }) => {
       <ul id="lines" {...sx(cs.lines)}>
         {[...days].map(([d, ls]) => [
           <li key={`day-${d}`} {...sx(cs.day)}><span {...sx(cs.dayRule)} /><h2 {...sx(cs.dayLabel)}>{d}</h2><span {...sx(cs.dayRule)} /></li>,
-          ...ls.map((l) => <Line key={l.id} l={l} base={base} meId={m.id} tz={m.time_zone} />),
+          ...ls.flatMap((l) => [
+            l.id === firstNew && since && (
+              <li key="new" data-new-line {...sx(cs.day)}><span {...sx(cs.dayRule, cs.newRule)} /><h2 {...sx(cs.dayLabel, cs.newLabel)}>New {since.label.charAt(0).toLowerCase() + since.label.slice(1)}</h2><span {...sx(cs.dayRule, cs.newRule)} /></li>
+            ),
+            <Line key={l.id} l={l} base={base} meId={m.id} tz={m.time_zone} />,
+          ]),
         ])}
       </ul>
       {p.status === "active" ? (

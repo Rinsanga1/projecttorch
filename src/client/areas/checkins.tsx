@@ -10,6 +10,7 @@ import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../s
 import { excerpt, fmtDate, ms, plural } from "../../shared/format.ts"
 import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, submitOnChange, TextArea } from "../ui/forms.tsx"
+import { NewTag } from "../ui/window-router.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
@@ -227,7 +228,7 @@ export const routes = [
                   <article key={a.id} id={`answer-${a.id}`} {...sx(ck.answer)}>
                     <Face p={author ?? { name: "Someone" }} />
                     <div>
-                      <p {...sx(ck.answerHead)}><b>{author?.name ?? "Someone"}</b> <small>{new Date(a.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: m.time_zone })}</small></p>
+                      <p {...sx(ck.answerHead)}><b>{author?.name ?? "Someone"}</b><NewTag r={a} /> <small>{new Date(a.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: m.time_zone })}</small></p>
                       <Fmt text={a.body} {...sx(kit.prose)} />
                       <p {...sx(ck.answerFoot)}><a href={urlFor(a)}>{n ? plural(n, "comment") : "Comment or react"}</a></p>
                     </div>

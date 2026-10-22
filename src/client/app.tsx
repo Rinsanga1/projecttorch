@@ -9,7 +9,7 @@ import { Navigate, Outlet, useLocation, useMatches, useNavigate } from "react-ro
 import { db, state } from "./store.ts"
 import { meOrNull } from "./data.ts"
 import { isQuiet } from "../shared/domain.ts"
-import { sx, theme } from "./ui/kit.tsx"
+import { Face, sx, theme } from "./ui/kit.tsx"
 import { Form, submitOwnForm } from "./ui/forms.tsx"
 import type { Handle } from "./ui/page.tsx"
 import { color, media, motion, radius, space, text } from "./ui/tokens.stylex.ts"
@@ -43,6 +43,9 @@ const s = stylex.create({
     backgroundColor: { default: null, ":hover": { default: null, [media.hover]: `color-mix(in srgb, ${color.sheet} 60%, transparent)` } },
   },
   current: { color: color.ink, fontWeight: 600, backgroundColor: color.sheet },
+  // You, as a face: Me (your assignments, schedule, settings). On your own pages it carries a ring.
+  me: { display: "inline-flex", marginLeft: space.s2, borderRadius: radius.pill, textDecoration: "none" },
+  meCurrent: { boxShadow: `0 0 0 2px ${color.ground}, 0 0 0 4px ${color.ink}` },
   count: {
     minWidth: 18, height: 18, paddingInline: 5, borderRadius: radius.pill, backgroundColor: color.accent, color: color.onAccent,
     fontSize: 11, fontWeight: 700, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -75,9 +78,9 @@ const s = stylex.create({
   },
 })
 
-const NAV: ReadonlyArray<readonly [href: string, label: string]> = [
-  ["/", "Home"], ["/timeline", "Timeline"], ["/chats", "Private chats"], ["/updates", "Updates"], ["/activity", "Activity"], ["/my", "Me"],
-]
+// Half a bar, on purpose: the wordmark is Home (which now holds the Timeline and a link to Activity), your face is Me,
+// and Go to lives on its shortcut (Ctrl/⌘ + K).
+const NAV: ReadonlyArray<readonly [href: string, label: string]> = [["/chats", "Private chats"], ["/updates", "Updates"]]
 const isCurrent = (path: string, href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"))
 
 /** Paths that keep working while an account is on hold or cancelled. Matches ON_HOLD_OK in src/lib/web.ts. */
@@ -106,8 +109,8 @@ const Header = observer(() => {
       <nav aria-label="Main" {...sx(s.nav)}>{NAV.map(([h, l]) => link(h, l))}</nav>
       <div {...sx(s.navEnd)}>
         {isQuiet(me) && <a href="/my/quiet-hours" {...sx(s.quiet)}><span {...sx(s.dot, s.quietDot)} />Notifications paused</a>}
-        {link("/find", "Find")}
-        {link("/goto", "Go to", "Ctrl/⌘ + K")}
+        {link("/find", "Find", "Find, or go to anything with Ctrl/⌘ + K")}
+        <a href="/my" aria-label={`Me: ${me.name}`} title="Your assignments, schedule and settings" aria-current={isCurrent(path, "/my") ? "page" : undefined} {...sx(s.me, isCurrent(path, "/my") && s.meCurrent)}><Face p={me} px={30} /></a>
       </div>
     </header>
   )
