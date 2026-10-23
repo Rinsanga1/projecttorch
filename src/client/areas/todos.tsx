@@ -241,7 +241,7 @@ export const routes = [
     const open = pr.tasks.filter((t) => !t.data.completed_at).sort(byPosition)
     const finished = pr.tasks.filter((t) => t.data.completed_at).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at)))
     const late = pr.tasks.flatMap((t) => [t, ...(pr.subtasks.get(t.id) ?? [])]).filter(isLate).length
-    const [showDone, setShowDone] = useState(false)
+    const [showDone, setShowDone] = useState(true)
     const [adding, setAdding] = useState<number | null>(null)
 
     // Reordering: drag a task (with its subtasks), or Alt+↑/↓ on it. The order saves at once.

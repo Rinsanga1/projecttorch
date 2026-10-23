@@ -249,6 +249,23 @@ create table emails (
   created_at  timestamptz not null default now()
 );
 
+-- Sign-in. One login per email address, shared by every account that address is in. Not synced: never leaves the server.
+create table logins (
+  email         text primary key,                          -- lower-cased
+  password_hash text,                                      -- Bun.password (argon2id); null = Google only
+  google_sub    text unique,                               -- Google's id for the person, set the first time they use Google
+  created_at    timestamptz not null default now()
+);
+
+-- The `sid` cookie holds a random token; only its sha256 is stored. Unused for 30 days = signed out.
+create table sessions (
+  token_hash   text primary key,
+  person_id    int not null references people on delete cascade,
+  verified     boolean not null default true,              -- false while two-step verification is pending
+  created_at   timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+
 -- ---------- sync ----------
 -- Every change to a synced table lands here (trigger below); the server streams it to browsers over WebSocket.
 -- `epoch` changes on every reset, so browsers holding an older copy start over.

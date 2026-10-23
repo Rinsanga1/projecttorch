@@ -29,7 +29,7 @@ Calm, opinionated project software that leaves features out on purpose (no Gantt
 
 ## Operating Context
 
-Used all day in a desktop browser alongside email and chat; checked on phones. Keyboard shortcuts exist (Ctrl/⌘+J jump, ? for shortcuts). Every email the app would send lands in `/inbox` during development. No sign-in yet: the footer "Acting as" picker switches who you are.
+Used all day in a desktop browser alongside email and chat; checked on phones. Keyboard shortcuts exist (Ctrl/⌘+J jump, ? for shortcuts). Every email the app would send lands in `/inbox` during development. Sign in with a password or Google.
 
 ## Capabilities and Constraints
 
