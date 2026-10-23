@@ -87,40 +87,78 @@ ok(types.body.result?.content?.[0]?.text?.includes("declare const sf"), "describ
 const work = await execute(key, `
   const made = await sf.projects.create({ name: "Agent check " + new Date().toISOString() })
   const id: number = made.created.find((x) => x.type === "project").id
+  const ann = (await sf.people()).find((x) => x.name.startsWith("Ann"))
+  await sf.projects.setPeople(id, [(await sf.me()).id, ann.id])
   await sf.projects.openWindow(id, "todos")
   await sf.projects.openWindow(id, "cardtable")
-  const t = await sf.tasks.create(id, { title: "Write the brief", due_on: "2026-11-01" })
+  const t = await sf.milestones.create(id, { title: "Write the brief", due_on: "2026-11-01" })
   const taskId = t.created.find((x) => x.type === "todo").id
-  await sf.tasks.addSubtask(taskId, { title: "Outline" })
-  await sf.tasks.complete(taskId)
-  await sf.tasks.complete(taskId)   // twice: still done (the route toggles; the helper looks first)
+  await sf.milestones.addSubtask(taskId, { title: "Outline" })
+  await sf.milestones.complete(taskId)
+  await sf.tasks.complete(taskId)   // the old name still works, and twice is still done (the helper looks first)
   const board = (await sf.projects.get(id)).boards[0]
-  const todo = board.columns.find((c) => c.kind === "triage"), done = board.columns.find((c) => c.kind === "done")
-  const card = await sf.cards.create(id, { title: "Ship it", column_id: todo.id, body: "From the agent check" })
-  await sf.cards.move(card.created.find((x) => x.type === "card").id, done.id)
-  await sf.posts.create(id, { title: "Where we are", body: "Brief done, shipped." })
-  await sf.chat.post(id, "Morning! All set.")
+  const col = (kind) => board.columns.find((c) => c.kind === kind)
+  const a = await sf.cards.create(id, { title: "Ship it", column_id: col("triage").id, body: "## From the agent check\\n\\n- **one**" })
+  const b = await sf.cards.create(id, { title: "Second", column_id: col("triage").id })
+  const c = await sf.cards.create(id, { title: "Third", column_id: col("triage").id })
+  const [ida, idb, idc] = [a, b, c].map((r) => r.created.find((x) => x.type === "card").id)
+  await sf.cards.move(ida, col("triage").id, { after: idb })   // reorder in place: c, b, a
+  const order = (await sf.projects.get(id)).boards[0].columns.find((x) => x.kind === "triage").cards.map((k) => k.title)
+  for (const k of [ida, idb, idc]) await sf.cards.move(k, col("review").id)
+  const post = await sf.posts.create(id, { title: "House rules", body: "Work only in Running." })
+  const postId = post.created.find((x) => x.type === "message").id
+  await sf.posts.pin(postId)
+  await sf.posts.pin(postId)        // twice: still pinned
+  await sf.call("POST", "/api/projects/" + id + "/posts", { title: "Told everyone", body: "x", notify: "everyone" })   // /api is forgiven
+  await sf.comments.create(postId, "@Ann have a look")
+  const line = await sf.chat.post(id, "Morning! All set.")
+  await sf.chat.edit(line.created.find((x) => x.type === "line").id, "Morning! **All** set.")
+  await sf.items.remind(postId, "2030-01-02")
   console.log("about to read back")
   const p = await sf.projects.get(id)
-  await sf.projects.trash(id)
+  let routeError = ""
+  try { await sf.call("GET", "/projects/" + id + "/posts") } catch (e) { routeError = e.message }
   return {
-    id,
-    task: p.tasks.map((x) => [x.title, x.done, x.subtasks.map((s) => s.done)]),
+    id, ids: [ida, idb, idc], postId, order, routeError,
+    routes: (await sf.routes()).includes("POST /projects/:id/posts"),
+    milestones: p.milestones.map((x) => [x.title, x.done, x.subtasks.map((s) => s.done)]),
     columns: p.boards[0].columns.map((c) => [c.kind, c.cards.map((k) => k.title)]),
-    posts: p.posts.map((x) => x.title), chat: p.chat.map((x) => x.body),
-    trashed: (await sf.projects.list({ status: "trashed" })).some((x) => x.id === id),
+    pinned: p.pinned.map((x) => x.title), chat: p.chat.map((x) => x.body),
   }
 `)
 const r = work.out?.result
 ok(!work.isError, `the script ran${work.isError ? `: ${JSON.stringify(work.out)}` : ""}`)
-ok(JSON.stringify(r?.task) === JSON.stringify([["Write the brief", true, [true]]]), "task and subtask done")
-ok(r?.columns?.find((c: any) => c[0] === "done")?.[1]?.includes("Ship it"), "card moved to Done")
-ok(r?.posts?.includes("Where we are") && r?.chat?.includes("Morning! All set."), "post and chat line")
-ok(r?.trashed, "project trashed")
+ok(JSON.stringify(r?.milestones) === JSON.stringify([["Write the brief", true, [true]]]), "milestone and its subtask done (sf.milestones, and sf.tasks still works)")
+ok(r?.columns?.map((c: any) => c[0]).join() === "not_now,triage,review,done", "every board has Not now, To do, Review, Done")
+ok(JSON.stringify(r?.order) === JSON.stringify(["Third", "Second", "Ship it"]), "cards.move with after: reorders in place")
+ok(r?.columns?.find((c: any) => c[0] === "review")?.[1]?.length === 3, "three cards in Review")
+ok(JSON.stringify(r?.pinned) === JSON.stringify(["House rules"]), "posts.pin, and projects.get puts pinned posts first")
+ok(r?.chat?.includes("Morning! **All** set."), "chat.edit")
+ok(r?.routes && /no GET .*sf\.routes/.test(r?.routeError), "sf.routes() lists routes; a wrong route says so")
 ok(work.out?.changes?.some((c: any) => c.type === "card" && c.change === "created"), "the run lists what it changed")
 ok(work.out?.logs?.[0] === "about to read back", "console.log comes back")
-const [via] = await db`select count(*)::int as n from events where project_id = ${r?.id} and summary like '%(via Agent check)'`
-ok(via.n >= 3, `activity says "(via Agent check)" (${via.n} events)`)
+const [via] = await db`select count(*)::int as n from events where project_id = ${r?.id} and via = 'Agent check'`
+ok(via.n >= 5, `activity is marked via Agent check (${via.n} events)`)
+const [things] = await db`select count(*)::int as n, count(*) filter (where via = 'Agent check')::int as v from recordings where project_id = ${r?.id}`
+ok(things.n > 0 && things.n === things.v, `everything it made says via Agent check (${things.v} of ${things.n})`)
+const notes = await db`select kind from notifications where project_id = ${r?.id}`
+ok(notes.length === 1 && notes[0].kind === "mention", `agents don't ping: only the @mention got through (${notes.map((n: any) => n.kind).join() || "none"})`)
+const [rem] = await db`select count(*)::int as n from bubble_ups where recording_id = ${r?.postId} and bubble_at > '2030-01-01'`
+ok(rem.n === 1, "items.remind sets the reminder for that day")
+const [rv] = await db`select data->'review' as review from recordings where id = ${r?.ids?.[0]}`
+ok(rv.review?.via === "Agent check" && rv.review?.from, "moving into Review notes when, who, via and where from")
+
+// The sweep, as Maya in the browser: send one back, ship one, kill one.
+const sweep = (cardId: number, fields: Record<string, string>) => api(maya, `/projects/${r.id}/cards/${cardId}/review`, fields)
+ok((await sweep(r.ids[0], { verdict: "back" })).status === 422, "sending back needs a note")
+const sent = await sweep(r.ids[0], { verdict: "back", body: "Make the heading shorter", then: "/" })
+ok(sent.body.redirect === "/" && /back to To do/.test(sent.body.flash?.msg), "Send it back: returns it where it came from, back to Home")
+ok((await sweep(r.ids[0], { verdict: "ship" })).body.errors?.[0]?.includes("moved on"), "a card that left Review: someone got to it first")
+ok(/Shipped/.test((await sweep(r.ids[1], { verdict: "ship" })).body.flash?.msg), "Ship it")
+ok(/trash/.test((await sweep(r.ids[2], { verdict: "kill" })).body.flash?.msg), "Kill it")
+const after = await db`select r.id, r.status, c.data->>'kind' as kind, (select count(*)::int from recordings x where x.parent_id = r.id and x.type = 'comment') as comments from recordings r join recordings c on c.id = r.parent_id where r.id in ${db(r.ids)} order by r.id`
+ok(after.map((x: any) => `${x.kind}:${x.status}`).join() === "triage:active,done:active,review:trashed" && after[0].comments === 1, "the board shows the three answers")
+ok(!(await execute(key, `await sf.projects.trash(${r.id}); return (await sf.projects.list({ status: "trashed" })).some((x) => x.id === ${r.id})`)).isError, "project trashed")
 
 const bad = await execute(key, `await sf.items.get(999999999)`)
 ok(bad.isError && /exist/.test(bad.out.error), "errors come back as errors")

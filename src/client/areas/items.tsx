@@ -141,7 +141,7 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
               <article key={cm.id} id={`comment-${cm.id}`} {...sx(fs.comment)}>
                 <Face p={author ?? { name: "Someone" }} />
                 <div>
-                  <p {...sx(fs.commentHead)}><b>{author?.name}</b> <small>{fmtDateTime(cm.created_at, m.time_zone)}{ms(cm.updated_at) - ms(cm.created_at) > 1000 ? " (edited)" : ""}</small></p>
+                  <p {...sx(fs.commentHead)}><b>{author?.name}</b> <small>{cm.via ? `via ${cm.via} · ` : ""}{fmtDateTime(cm.created_at, m.time_zone)}{ms(cm.updated_at) - ms(cm.created_at) > 1000 ? " (edited)" : ""}</small></p>
                   <Fmt text={cm.body} {...sx(fs.commentBody)} />
                   {bs.length > 0 && <p {...sx(fs.commentMeta)}><small>Reactions: {bs.map((b) => `${b.content} ${db.people.get(String(b.person_id))?.name ?? ""}`).join(", ")}</small></p>}
                   <p {...sx(fs.commentMeta)}>

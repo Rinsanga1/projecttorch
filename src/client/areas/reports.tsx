@@ -7,7 +7,7 @@ import { db } from "../store.ts"
 import { me, accountPeople, visibleProjects, recordings, NoAccess } from "../data.ts"
 import { isClient, projectUrl, titleOf, urlFor, TYPE_NAMES, type Event, type Person, type Recording } from "../../shared/domain.ts"
 import { daysFromToday, excerpt, fmtDate, isoDate, ms, plural, today } from "../../shared/format.ts"
-import { ActivityList, type ActivityItem } from "../ui/activity.tsx"
+import { ActivityList, AgentsFilter, useJustAgents, type ActivityItem } from "../ui/activity.tsx"
 import { ProgressBar } from "../ui/kit.tsx"
 import { progressOf } from "../news.ts"
 import { Page, page, type Crumb } from "../ui/page.tsx"
@@ -47,12 +47,12 @@ const firstName = (p: Person) => p.name.split(" ")[0]!
 const PER = 50
 
 /** Events in projects I can see, newest first, shaped for <ActivityList>. */
-const events = (opts: { projectId?: number | null; personId?: number | null }) => {
+const events = (opts: { projectId?: number | null; personId?: number | null; agents?: boolean }) => {
   const ids = new Set(scope().ids)
   const m = me()
   return [...db.events.values()]
     .filter((e) => e.account_id === m.account_id && e.project_id !== null && ids.has(e.project_id)
-      && (!opts.projectId || e.project_id === opts.projectId) && (!opts.personId || e.person_id === opts.personId))
+      && (!opts.projectId || e.project_id === opts.projectId) && (!opts.personId || e.person_id === opts.personId) && (!opts.agents || !!e.via))
     .sort((a, b) => ms(b.created_at) - ms(a.created_at) || b.id - a.id)
 }
 
@@ -121,7 +121,8 @@ export const routes = [
     const projectId = Number(q.get("project")) || null
     const personId = Number(q.get("person")) || null
     const pg = pageNo(q)
-    const evs = events({ projectId, personId }).slice((pg - 1) * PER, pg * PER + 1)
+    const agents = useJustAgents()
+    const evs = events({ projectId, personId, agents }).slice((pg - 1) * PER, pg * PER + 1)
     const more = new URLSearchParams(q)
     more.set("page", String(pg + 1))
     return (
@@ -134,10 +135,12 @@ export const routes = [
           {" "}<label>Person <select name="person" defaultValue={personId ?? ""}><option value="">Everyone</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           {" "}<button>Filter</button>
+          {agents && <input type="hidden" name="by" value="agents" />}
         </GetForm>
+        <AgentsFilter />
         {evs.length
           ? <ActivityList events={evs.slice(0, PER).map(toItem)} tz={m.time_zone} />
-          : <p>{projectId || personId ? "Nothing matches those filters." : "Activity across every project shows up here."}</p>}
+          : <p>{agents ? "No agent work matches yet. What agents do for people shows up here." : projectId || personId ? "Nothing matches those filters." : "Activity across every project shows up here."}</p>}
         {evs.length > PER && <p><a href={`/activity?${more.toString()}`}>Show more</a></p>}
       </Page>
     )
@@ -166,14 +169,16 @@ export const routes = [
     const [q] = useSearchParams()
     const { people, person } = pickedPerson(q)
     const pg = pageNo(q)
-    const evs = person ? events({ personId: person.id }).slice((pg - 1) * PER, pg * PER + 1) : []
+    const agents = useJustAgents()
+    const evs = person ? events({ personId: person.id, agents }).slice((pg - 1) * PER, pg * PER + 1) : []
     return (
       <Page title={person ? `What's ${firstName(person)} been up to?` : "Someone's activity"} crumbs={reportCrumbs}>
         <h1>{person ? `What's ${firstName(person)} been up to?` : "What's someone been up to?"}</h1>
         <PersonPicker action="/reports/activity" people={people} selectedId={person?.id ?? null} />
+        {person && <AgentsFilter />}
         {!person ? <p>Pick a person to see everything they did, by day.</p>
-          : evs.length ? <ActivityList events={evs.slice(0, PER).map(toItem)} tz={me().time_zone} /> : <p>{firstName(person)} hasn't done anything here yet.</p>}
-        {person && evs.length > PER && <p><a href={`/reports/activity?person=${person.id}&page=${pg + 1}`}>Show more</a></p>}
+          : evs.length ? <ActivityList events={evs.slice(0, PER).map(toItem)} tz={me().time_zone} /> : <p>{agents ? `No agent has done anything for ${firstName(person)} yet.` : `${firstName(person)} hasn't done anything here yet.`}</p>}
+        {person && evs.length > PER && <p><a href={`/reports/activity?person=${person.id}&page=${pg + 1}${agents ? "&by=agents" : ""}`}>Show more</a></p>}
       </Page>
     )
   }),

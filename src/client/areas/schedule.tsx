@@ -311,7 +311,7 @@ export const routes = [
           {r.data.repeat && r.data.repeat !== "never" && <p>Repeats: {REPEATS[r.data.repeat as Repeat]}</p>}
           <p>Who's involved: {involved.length ? involved.map((x, i) => <span key={x.id}>{i ? ", " : ""}<a href={`/people/${x.id}`}>{x.name}</a></span>) : "nobody in particular"}</p>
           {r.body && <Fmt text={r.body} />}
-          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
           {r.status === "active" && (r.creator_id === m.id || !isClient(m)) && <p><a href={`/projects/${project.id}/events/${r.id}/edit`}>Edit</a></p>}
         </article>
         <ItemFooter r={r} project={project} />

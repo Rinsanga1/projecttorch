@@ -129,7 +129,8 @@ const useMarkRead = (p: Project, kind: "line" | "ping") => {
 
 /** Does `l` run on from `prev`: the same person (or bot), within five minutes? */
 const runsOn = (prev: Recording | undefined, l: Recording) =>
-  !!prev && prev.creator_id === l.creator_id && prev.data.chatbot_name === l.data.chatbot_name && ms(l.created_at) - ms(prev.created_at) < 5 * 60_000
+  !!prev && prev.creator_id === l.creator_id && prev.data.chatbot_name === l.data.chatbot_name && (prev.via ?? null) === (l.via ?? null) &&
+  ms(l.created_at) - ms(prev.created_at) < 5 * 60_000
 
 const Line = ({ l, more, base, meId, tz }: { l: Recording; more: boolean; base: string; meId: number; tz: string }) => {
   const who = whoWrote(l)
@@ -143,7 +144,7 @@ const Line = ({ l, more, base, meId, tz }: { l: Recording; more: boolean; base: 
     const p = db.people.get(String(b.person_id))
     if (p) byEmoji.set(b.content, [...(byEmoji.get(b.content) ?? []), p.name])
   }
-  const time = `${fmtTime(l.created_at, tz)}${ms(l.updated_at) - ms(l.created_at) > 1000 ? " (edited)" : ""}`
+  const time = `${l.via ? `via ${l.via} · ` : ""}${fmtTime(l.created_at, tz)}${ms(l.updated_at) - ms(l.created_at) > 1000 ? " (edited)" : ""}`
   const shortTime = <small data-row-action data-line-tap title={time} {...sx(cs.gutterTime)}>{fmtTime(l.created_at, tz).replace(/\s?[ap]m$/i, "")}</small>
   const file = l.data.file && <a href={`/api${base}/lines/${l.id}/file`} {...sx(cs.file)}>📎 {l.data.file.name} <small>({Math.ceil(l.data.file.size / 1024)} KB)</small></a>
   const reactions = byEmoji.size > 0 && (

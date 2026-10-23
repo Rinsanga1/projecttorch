@@ -4,8 +4,8 @@ import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-rou
 import { db } from "../store.ts"
 import { observer } from "mobx-react-lite"
 import { me, account, findProject, visibleProjects, accountPeople, canCreateProjects, canInvite, projectPeople, recordings, NoAccess, type ProjectRow } from "../data.ts"
-import { isClient, projectUrl, type Recording } from "../../shared/domain.ts"
-import { addDays, fmtDate, excerpt, ms, plural, today } from "../../shared/format.ts"
+import { isClient, projectUrl, urlFor, type Recording } from "../../shared/domain.ts"
+import { addDays, ago, fmtDate, excerpt, ms, plural, today } from "../../shared/format.ts"
 import { Face, kit, ProgressBar, sx } from "../ui/kit.tsx"
 import { lateTasks, progressOf, seenOf, windowNews } from "../news.ts"
 import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
@@ -67,6 +67,8 @@ const hs = stylex.create({
   hface: { marginLeft: -4, borderRadius: radius.pill, boxShadow: `0 0 0 2px ${color.tile}`, display: "inline-flex" },
   hmore: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s3, marginBottom: 0, fontSize: text.sm },
   // Two short lists under the projects: what's due for you, what's coming up.
+  waiting: { marginTop: space.s7 },
+  waitingCount: { color: color.muted, fontWeight: 400 },
   lists: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, gap: space.s3, marginTop: space.s7 },
   listTitle: { marginTop: 0, marginBottom: space.s2, fontSize: text.md },
   late: { color: color.accentText, fontWeight: 650 },
@@ -194,6 +196,43 @@ const myUpcoming = (limit = 5) => {
   return { assigned, dates, assignedTotal: allAssigned.length }
 }
 
+/** Cards waiting in Review on projects I'm on, oldest first: what a sweep works through. */
+const waitingForMe = () => {
+  const m = me()
+  const onIt = new Set([...db.project_people.values()].filter((x) => x.person_id === m.id).map((x) => x.project_id))
+  const review = new Set(recordings((r) => r.type === "column" && r.status === "active" && r.data.kind === "review" && onIt.has(r.project_id)).map((r) => r.id))
+  const at = (r: Recording) => r.data.review?.at ?? r.updated_at
+  return recordings((r) => r.type === "card" && r.status === "active" && r.parent_id !== null && review.has(r.parent_id)
+    && db.projects.get(String(r.project_id))?.status === "active")
+    .sort((a, b) => ms(at(a)) - ms(at(b)) || a.id - b.id)
+}
+
+/** Waiting for you: shown while something's waiting, or once you've connected an agent ("All caught up"). */
+const WaitingForYou = observer(() => {
+  const m = me()
+  const cards = waitingForMe()
+  const hasAgents = [...db.connected_apps.values()].some((a) => a.person_id === m.id)
+  if (!cards.length && !hasAgents) return null
+  return (
+    <section aria-labelledby="waiting" {...sx(hs.panel, hs.waiting)}>
+      <h2 id="waiting" {...sx(hs.listTitle)}>Waiting for you{cards.length > 0 && <span {...sx(hs.waitingCount)}> ({cards.length})</span>}</h2>
+      {cards.length ? (
+        <ul>{cards.slice(0, 10).map((r) => {
+          const rv = r.data.review as { at?: string; by?: number; via?: string | null } | undefined
+          const who = rv?.via ? `via ${rv.via}` : rv?.by && rv.by !== m.id ? `from ${db.people.get(String(rv.by))?.name ?? "someone"}` : ""
+          return (
+            <li key={r.id} {...sx(hs.row)}><span>
+              <a href={`${urlFor(r)}?from=home`}>{r.title}</a>{" "}
+              <small>{[db.projects.get(String(r.project_id))?.name, who, ago(rv?.at ?? r.updated_at, m.time_zone)].filter(Boolean).join(" · ")}</small>
+            </span></li>
+          )
+        })}</ul>
+      ) : <p {...sx(hs.quiet)}>All caught up. Nothing new from your agents.</p>}
+      {cards.length > 10 && <p {...sx(hs.hmore)}>And {cards.length - 10} more. Open them from each project's Board.</p>}
+    </section>
+  )
+})
+
 const NewProjectForm = ({ templateId }: { templateId: string }) => {
   const templates = visibleProjects({ kind: "template" })
   return (
@@ -248,6 +287,7 @@ export const routes = [
             <p {...sx(hs.hmore)}><a href="/projects">All projects ({all.length})</a><a href="/templates">Templates</a></p>
           </section>
         )}
+        <WaitingForYou />
         <div {...sx(hs.lists)}>
           <section aria-labelledby="due" {...sx(hs.panel)}>
             <h2 id="due" {...sx(hs.listTitle)}><a href="/my/assignments">Due for you</a></h2>

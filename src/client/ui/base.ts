@@ -49,6 +49,9 @@ ul>li:first-child{border-top:0;padding-top:${space.s1}}
 li ul{margin:${space.s2} 0 0}
 ol{margin:0 0 ${space.s5};padding-left:1.4em}
 ol>li{padding:${space.s1} 0}
+[data-prose] ul{padding-left:1.4em;list-style:disc}
+[data-prose] ul>li{border:0;padding:${space.s1} 0}
+[data-prose]>:last-child{margin-bottom:0}
 dl{margin:0 0 ${space.s5}}
 dt{font-weight:600}
 dd{margin:2px 0 ${space.s3};color:${color.muted}}

@@ -1,19 +1,22 @@
-// Board, after Fizzy: cards move across columns, Not now · To do · your columns · Done. New cards land in To do; a
+// Board, after Fizzy: cards move across columns, Not now · To do · your columns · Review · Done. New cards land in To do; a
 // Golden Ticket pins a card to the top of its column; a card nobody touches for 30 days moves to Not now on its own
-// (the job below). The board, new column, column ••• menu, new card, card (with steps), edit card.
+// (the job below). Review is where finished work waits for a person: Home lists it ("Waiting for you"), and a card
+// there gets Ship it / Send it back / Kill it (the sweep). The board, new column, column ••• menu, new card, card (with
+// steps), edit card.
 // The pages are client/areas/cards.tsx; these are their posts.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { post, redirect, back, invalid, str, ids, isClient, NoAccess, NotFound, type Ctx } from "../lib/web.ts"
+import { addComment } from "./items.ts"
 import { findProject, findRecording, projectPeople, createRecording, updateRecording, windowUrl, urlFor, titleOf, notify, logEvent, type Project, type Recording } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
 const COLORS = ["", "red", "orange", "yellow", "green", "blue", "purple", "gray"]
-const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, done: 3 }
+const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, review: 3, done: 4 }
 /** Cards nobody touches for this long move to Not now. */
 const AUTO_CLOSE_DAYS = 30
 
-/** Columns in display order: Not now, To do, your columns, Done. */
+/** Columns in display order: Not now, To do, your columns, Review, Done. */
 const sortColumns = (cols: ReadonlyArray<Recording>) =>
   [...cols].sort((a, b) => (KIND_ORDER[a.data.kind ?? "custom"]! - KIND_ORDER[b.data.kind ?? "custom"]!) || a.position - b.position || a.id - b.id)
 
@@ -22,14 +25,14 @@ const boardId = (p: Project, tool?: string) => (tool && p.tools.some((t) => t.id
 /** That board's address. */
 const board = (p: Project, tool?: string) => windowUrl(p, { id: boardId(p, tool), type: "cardtable" })
 
-/** Every board starts with Not now, To do and Done. Made on first visit (the board page posts to /board/setup). */
+/** Every board has Not now, To do, Review and Done. Made on first visit (the board page posts to /board/setup). */
 const ensureColumns = (c: Ctx, p: Project, tool?: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const id = boardId(p, tool)
     const columns = sql<Recording>`select * from recordings where project_id = ${p.id} and type = 'column' and status = 'active' and coalesce(data->>'tool', 'cardtable') = ${id}`
     const existing = yield* columns
-    for (const [kind, title] of [["not_now", "Not now"], ["triage", "To do"], ["done", "Done"]] as const)
+    for (const [kind, title] of [["not_now", "Not now"], ["triage", "To do"], ["review", "Review"], ["done", "Done"]] as const)
       if (!existing.some((col) => col.data.kind === kind))
         yield* createRecording(c, { project: p, type: "column", tool: id, title, data: { kind, color: "", watcher_ids: [] }, visible_to_clients: true, quiet: true })
     return sortColumns(yield* columns)
@@ -44,13 +47,17 @@ const findColumn = (c: Ctx, p: Project, id: unknown) =>
   })
 
 /** Move a card to a column, on top of it (after any Golden Tickets): Done stamps it completed, leaving Done clears that.
- * Watchers hear about it. Mirrored in client/areas/cards.tsx. */
+ * Into Review, it notes when, by whom and from where (Send it back returns it there). Watchers hear about it.
+ * Mirrored in client/areas/cards.tsx. */
 const moveCard = (c: Ctx, p: Project, card: Recording, col: Recording) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     if (card.parent_id === col.id) return
     const done = col.data.kind === "done"
-    const data = { ...card.data, completed_at: done ? card.data.completed_at ?? new Date().toISOString() : null }
+    const data = {
+      ...card.data, completed_at: done ? card.data.completed_at ?? new Date().toISOString() : null,
+      ...(col.data.kind === "review" ? { review: { at: new Date().toISOString(), by: c.me.id, via: c.app?.name ?? null, from: card.parent_id } } : {}),
+    }
     yield* sql`update recordings set parent_id = ${col.id}, data = ${JSON.stringify(data)}, updated_at = now(),
       position = (select coalesce(max(position), 0) + 1 from recordings where parent_id = ${col.id} and type = 'card') where id = ${card.id}`
     yield* logEvent(c, { project_id: p.id, recording_id: card.id, action: done ? "completed" : "moved", summary: `moved ${titleOf(card)} to ${col.title}` })
@@ -155,7 +162,10 @@ export const routes = [
       if (!title) return invalid(["Give the card a title."])
       yield* createRecording(c, {
         project: p, type: "card", parent_id: col.id, title,
-        data: { assignee_ids: [], due_on: null, golden: false, completed_at: col.data.kind === "done" ? new Date().toISOString() : null },
+        data: {
+          assignee_ids: [], due_on: null, golden: false, completed_at: col.data.kind === "done" ? new Date().toISOString() : null,
+          ...(col.data.kind === "review" ? { review: { at: new Date().toISOString(), by: c.me.id, via: c.app?.name ?? null, from: null } } : {}),
+        },
         notifyIds: col.data.watcher_ids ?? [], notifyKind: "card_added", verb: `added a card to ${col.title}`,
       })
       // Stay on the board: the card shows at once and the add line is ready for the next.
@@ -201,6 +211,38 @@ export const routes = [
       const done = (yield* ensureColumns(c, project, from?.data.tool)).find((col) => col.data.kind === "done")!
       yield* moveCard(c, project, r, done)
       return redirect(urlFor(r), "Done! Moved to the Done column.")
+    })),
+
+  // The sweep: a card in Review gets one of three answers. `then` is where to go after (Home, when that's where it started).
+  post("/projects/:id/cards/:cid/review", (c) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const { r, project } = yield* findRecording(c, c.params.cid, "card")
+      const fd = yield* c.form
+      const [col] = yield* sql<Recording>`select * from recordings where id = ${r.parent_id ?? 0}`
+      if (r.status !== "active" || col?.data.kind !== "review") return invalid(["That card moved on. Someone got to it first."])
+      const then = /^\/(?![/\\])/.test(str(fd, "then")) ? str(fd, "then") : board(project, col.data.tool)
+      const cols = yield* ensureColumns(c, project, col.data.tool)
+      switch (str(fd, "verdict")) {
+        case "ship": {
+          yield* moveCard(c, project, r, cols.find((x) => x.data.kind === "done")!)
+          return redirect(then, `Shipped “${r.title}”.`)
+        }
+        case "back": {
+          const note = str(fd, "body")
+          if (!note) return invalid(["Say what should change, so whoever picks it up knows what to do."])
+          yield* addComment(c, r, project, note)
+          const to = cols.find((x) => x.id === r.data.review?.from && x.data.kind !== "review" && x.data.kind !== "done") ?? cols.find((x) => x.data.kind === "triage")!
+          yield* moveCard(c, project, r, to)
+          return redirect(then, `Sent “${r.title}” back to ${to.title}.`)
+        }
+        case "kill": {
+          yield* sql`update recordings set status = 'trashed', trashed_at = now() where id = ${r.id}`
+          yield* logEvent(c, { project_id: project.id, recording_id: r.id, action: "trashed", summary: `trashed ${titleOf(r)}` })
+          return redirect(then, { msg: `Moved “${r.title}” to the trash.`, href: `/r/${r.id}/undo-trash`, label: "Undo" })
+        }
+        default: return invalid(["Ship it, send it back, or kill it."])
+      }
     })),
 
   // The Golden Ticket: pins a card to the top of its column (the only way to reorder within one).

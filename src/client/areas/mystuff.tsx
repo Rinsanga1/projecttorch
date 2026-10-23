@@ -6,7 +6,7 @@ import { db } from "../store.ts"
 import { me, recordings } from "../data.ts"
 import { isAdmin, isOutOfOffice, isQuiet, titleOf, urlFor, TYPE_NAMES, type Recording } from "../../shared/domain.ts"
 import { excerpt, fmtDate, fmtDateTime, ms } from "../../shared/format.ts"
-import { ActivityList } from "../ui/activity.tsx"
+import { ActivityList, AgentsFilter, useJustAgents } from "../ui/activity.tsx"
 import { Form } from "../ui/forms.tsx"
 import { Page, page } from "../ui/page.tsx"
 
@@ -220,16 +220,18 @@ export const routes = [
     const [q] = useSearchParams()
     const m = me()
     const pageN = Math.max(1, Number(q.get("page")) || 1)
+    const agents = useJustAgents()
     const evs = [...db.events.values()]
-      .filter((e) => e.person_id === m.id)
+      .filter((e) => e.person_id === m.id && (!agents || !!e.via))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice((pageN - 1) * 50, pageN * 50 + 1)
       .map((e) => ({ ...e, name: m.name, avatar_url: m.avatar_url, project_name: e.project_id ? projectName(e.project_id) : undefined }))
     return (
       <Page title="My Activity" crumbs={MY}>
         <h1>My Activity</h1>
-        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={m.time_zone} /> : <p>You haven't done anything yet. Your posts, comments and check-offs show up here.</p>}
-        {evs.length > 50 && <p><a href={`/my/activity?page=${pageN + 1}`}>Show more</a></p>}
+        <AgentsFilter />
+        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={m.time_zone} /> : <p>{agents ? "Your agents haven't done anything yet. What they do for you shows up here." : "You haven't done anything yet. Your posts, comments and check-offs show up here."}</p>}
+        {evs.length > 50 && <p><a href={`/my/activity?page=${pageN + 1}${agents ? "&by=agents" : ""}`}>Show more</a></p>}
       </Page>
     )
   }),

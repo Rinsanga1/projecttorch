@@ -69,6 +69,13 @@ export const fmtTime = (d: When, tz = "UTC") => {
 
 export const fmtDateTime = (d: When, tz = "UTC") => (d ? `${fmtDate(d, tz)} at ${fmtTime(d, tz)}` : "")
 
+/** "just now", "5m ago", "2h ago", "3d ago", then the date. */
+export const ago = (d: When, tz = "UTC", now = Date.now()) => {
+  if (!d) return ""
+  const s = Math.max(0, (now - new Date(d).getTime()) / 1000)
+  return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : s < 7 * 86400 ? `${Math.floor(s / 86400)}d ago` : fmtDate(d, tz)
+}
+
 /** YYYY-MM-DD for <input type=date> and SQL dates. */
 export const isoDate = (d: When) => {
   if (!d) return ""

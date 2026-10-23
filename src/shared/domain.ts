@@ -120,6 +120,8 @@ export type Recording = {
   position: number
   visible_to_clients: boolean
   creator_id: number | null
+  /** The agent that made it for the creator (its connection's name), or null. */
+  via?: string | null
   created_at: Stamp
   updated_at: Stamp
 }
@@ -136,7 +138,7 @@ export type Notification = {
 }
 export type Event = {
   id: number; account_id: number; project_id: number | null; recording_id: number | null; person_id: number | null
-  action: string; summary: string; created_at: Stamp
+  action: string; summary: string; via: string | null; created_at: Stamp
 }
 export type Category = { id: number; account_id: number; emoji: string; name: string }
 export type Marker = { id: number; account_id: number; name: string; on_date: string }
