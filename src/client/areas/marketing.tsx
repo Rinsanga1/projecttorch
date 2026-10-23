@@ -18,16 +18,6 @@ const TOOLS = [
   ["Boards", "Drag cards across as the work moves. A Golden Ticket keeps one on top. Cards nobody touches close themselves."],
 ]
 
-const CUTS = [
-  ["Gantt charts", "Plans change. A chart of the future is mostly a guess."],
-  ["Custom fields", "A task needs a name, a person, a date and some notes. That's it."],
-  ["Read receipts", "No one does good work while they feel watched."],
-  ["Online dots", "It's fine to be away."],
-  ["Sprints and points", "Counting points is not the same as getting work done."],
-  ["Automation builders", "Most teams don't need them. The few who do can hook up their own tools."],
-  ["An AI chatbot", "You already have one you like. Bring it."],
-]
-
 // Bring your own agent: what it does here, in the order you'd notice it.
 const AGENT_POINTS = [
   ["Connect in a minute", "Paste one address into Claude, ChatGPT or Cursor, sign in, click Allow. It works as you: your projects, nothing more."],
@@ -60,14 +50,13 @@ const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 // Every element rests in its final state; keyframes only say where it comes from. So under reduced motion (the base
 // layer stops all animation), or in a browser without scroll timelines, everything is simply in place.
 // Load-time: the hero arrives, then the example project comes alive (tasks tick, chat messages arrive).
-// Scroll-linked (`SCROLL`): sections rise as they come into view, the cut features get struck through.
+// Scroll-linked (`SCROLL`): sections rise as they come into view.
 const rise = stylex.keyframes({ from: { opacity: 0, transform: "translateY(16px)", filter: "blur(4px)" } })
 const lift = stylex.keyframes({ from: { opacity: 0, transform: "translateY(32px)" } })
 const pop = stylex.keyframes({ from: { opacity: 0, transform: "translateY(8px) scale(.96)" } })
 const fillIn = stylex.keyframes({ from: { backgroundColor: "transparent" } })
 const wipe = stylex.keyframes({ from: { clipPath: "inset(0 100% 0 0)" } })
 const strikeIn = stylex.keyframes({ from: { textDecorationColor: "transparent" } })
-const strike = stylex.keyframes({ from: { transform: "scaleX(0)" } })
 const surface = stylex.keyframes({ from: { transform: "translateY(45%)" } })
 // After kargul.studio: a live dot that rings, a layer of the drawing that drifts, a card that keeps landing in Review.
 const ring = stylex.keyframes({ "0%": { boxShadow: "0 0 0 0 rgba(249, 156, 0, .55)" }, "100%": { boxShadow: "0 0 0 9px rgba(249, 156, 0, 0)" } })
@@ -223,23 +212,6 @@ const s = stylex.create({
   subs: { marginTop: space.s3, paddingLeft: 31 },
   trio: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "repeat(3, 1fr)" }, gap: space.s3, margin: 0 },
 
-  cuts: { margin: 0, borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: color.slabTile },
-  cut: {
-    display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "5fr 7fr" }, gap: { default: space.s1, [DESKTOP]: space.s6 }, alignItems: "baseline",
-    paddingBlock: space.s5, borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.slabTile,
-  },
-  cutName: {
-    position: "relative", justifySelf: "start", fontSize: "clamp(1.375rem, 1rem + 1.2vw, 2rem)", fontWeight: 700, letterSpacing: "-0.03em",
-    color: color.slabMuted,
-  },
-  // The strike is a bar, not text-decoration, so it can draw left to right as the row scrolls in.
-  strike: {
-    position: "absolute", insetInline: 0, top: "54%", height: 2, backgroundColor: color.accent, transformOrigin: "left",
-    animationName: { default: null, [SCROLL]: strike }, animationDuration: { default: null, [SCROLL]: "auto" },
-    animationTimeline: { default: null, [SCROLL]: "view()" }, animationRange: { default: null, [SCROLL]: "entry 80% cover 45%" },
-    animationTimingFunction: motion.inOut, animationFillMode: "both",
-  },
-  cutWhy: { margin: 0, fontSize: text.md, color: color.slabInk },
 
   // The hero's news pill, with a dot that rings.
   news: {
@@ -507,7 +479,6 @@ const Chrome = ({ children }: { children: ReactNode }) => {
               <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
               <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
               <a href="/startups" {...sx(s.navLink)}>For startups</a>
-              <a href="/marketing#less" {...sx(s.navLink)}>What we skipped</a>
             </nav>
           </div>
           <div {...sx(s.headerEnd)}>
@@ -641,20 +612,6 @@ const Marketing = () => (
         <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Late work</dt><dd {...sx(s.cardText)}>Anything past its due date shows up first, in orange, so nothing slips by quietly.</dd></div>
         <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Timeline</dt><dd {...sx(s.cardText)}>See what's happening now, what's next and what's late, across all your projects.</dd></div>
       </dl>
-    </section>
-
-    <section>
-      <div id="less" {...sx(s.slab)}>
-        <div {...sx(s.wrap)}>
-          <div {...sx(s.sectionHead, s.reveal)}>
-            <h2 {...sx(s.h2)}>What we didn't build</h2>
-            <p {...sx(s.sub, s.slabSub)}>More settings means more to manage. So we said no to a few things.</p>
-          </div>
-          <dl {...sx(s.cuts)}>
-            {CUTS.map(([t, d]) => <div key={t} {...sx(s.cut, s.reveal)}><dt {...sx(s.cutName)}>{t}<span aria-hidden="true" {...sx(s.strike)} /></dt><dd {...sx(s.cutWhy)}>{d}</dd></div>)}
-          </dl>
-        </div>
-      </div>
     </section>
 
     <section {...sx(s.wrap, s.close, s.reveal)}>
