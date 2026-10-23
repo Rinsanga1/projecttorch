@@ -9,7 +9,7 @@
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
 //   event:     starts_at, ends_at, all_day, repeat, participant_ids[]
-//   column:    kind (triage = "To do" | custom | not_now = "Not now" | done), color, watcher_ids[]
+//   column:    kind (triage = "Triage" | custom | review | not_now = "Not now" | done), color, note (what it's for), watcher_ids[]
 //   card:      assignee_ids[], due_on, golden (pinned to the top of its column), completed_at
 //   step:      assignee_ids[], due_on, completed_at
 //   line:      (body only)
@@ -53,6 +53,8 @@ export type Account = {
     who_can_invite?: "everyone" | "admins"
     clients_can_ping?: boolean
     require_2fa?: boolean
+    /** The template agents start new projects from (areas/home.ts). */
+    agent_template_id?: number
   }
   created_at: Stamp
 }

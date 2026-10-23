@@ -406,7 +406,8 @@ export const routes = [
       <Page title="Templates" crumbs={[["Home", "/"]]}>
         <h1>Templates</h1>
         {ts.length
-          ? <ul>{ts.map((t) => <li key={t.id}><a href={`/projects/${t.id}`}>{t.name}</a> {t.description && <>: {t.description}</>} <a href={`/templates/${t.id}/use`} data-button>Use this template</a></li>)}</ul>
+          ? <ul>{ts.map((t) => <li key={t.id}><a href={`/projects/${t.id}`}>{t.name}</a> {t.description && <>: {t.description}</>} <a href={`/templates/${t.id}/use`} data-button>Use this template</a>
+              {t.id === account().settings.agent_template_id && <><br /><small>Agents start new projects from this template.</small></>}</li>)}</ul>
           : <p>Templates are projects you copy over and over. Start one from scratch, or save any project as a template from its ••• menu.</p>}
         {!isClient(me()) && <Form action="/templates"><p><label>Name a new template <input name="name" required /></label> <button>Make a new template</button></p></Form>}
       </Page>

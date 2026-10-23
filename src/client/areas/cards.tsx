@@ -1,4 +1,4 @@
-// Board, after Fizzy: drag cards across Not now · To do · your columns · Done. New cards land in To do; a Golden
+// Board, after Fizzy: drag cards across Not now · Triage · your columns · Done. New cards land in Triage; a Golden
 // Ticket keeps a card at the top of its column; cards nobody touches for 30 days move to Not now on their own (a job in
 // src/areas/cards.ts). The board, new column, column ••• menu, card (with steps), edit card. Posts: src/areas/cards.ts.
 // Moving a card, adding one, a Golden Ticket, checking off a step and reordering columns change the copy right away.
@@ -118,12 +118,12 @@ const EMPTY: Record<string, string> = {
 /** Cards in a column: Golden Tickets first, then the one that arrived last on top. */
 const cardOrder = (a: Recording, b: Recording) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position || b.id - a.id
 
-/** A board's active columns in display order: Not now, To do, your columns, Review, Done. A project can have several boards. */
+/** A board's active columns in display order: Not now, Triage, your columns, Review, Done. A project can have several boards. */
 const columnsOf = (p: Project, boardId: string) =>
   recordings((r) => r.project_id === p.id && r.type === "column" && r.status === "active" && windowIdOf(p, r) === boardId)
     .sort((a, b) => (KIND_ORDER[a.data.kind ?? "custom"]! - KIND_ORDER[b.data.kind ?? "custom"]!) || a.position - b.position || a.id - b.id)
 
-/** Every board has Not now, To do, Review and Done; the server makes any that are missing. */
+/** Every board has Not now, Triage, Review and Done; the server makes any that are missing. */
 const EnsureColumns = ({ p, boardId, cols }: { p: Project; boardId: string; cols: ReadonlyArray<Recording> }) =>
   ["triage", "not_now", "review", "done"].every((k) => cols.some((col) => col.data.kind === k)) ? null : <PostOnOpen action={`/projects/${p.id}/board/setup`} fields={{ tool: boardId }} />
 
@@ -193,7 +193,7 @@ const addColumnLocal = (p: Project, w: Tool, title: string) => {
   })
 }
 
-/** A new card shows at once, on top of To do, until the server's row replaces it. */
+/** A new card shows at once, on top of Triage, until the server's row replaces it. */
 const addLocal = (p: Project, col: Recording, title: string) => {
   const now = new Date().toISOString()
   temp("recordings", {
@@ -263,7 +263,7 @@ const AddColumn = ({ p, w }: { p: Project; w: Tool }) => {
     : <button type="button" data-quiet onClick={() => setOpen(true)} {...sx(ks.addCol)}>+ Add a column</button>
 }
 
-/** Add a card to To do: one line, Enter, and it's ready for the next. Escape closes it. */
+/** Add a card to Triage: one line, Enter, and it's ready for the next. Escape closes it. */
 const AddCard = ({ p, col, onClose }: { p: Project; col: Recording; onClose: () => void }) => (
   <Form action={`/projects/${p.id}/cards`} optimistic={(fd) => addLocal(p, col, String(fd.get("title") ?? "").trim())} {...sx(ks.add)}>
     <input type="hidden" name="column_id" value={col.id} />
@@ -349,7 +349,7 @@ export const routes = [
       },
     }
 
-    // Dragging one of your columns by its head (Not now, To do and Done stay where they are): the spot is before the
+    // Dragging one of your columns by its head (Not now, Triage and Done stay where they are): the spot is before the
     // first of your other columns whose middle is right of the pointer; dropping saves the new order at once.
     const yours = cols.filter((col) => col.data.kind === "custom")
     const [draggedCol, setDraggedCol] = useState<Recording | null>(null)
@@ -404,7 +404,7 @@ export const routes = [
                   {!isClient(m) && <a href={`/projects/${p.id}/columns/${col.id}`} aria-label={`${col.title} column options`} title="Column options" {...sx(ks.colMore)}>•••</a>}
                 </h2>
                 {col.data.watcher_ids?.length > 0 && <p {...sx(ks.colMeta)}><span>Watching: {names(people, col.data.watcher_ids)}</span></p>}
-                {/* New cards start in To do, like Fizzy: one quiet "+ Add a card" that opens a one-line field. */}
+                {/* New cards start in Triage, like Fizzy: one quiet "+ Add a card" that opens a one-line field. */}
                 {active && col.data.kind === "triage" && (adding
                   ? <AddCard key={loc.key} p={p} col={col} onClose={() => setAdding(false)} />
                   : <button type="button" data-quiet onClick={() => setAdding(true)} {...sx(ks.addCard)}>+ Add a card</button>)}
@@ -421,7 +421,7 @@ export const routes = [
                       const idx = anchor ? inCol.findIndex((k) => k.id === anchor.id) : inCol.length
                       return [...items.slice(0, idx), line, ...items.slice(idx)]
                     })()}</ul>
-                  : <>{over?.col === col.id && <div aria-hidden="true" {...sx(ks.dropLine)} />}<p {...sx(ks.none)}>{EMPTY[col.data.kind ?? "custom"]}</p></>}
+                  : <>{over?.col === col.id && <div aria-hidden="true" {...sx(ks.dropLine)} />}<p {...sx(ks.none)}>{col.data.note || EMPTY[col.data.kind ?? "custom"]}</p></>}
               </section>
             )
           })}
@@ -448,6 +448,7 @@ export const routes = [
         <Form action={`/projects/${p.id}/columns/${col.id}`}>
           <p><label>Rename <input name="name" defaultValue={col.title} required /></label></p>
           <p><label>Color <ColorSelect current={col.data.color ?? ""} /></label></p>
+          <p><label>What it's for (shown when it's empty)<br /><input name="note" defaultValue={col.data.note ?? ""} maxLength={140} placeholder={EMPTY[col.data.kind ?? "custom"]} size={50} /></label></p>
           <button>Save changes</button>
         </Form>
         <Form action={`/projects/${p.id}/columns/${col.id}/watch`}>

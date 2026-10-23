@@ -217,7 +217,7 @@ const windowBody = (p: Project, t: Tool): ReactNode => {
       return list(upcoming(p, t).slice(0, 8).map((r) =>
         row(r.id, link(r), `${fmtDate(r.data.starts_at)} · ${r.data.all_day ? "All day" : clock(r.data.starts_at)}${r.data.repeat && r.data.repeat !== "never" ? ` · every ${r.data.repeat === "weekly" ? "week" : r.data.repeat.replace(/ly$/, "")}` : ""}`)))
     case "cardtable":
-      // Fizzy's order: Not now, To do, your columns, Done; Golden Tickets first in each.
+      // Fizzy's order: Not now, Triage, your columns, Done; Golden Tickets first in each.
       return list(activeIn(p, t, "column").sort((a, b) => (COLUMN_ORDER[a.data.kind ?? "custom"] ?? 2) - (COLUMN_ORDER[b.data.kind ?? "custom"] ?? 2) || byPosition(a, b)).map((c) => {
         const cards = recordings((k) => k.parent_id === c.id && k.type === "card" && k.status === "active").sort((a, b) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position)
         return row(c.id, c.title, plural(cards.length, "card"), cards.length > 0 && <span {...sx(ps.excerpt)}>{cards.slice(0, 3).map((k, i) => <span key={k.id}>{i ? " · " : ""}{link(k)}</span>)}{cards.length > 3 ? " …" : ""}</span>)

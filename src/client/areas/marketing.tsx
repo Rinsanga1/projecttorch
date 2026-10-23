@@ -35,7 +35,7 @@ const MILESTONES = [
 ] as const
 // The demo's Milestones tile: two get checked off a moment after the page loads (unless motion is reduced).
 const LAUNCH = [["Pick the font", true, ""], ["Write the homepage text", true, ""], ["Set up redirects", false, "Bob, Oct 25"], ["Sign off on the text", false, "Dan"]] as const
-const COLS = ["To do", "In progress", "Done"]
+const COLS = ["Triage", "In progress", "Done"]
 const CARDS = [
   { id: 1, title: "Launch email", col: 0, golden: true }, { id: 2, title: "Dark mode", col: 0 },
   { id: 3, title: "404 page", col: 1 }, { id: 4, title: "Favicon", col: 2 },
@@ -361,7 +361,7 @@ const Board = () => {
             <button key={c.id} type="button" data-id={c.id} aria-label={`${c.title}. Move to ${COLS[(col + 1) % COLS.length]}`}
               onPointerDown={down} onPointerMove={(e) => follow(e, c.id, col)} onPointerUp={(e) => drop(e, c.id, col)}
               onPointerCancel={(e) => { drag.current = null; e.currentTarget.style.transform = ""; setOver(null); setLifted(null) }}
-              // A click sends it one column on (Done goes back to To do). From the keyboard it doesn't glide.
+              // A click sends it one column on (Done goes back to Triage). From the keyboard it doesn't glide.
               onClick={(e) => (dragged.current && e.detail ? (dragged.current = false) : move(c.id, (col + 1) % COLS.length, e.detail ? e.currentTarget.getBoundingClientRect() : undefined))}
               {...sx(s.kard, c.golden && s.golden, lifted === c.id && s.lifted)}>
               {c.golden && <span title="Golden Ticket" {...sx(s.star)}>★ </span>}{c.title}

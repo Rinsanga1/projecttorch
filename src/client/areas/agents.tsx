@@ -14,10 +14,10 @@ const MY = [["Me", "/my"]] as const
 const STARTERS: ReadonlyArray<{ title: string; what: string; prompt: string }> = [
   {
     title: "Get a project ready",
-    what: "Columns for the agent's work and a pinned post of house rules.",
+    what: "For a project you already have. New projects your agent starts come ready.",
     prompt: `In Saintsflow, get the project "[project name]" ready for working with you.
 1. Open its Board if it isn't open. Add two columns: "Running" (work you're doing) and "Mine" (work only I can do).
-2. Write a post called "House rules for agents": work only on cards in Running; never touch To do, Mine or Not now; don't post to the Message Board or contact clients; when you finish a card, tick its steps, leave one comment saying what you did, and move it to Review.
+2. Write a post called "House rules for agents": work only on cards in Running; never touch Triage, Mine or Not now; don't post to the Message Board or contact clients; when you finish a card, tick its steps, leave one comment saying what you did, and move it to Review.
 3. Show me the rules, then pin the post once I say yes.`,
   },
   {

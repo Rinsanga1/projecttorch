@@ -52,6 +52,8 @@ export type Account = {
     who_can_invite?: "everyone" | "admins"
     clients_can_ping?: boolean
     require_2fa?: boolean
+    /** The template agents start new projects from (areas/home.ts). */
+    agent_template_id?: number
   }
   created_at: Date
 }

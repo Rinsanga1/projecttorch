@@ -1,4 +1,4 @@
-// Board, after Fizzy: cards move across columns, Not now · To do · your columns · Review · Done. New cards land in To do; a
+// Board, after Fizzy: cards move across columns, Not now · Triage · your columns · Review · Done. New cards land in Triage; a
 // Golden Ticket pins a card to the top of its column; a card nobody touches for 30 days moves to Not now on its own
 // (the job below). Review is where finished work waits for a person: Home lists it ("Waiting for you"), and a card
 // there gets Ship it / Send it back / Kill it (the sweep). The board, new column, column ••• menu, new card, card (with
@@ -16,7 +16,7 @@ const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, r
 /** Cards nobody touches for this long move to Not now. */
 const AUTO_CLOSE_DAYS = 30
 
-/** Columns in display order: Not now, To do, your columns, Review, Done. */
+/** Columns in display order: Not now, Triage, your columns, Review, Done. */
 const sortColumns = (cols: ReadonlyArray<Recording>) =>
   [...cols].sort((a, b) => (KIND_ORDER[a.data.kind ?? "custom"]! - KIND_ORDER[b.data.kind ?? "custom"]!) || a.position - b.position || a.id - b.id)
 
@@ -25,14 +25,14 @@ const boardId = (p: Project, tool?: string) => (tool && p.tools.some((t) => t.id
 /** That board's address. */
 const board = (p: Project, tool?: string) => windowUrl(p, { id: boardId(p, tool), type: "cardtable" })
 
-/** Every board has Not now, To do, Review and Done. Made on first visit (the board page posts to /board/setup). */
+/** Every board has Not now, Triage, Review and Done. Made on first visit (the board page posts to /board/setup). */
 const ensureColumns = (c: Ctx, p: Project, tool?: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const id = boardId(p, tool)
     const columns = sql<Recording>`select * from recordings where project_id = ${p.id} and type = 'column' and status = 'active' and coalesce(data->>'tool', 'cardtable') = ${id}`
     const existing = yield* columns
-    for (const [kind, title] of [["not_now", "Not now"], ["triage", "To do"], ["review", "Review"], ["done", "Done"]] as const)
+    for (const [kind, title] of [["not_now", "Not now"], ["triage", "Triage"], ["review", "Review"], ["done", "Done"]] as const)
       if (!existing.some((col) => col.data.kind === kind))
         yield* createRecording(c, { project: p, type: "column", tool: id, title, data: { kind, color: "", watcher_ids: [] }, visible_to_clients: true, quiet: true })
     return sortColumns(yield* columns)
@@ -87,7 +87,7 @@ export const routes = [
       const color = COLORS.includes(str(fd, "color")) ? str(fd, "color") : ""
       if (!title) return invalid(["Your column needs a name."])
       const [last] = yield* sql<{ n: number }>`select coalesce(max(position), 0)::int as n from recordings where project_id = ${p.id} and type = 'column' and data->>'kind' = 'custom'`
-      const col = yield* createRecording(c, { project: p, type: "column", tool: str(fd, "tool"), title, data: { kind: "custom", color, watcher_ids: [] }, visible_to_clients: true, position: last!.n + 1, verb: "added a column" })
+      const col = yield* createRecording(c, { project: p, type: "column", tool: str(fd, "tool"), title, data: { kind: "custom", color, note: str(fd, "note").slice(0, 140), watcher_ids: [] }, visible_to_clients: true, position: last!.n + 1, verb: "added a column" })
       // Stay on the board: the column shows at once and the add line is ready for the next.
       return back(c, `${board(p, col.data.tool)}#column-${col.id}`)
     })),
@@ -112,7 +112,7 @@ export const routes = [
       const col = yield* findColumn(c, p, c.params.colid)
       const fd = yield* c.form
       if (!str(fd, "name")) return back(c, `/projects/${p.id}/columns/${col.id}`, "Your column needs a name.")
-      yield* updateRecording(c, col, { title: str(fd, "name"), data: { color: COLORS.includes(str(fd, "color")) ? str(fd, "color") : "" } }, { quiet: true })
+      yield* updateRecording(c, col, { title: str(fd, "name"), data: { color: COLORS.includes(str(fd, "color")) ? str(fd, "color") : "", note: str(fd, "note").slice(0, 140) } }, { quiet: true })
       return redirect(`${board(p, col.data.tool)}#column-${col.id}`, "Saved.")
     })),
 
@@ -302,7 +302,7 @@ export const seed = (s: Seed) =>
     yield* card(col("done"), "Pick a typeface", { completed_at: new Date(Date.now() - 2 * 86400_000).toISOString() })
   })
 
-/** Auto close, after Fizzy: a card in To do or one of your columns that nobody has touched (the card, its steps or its
+/** Auto close, after Fizzy: a card in Triage or one of your columns that nobody has touched (the card, its steps or its
  * comments) for 30 days moves to its board's Not now, so a board tidies itself. Golden Tickets stay put. Runs every
  * minute; most minutes there's nothing to move. */
 const autoClose = Effect.gen(function* () {

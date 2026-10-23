@@ -12,7 +12,7 @@ create table accounts (
   cancelled_at timestamptz,
   billing_email text,
   card_last4  text,
-  settings    jsonb not null default '{}',                 -- who_can_create_projects, who_can_invite, clients_can_ping, require_2fa
+  settings    jsonb not null default '{}',                 -- who_can_create_projects, who_can_invite, clients_can_ping, require_2fa, agent_template_id
   created_at  timestamptz not null default now()
 );
 

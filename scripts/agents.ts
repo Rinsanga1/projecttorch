@@ -119,20 +119,24 @@ const work = await execute(key, `
   let routeError = ""
   try { await sf.call("GET", "/projects/" + id + "/posts") } catch (e) { routeError = e.message }
   return {
-    id, ids: [ida, idb, idc], postId, order, routeError,
+    id, ids: [ida, idb, idc], postId, order, routeError, started: made.message,
+    windows: p.windows.filter((w) => w.enabled).map((w) => w.type),
     routes: (await sf.routes()).includes("POST /projects/:id/posts"),
     milestones: p.milestones.map((x) => [x.title, x.done, x.subtasks.map((s) => s.done)]),
-    columns: p.boards[0].columns.map((c) => [c.kind, c.cards.map((k) => k.title)]),
+    columns: p.boards[0].columns.map((c) => [c.kind, c.cards.map((k) => k.title), c.title, c.color, c.note]),
     pinned: p.pinned.map((x) => x.title), chat: p.chat.map((x) => x.body),
   }
 `)
 const r = work.out?.result
 ok(!work.isError, `the script ran${work.isError ? `: ${JSON.stringify(work.out)}` : ""}`)
 ok(JSON.stringify(r?.milestones) === JSON.stringify([["Write the brief", true, [true]]]), "milestone and its subtask done (sf.milestones, and sf.tasks still works)")
-ok(r?.columns?.map((c: any) => c[0]).join() === "not_now,triage,review,done", "every board has Not now, To do, Review, Done")
+ok(/Started from “Work with an agent”/.test(r?.started ?? ""), "an agent's new project starts from the agents' template")
+ok(r?.columns?.map((c: any) => c[2]).join() === "Not now,Triage,Running,Mine,Review,Done", "its board: Not now, Triage, Running, Mine, Review, Done")
+ok(r?.columns?.find((c: any) => c[2] === "Mine")?.[3] === "blue" && r?.columns?.find((c: any) => c[2] === "Review")?.[3] === "orange" && r?.columns?.find((c: any) => c[2] === "Running")?.[4] === "What your agent is working on.", "Mine blue, Review orange, Running says what it's for")
+ok(r?.windows?.slice(0, 3).join() === "cardtable,message_board,vault", "its windows: Board, Posts, Files")
 ok(JSON.stringify(r?.order) === JSON.stringify(["Third", "Second", "Ship it"]), "cards.move with after: reorders in place")
 ok(r?.columns?.find((c: any) => c[0] === "review")?.[1]?.length === 3, "three cards in Review")
-ok(JSON.stringify(r?.pinned) === JSON.stringify(["House rules"]), "posts.pin, and projects.get puts pinned posts first")
+ok(JSON.stringify(r?.pinned) === JSON.stringify(["House rules", "House rules for agents"]), "posts.pin; projects.get puts pinned posts (the template's house rules too) first")
 ok(r?.chat?.includes("Morning! **All** set."), "chat.edit")
 ok(r?.routes && /no GET .*sf\.routes/.test(r?.routeError), "sf.routes() lists routes; a wrong route says so")
 ok(work.out?.changes?.some((c: any) => c.type === "card" && c.change === "created"), "the run lists what it changed")
@@ -148,11 +152,29 @@ ok(rem.n === 1, "items.remind sets the reminder for that day")
 const [rv] = await db`select data->'review' as review from recordings where id = ${r?.ids?.[0]}`
 ok(rv.review?.via === "Agent check" && rv.review?.from, "moving into Review notes when, who, via and where from")
 
+const blank = await execute(key, `
+  const r = await sf.projects.create({ name: "Agent check blank", blank: true })
+  const id = r.created.find((x) => x.type === "project").id
+  const p = await sf.projects.get(id)
+  await sf.projects.trash(id)
+  return { windows: p.windows.length, made: r.created.length }
+`)
+ok(blank.out?.result?.windows === 0 && blank.out?.result?.made === 1, "blank: true gives an empty project")
+const inApp = await api(maya, "/projects", { name: "Agent check, made in the app" })
+ok(/people\/setup$/.test(inApp.body.redirect ?? ""), "a project made in the app still starts blank")
+const appId = Number(/projects\/(\d+)/.exec(inApp.body.redirect)?.[1])
+const [appCols] = await db`select count(*)::int as n from recordings where project_id = ${appId}`
+ok(appCols.n === 0, "…with nothing in it")
+await api(maya, `/projects/${appId}/trash-project`, {})
+const [tpl] = await db`select count(*)::int as n from projects p join accounts a on a.id = p.account_id
+  where p.kind = 'template' and p.name = 'Work with an agent' and a.id = (select account_id from people where email = 'maya@acme.test' limit 1)`
+ok(tpl.n === 1, "the agents' template is made once, then reused")
+
 // The sweep, as Maya in the browser: send one back, ship one, kill one.
 const sweep = (cardId: number, fields: Record<string, string>) => api(maya, `/projects/${r.id}/cards/${cardId}/review`, fields)
 ok((await sweep(r.ids[0], { verdict: "back" })).status === 422, "sending back needs a note")
 const sent = await sweep(r.ids[0], { verdict: "back", body: "Make the heading shorter", then: "/" })
-ok(sent.body.redirect === "/" && /back to To do/.test(sent.body.flash?.msg), "Send it back: returns it where it came from, back to Home")
+ok(sent.body.redirect === "/" && /back to Triage/.test(sent.body.flash?.msg), "Send it back: returns it where it came from, back to Home")
 ok((await sweep(r.ids[0], { verdict: "ship" })).body.errors?.[0]?.includes("moved on"), "a card that left Review: someone got to it first")
 ok(/Shipped/.test((await sweep(r.ids[1], { verdict: "ship" })).body.flash?.msg), "Ship it")
 ok(/trash/.test((await sweep(r.ids[2], { verdict: "kill" })).body.flash?.msg), "Kill it")

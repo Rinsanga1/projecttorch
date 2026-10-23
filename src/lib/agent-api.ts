@@ -28,7 +28,7 @@ const sf = {
   projects: {
     list: (o = {}) => get("/agent/projects", o),
     get: (id) => get("/agent/projects/" + id),
-    create: (o) => post("/projects", { name: o.name, description: o.description ?? "", access: o.access ?? "invited" }),
+    create: (o) => post("/projects", { name: o.name, description: o.description ?? "", access: o.access ?? "invited", template_id: o.template_id ?? "", blank: o.blank ? "1" : "" }),
     update: async (id, ch) => {
       const p = { ...(await sf.projects.get(id)), ...ch }
       return post("/projects/" + id + "/edit", { name: p.name, description: p.description ?? "", starts_on: p.starts_on ?? "", ends_on: p.ends_on ?? "" })
@@ -95,10 +95,10 @@ const sf = {
   },
 
   columns: {
-    create: (projectId, o) => post("/projects/" + projectId + "/columns", { name: o.name, color: o.color ?? "", tool: o.window ?? "" }),
+    create: (projectId, o) => post("/projects/" + projectId + "/columns", { name: o.name, color: o.color ?? "", note: o.note ?? "", tool: o.window ?? "" }),
     update: async (columnId, ch) => {
       const c = { ...(await sf.items.get(columnId)), ...ch }
-      return post("/projects/" + c.project_id + "/columns/" + columnId, { name: ch.name ?? c.title, color: ch.color ?? c.data.color ?? "" })
+      return post("/projects/" + c.project_id + "/columns/" + columnId, { name: ch.name ?? c.title, color: ch.color ?? c.data.color ?? "", note: ch.note ?? c.data.note ?? "" })
     },
     moveAll: (projectId, fromId, toId) => post("/projects/" + projectId + "/columns/" + fromId + "/move-all", { column_id: toId }),
   },
@@ -173,7 +173,7 @@ type WindowType = "message_board" | "todos" | "vault" | "campfire" | "schedule" 
 
 /** What every write returns. \`created\` has the new item's id (e.g. created.find(x => x.type === "todo").id). */
 type Done = { ok: true; message?: string; url?: Url; created: Change[]; changed: Change[] }
-type Change = { type: string; id: Id; title: string; url: Url; project_id?: Id; status?: string }
+type Change = { type: string; id: Id; title: string; url: Url; project_id?: Id; status?: string }   // type: "project", "template", or an item type ("card", "todo"…)
 /** Who to notify about a post or doc. Default "nobody": it still shows on the project for everyone. */
 type Notify = "nobody" | "everyone" | Id[]
 
@@ -183,8 +183,8 @@ type ProjectSummary = { id: Id; name: string; description: string | null; status
 type Person = { id: Id; name: string; email: string; role: "owner" | "admin" | "member" | "client"; title: string | null }
 type Task = { id: Id; title: string; done: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; starts_on: Day | null; window: string; url: Url; subtasks: Task[] }
 type Card = { id: Id; title: string; done: boolean; golden: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; steps: string; url: Url }
-type Column = { id: Id; title: string; kind: "not_now" | "triage" | "custom" | "review" | "done"; color: string; cards: Card[] }
-// Every board has Not now, To do ("triage"), Review and Done, plus its own columns. Review is where finished work waits
+type Column = { id: Id; title: string; kind: "not_now" | "triage" | "custom" | "review" | "done"; color: string; note: string /* what it's for */; cards: Card[] }
+// Every board has Not now, Triage ("triage"), Review and Done, plus its own columns. Review is where finished work waits
 // for a person: when you finish a card, tick its steps, leave one comment, and move it to Review. People decide from there.
 type Project = ProjectSummary & {
   pinned: { id: Id; title: string; body: string; author: string; url: Url }[]   // the house rules: read these first
@@ -214,7 +214,10 @@ declare const sf: {
   projects: {
     list(o?: { status?: "active" | "archived" | "trashed" }): Promise<ProjectSummary[]>
     get(id: Id): Promise<Project>
-    create(o: { name: string; description?: string; access?: "all" | "invited" }): Promise<Done>   // starts with no windows: openWindow next
+    // New projects start from the account's "Work with an agent" template: a Board (Not now · Triage · Running · Mine · Review ·
+    // Done) and house rules pinned in Posts. Read the rules, then work. Use the template the person names (template_id), or
+    // blank: true only when they ask for an empty project (it starts with no windows: openWindow next).
+    create(o: { name: string; description?: string; access?: "all" | "invited"; template_id?: Id; blank?: boolean }): Promise<Done>
     update(id: Id, ch: { name?: string; description?: string; starts_on?: Day; ends_on?: Day }): Promise<Done>
     openWindow(id: Id, type: WindowType): Promise<Done>              // adds it, or shows it if hidden; boards get their columns
     setPeople(id: Id, personIds: Id[], o?: { access?: "all" | "invited"; removeMe?: boolean }): Promise<Done>   // the whole list: anyone left out is removed
@@ -242,8 +245,8 @@ declare const sf: {
     reopen(id: Id): Promise<Done>
   }
   columns: {
-    create(projectId: Id, o: { name: string; color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "gray"; window?: string }): Promise<Done>
-    update(columnId: Id, ch: { name?: string; color?: string }): Promise<Done>
+    create(projectId: Id, o: { name: string; color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "gray"; note?: string /* what it's for */; window?: string }): Promise<Done>
+    update(columnId: Id, ch: { name?: string; color?: string; note?: string }): Promise<Done>
     moveAll(projectId: Id, fromColumnId: Id, toColumnId: Id): Promise<Done>
   }
   cards: {                                                          // to-dos: they live on the Board
@@ -275,10 +278,10 @@ declare const sf: {
 // for (const card of doing.cards) await sf.cards.move(card.id, done.id)
 // return \`moved \${doing.cards.length} cards\`
 //
-// const made = await sf.projects.create({ name: "Spring launch" })
+// const made = await sf.projects.create({ name: "Spring launch" })      // comes with the board and house rules
 // const id = made.created.find(x => x.type === "project").id
-// await sf.projects.openWindow(id, "cardtable")
-// const todo = (await sf.projects.get(id)).boards[0].columns.find(c => c.kind === "triage")
-// for (const title of ["Draft the brief", "Pick a date"]) await sf.cards.create(id, { title, column_id: todo.id })
+// const p = await sf.projects.get(id)                                    // p.pinned: the house rules
+// const triage = p.boards[0].columns.find(c => c.kind === "triage")
+// for (const title of ["Draft the brief", "Pick a date"]) await sf.cards.create(id, { title, column_id: triage.id })
 // return id
 `
