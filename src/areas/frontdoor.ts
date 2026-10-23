@@ -207,7 +207,8 @@ export const routes = [
       if (errs.length) return invalid(errs)
 
       const [account] = yield* sql<Account>`insert into accounts ${sql.insert({
-        name: v.company, status: "trial", trial_ends_on: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10), billing_email: v.email,
+        // In beta, free: no trial to run out. (The on-hold job below still handles trials, for when there are prices.)
+        name: v.company, status: "active", billing_email: v.email,
         settings: JSON.stringify({ who_can_create_projects: "everyone", who_can_invite: "everyone", clients_can_ping: false }),
       })} returning *`
       const [company] = yield* sql<{ id: number }>`insert into companies ${sql.insert({ account_id: account!.id, name: v.company })} returning id`
