@@ -12,7 +12,6 @@ import { Page, page } from "../ui/page.tsx"
 const KIND_NAMES: Record<string, string> = {
   notification: "Notification email",
   invite: "Invitation email",
-  checkin: "Team question email",
   signin: "Sign-in link email",
   reset: "Password reset email",
   receipt: "Receipt",
@@ -22,7 +21,6 @@ const KIND_NAMES: Record<string, string> = {
 const CTA: Record<string, string> = {
   notification: "View it in Saintsflow",
   invite: "Accept the invitation",
-  checkin: "Answer in Saintsflow",
   signin: "Sign in to Saintsflow",
   reset: "Choose a new password",
   export: "Download your export",
@@ -32,7 +30,7 @@ const CTA: Record<string, string> = {
 type Inbox = { recipients: { to_email: string; n: number }[]; emails: { id: number; to_email: string; kind: string; subject: string; created_at: string }[] }
 type Email = {
   email: { id: number; to_email: string; subject: string; body: string; kind: string; link: string | null; created_at: string } | null
-  rec?: { href: string; title: string; question: boolean; active: boolean; replyable: boolean } | null
+  rec?: { href: string; title: string; active: boolean; replyable: boolean } | null
 }
 
 export const routes = [
@@ -86,13 +84,13 @@ export const routes = [
         <hr />
         {rec?.replyable && rec.active && (
           <Form action={`/inbox/${e.id}/reply`}>
-            <p><label>{rec.question ? "Just reply to this email with your answer." : "Reply to this email to comment"}<br />
+            <p><label>Reply to this email to comment<br />
               <textarea name="body" rows={5} cols={70} required /></label></p>
             <button>Send reply</button>{" "}
             <small>(Your reply posts as the recipient, {e.to_email}.)</small>
           </Form>
         )}
-        {rec?.replyable && !rec.question && <Form action={`/inbox/${e.id}/unsubscribe`}><button>Stop notifying me about this</button></Form>}
+        {rec?.replyable && <Form action={`/inbox/${e.id}/unsubscribe`}><button>Stop notifying me about this</button></Form>}
         {rec && <p><a href={rec.href}>View “{rec.title}” in Saintsflow</a></p>}
       </Page>
     )

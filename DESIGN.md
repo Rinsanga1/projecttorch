@@ -308,8 +308,8 @@ The world is a neutral grayscale with one warm orange signal. Apart from that or
 - **Kargul Orange** (`accent`): the only accent. It is used for:
   - unread count badges in the nav;
   - the Today line and label on the Lineup, and today's date disc on the Schedule;
-  - done checkboxes and to-do list progress fills;
-  - hill-chart dots and the strike-through on "what we left out";
+  - done checkboxes and progress fills (a task list's bar, the project's progress);
+  - the strike-through on "what we left out";
   - the text caret, and selection and focus rings (via `color-mix` at 28-38%).
 
   Text on it is **Burnt Ink** (`on-accent`), a near-black brown.
@@ -325,7 +325,7 @@ The orange is identical in both themes.
 - **Ink** (`ink`): body text and headings. Dark: #f2f2f2.
 - **Muted Graphite** (`muted`): secondary text, dates, group labels, bylines, quiet links, inactive nav links, placeholders. Dark: #a3a3a3.
 - **Hairline** (`line`): 1px rules between rows, table and calendar cells, day dividers, fieldsets and `<hr>`. Dark: #2d2d2d.
-- **Control Gray** (`control`): input borders, unchecked check strokes, breadcrumb separators, the hill's crest divider, and the scrollbar thumb. Dark: #6b6b6b.
+- **Control Gray** (`control`): input borders, unchecked check strokes, breadcrumb separators, a finished list's bar, and the scrollbar thumb. Dark: #6b6b6b.
 - **Slab Charcoal** (`slab`) with **Slab Tile** (`slab-tile`), **Slab Ink** (`slab-ink`) and **Slab Muted** (`slab-muted`): the dark slab family, for marketing slabs and their rules, the offline strip, the marketing promo strip, and the app footer. Dark: slab goes to pure #000000 and slab-tile to #1a1a1a.
 
 ### Status
@@ -346,7 +346,7 @@ The orange is identical in both themes.
 
 **Display Font:** Geist variable (100-900), self-hosted at `/fonts/Geist-Variable.woff2`, falling back to ui-sans-serif / system-ui.
 **Body Font:** Geist, same file.
-**Label/Mono Font:** the ui-monospace stack, used only for `code`, `kbd`, `pre` and the forwarding address field.
+**Label/Mono Font:** the ui-monospace stack, used only for `code`, `kbd` and `pre`.
 
 **Character:** A single neo-grotesk does everything, distinguished by weight (400 to 800) and tracking (-0.06em on the giant wordmark up to +0.05em on uppercase labels). Headings are heavy and tight; body text is plain and open at 1.55 line height.
 
@@ -362,8 +362,8 @@ The orange is identical in both themes.
 - **Body** (400, 0.9375rem, 1.55): everything else. Paragraphs cap at 72ch and comments at 70ch.
 - **Body, small** (400, 0.84375rem): card descriptions, row meta, bylines, tables, breadcrumbs, toolbars and `<small>`.
 - **Label** (600, 0.84375rem): buttons, nav links and summary pills.
-- **Group label** (600, 0.75rem, +0.05em, uppercase, muted): table headers, nested fieldset legends, group headings above card grids, day dividers in chat and check-ins, and "on hold" notes in board columns.
-- **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (HQ, All-access, Pinned, a category, Today, a hill stage).
+- **Group label** (600, 0.75rem, +0.05em, uppercase, muted): table headers, nested fieldset legends, group headings above card grids, day dividers in chat.
+- **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (HQ, All-access, Pinned, a category, Today).
 
 ### Named Rules
 **The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, headline-cut, giant wordmark) belong to marketing and signup.
@@ -377,13 +377,13 @@ The app frame is a single centered column, max 1200px wide. Side padding is 16px
 Each tool page follows one order: heading with actions (wraps under the title on narrow screens), optional tags and byline, then the content, then a quiet row of small muted links at the foot (32px above). Content comes in four shapes:
 - **Tile grids:** project cards auto-fill at 260px, list cards and question cards at 300px, and file cards at 200px. Gaps are 12-16px.
 - **Windows:** the project page shows its tools as windows: the one you're in, and a rail of the rest (see Project Windows below).
-- **Record rows:** a `32px 1fr` grid with the face in the first column. Comments, chat lines, check-in answers and message rows all use it; vault rows use a 40px icon column instead.
-- **The board:** card-table columns 256px wide (82vw at most), laid in one row that scrolls sideways with snap points.
-- **Ruled tables:** timesheets and the month calendar.
+- **Record rows:** a `32px 1fr` grid with the face in the first column. Comments, chat lines and message rows all use it; vault rows use a 40px icon column instead.
+- **The board:** Fizzy's columns (Not now, To do, yours, Done), at least 240px wide, in one row that scrolls sideways with snap points.
+- **Ruled tables:** the month calendar.
 
 Filter toolbars sit above lists with 32px controls. Spacing follows a 4px base (4, 8, 12, 16, 24, 32, 48, 64). Section breaks inside a page are 32px, and a discussion section opens 48px down with a hairline above it.
 
-Marketing uses a 1224px column with the same gutters. It switches to its multi-column grids at 900px: the tool grid goes 1/2/4 columns, split sections 5fr/7fr, and the example project 1/2/3 columns. Sections are spaced 64px on phones up to 120-140px on desktop, and slabs run nearly full width with 40px corners.
+Marketing uses a 1224px column with the same gutters. It switches to its multi-column grids at 900px: the tool grid goes 1/2/4 columns, split sections 5fr/7fr, and the example project 1/2/3 columns (its Board tile spans two, packed dense so there's no hole), and the Milestones section's three tasks sit side by side. Sections are spaced 64px on phones up to 120-140px on desktop, and slabs run nearly full width with 40px corners.
 
 Tables become horizontally scrollable blocks under 640px. Pages work without JavaScript.
 
@@ -407,7 +407,7 @@ Controls are full pills (999px): buttons, link-buttons, nav links, count badges,
 Containers are generously rounded rectangles:
 - 24px for the sheet on desktop and every tile, card, panel, composer, empty state and board column (the sheet drops to 16px on phones);
 - 16px for anything nested one level inside a tile (board cards, file thumbnails), for the month calendar, and for fieldsets;
-- 32px for the marketing demo and hill-chart frames on desktop;
+- 32px for the marketing demo and Milestones frames on desktop;
 - 40px for slabs and the top corners of the app footer.
 
 Smaller radii are functional, a fixed inline step set:
@@ -431,7 +431,7 @@ Soft, small and confident; pills that press in slightly.
 - **Primary:** Pill Black with white text. The base layer promotes it automatically in two cases. The first button or `a[data-button]` link-button in a `<p>` becomes primary. So does the button after the fields in a non-GET form, with or without a Cancel link after it, and the "Yes, …" button of a confirm form ("Yes, …" then "Never mind"). Everything else stays secondary. A page can also say so outright: `data-primary` promotes the one button that is the real next step ("Mark as done" on a card, "Send" in chat), and `data-quiet` keeps a button plain where the rule would wrongly promote it (React, "Add a card"). One primary per page, and it is the step that matters most. A plain link right after a button gets 8px of extra room.
 - **Secondary:** Tile Gray with Ink text, hovering to Tile Pressed. This is the default for a bare `<button>`, a `a[data-button]` link and file-selector buttons.
 - **Link-buttons:** an `<a data-button>` looks and behaves exactly like `<button>`, for navigation that reads as an action ("New list", "Make a new project").
-- **Text buttons** (`kit.linkButton`): a `<button>` that reads as an underlined text link, for a secondary action that still has to post ("Take this list off the progress hill").
+- **Text buttons** (`kit.linkButton`): a `<button>` that reads as an underlined text link, for a secondary action that still has to post ("Stop watching", "Pin it").
 - **Plain on a tile:** a secondary button that sits on Tile Gray (a board column, the chat composer) takes Sheet White instead, so it doesn't vanish into the tile.
 - **Compact sizes:** 32px in filter toolbars, boost forms and composers; 28px on board cards; 24px for the round remove-boost control.
 - **Hover / Focus / Active:** the background shifts in 150ms, and hover applies only under `(hover: hover) and (pointer: fine)`. Active scales to 0.97 on the ease-out curve `cubic-bezier(.22, 1, .36, 1)`. Focus is a 2px Amber Focus outline at 2px offset. Disabled is 45% opacity. Tap highlight is off.
@@ -442,7 +442,6 @@ Soft, small and confident; pills that press in slightly.
 - **Record tag:** Tile Gray pill, 5px 10px, tag type, in a row above a record's title (category, "Answer to"). The **accent variant** fills it with Peach Wash for Pinned.
 - **Count badge:** an 18px Kargul Orange pill with 11px Burnt Ink tabular numerals, inside a nav link, for unread Pings and Hey!. Board columns show their card count as a Sheet White version of the same pill.
 - **Boost:** a 32px Tile Gray pill holding a short reaction and the booster's name in muted xs. Your own boost carries a 24px Sheet White round remove button.
-- **Stage chip:** Sheet White pill with tag type, on a tile (hill-chart stage).
 - **Quiet chip:** Sheet White pill with a 7px dot and xs muted text ("Notifications paused").
 
 ### Faces
@@ -454,18 +453,18 @@ A person is their photo, or else up to two initials on a Pill Black disc (650 we
 - **Shadow Strategy:** none (see Elevation & Depth).
 - **Border:** none; the base layer's list hairline is explicitly removed on cards.
 - **Internal Padding:** 24px for content cards, 16px for composers and answer cards, 12px for board columns, board cards and file cards.
-- **Whole-card links:** list, question and file cards make their title link cover the whole card (a stretched `::after`), so the card hovers to Tile Pressed as one target.
+- **Whole-card links:** list and file cards make their title link cover the whole card (a stretched `::after`), so the card hovers to Tile Pressed as one target.
 - **Empty state:** a Tile Gray card with 48px/24px padding, centered muted text and usually one action.
 
 ### Inputs / Fields
 - **Style:** Sheet White fill, 1px Control Gray stroke, 10px radius, 36px minimum height, 6px 12px padding. Text fields cap at 32rem and textareas at 48rem. Selects draw their own chevron from two gradients. Checkboxes, radios, meters and progress use the orange through `accent-color`.
-- **In a tile:** comment boxes and the chat composer are Tile Gray cards whose full-width textarea stays Sheet White. The comment box keeps a 32px face column beside its field.
+- **In a tile:** comment boxes and the chat composer are Tile Gray cards whose full-width textarea stays Sheet White. The comment box keeps a 32px face column beside its field. The chat composer is one row (a round attach button, the field, Send), 18px corners; the field grows as you write, up to six lines. Its placeholder names the room ("Message Chat", "Message Ann, Bob") and there are no hints under it: Enter sends with a keyboard, and is a new line on a phone.
 - **Focus:** the border turns Amber Focus, plus the 3px orange Focus Halo; there is no outline.
 - **Error:** errors are listed above the form in an Alert Red on Alert Blush box (12px radius). Fields themselves do not turn red.
 - **Filters apply as you pick:** a filter or sort form (`ref={submitOnChange}`) submits the moment a field changes. There is no Filter or Apply button; "Clear" shows only while a filter is on. A filter row earns its place: Posts shows its category filter only past 5 posts.
 - **Row actions:** an action on every row of a list ("Move to…" on tasks, cards and files) is a quiet dropdown (`kit.quietSelect`: no box until hovered) that acts the moment you pick, with no separate Move button. On fine pointers it shows only while its row is hovered or focused (`data-row-action`, app.css); on touch it is always there.
 - **File inputs** are dressed as a secondary button ("Attach a file") with the native box hidden; the chosen file's name shows beside it.
-- **Settings you change once** ("Notify me about" in chat) fold into one quiet `<details>` line that names the current choice, and save as soon as you pick.
+- **Settings you change once** live out of the way and save as soon as you pick. Chat's ("Notify me about" as a small select, and "Set up bots") sit in the conversation's start line, above its oldest message: "**This is the start of Chat.** Quick questions, quick answers."
 
 ### Navigation
 - **App nav:** half a bar, on purpose: `Acme · Private chats · Updates · Find · (your face)`. The account name is a 750-weight wordmark on the ground and it is Home; Private chats and Updates are pill links (muted, 500 weight, 7px 12px) with their unread counts inside. On fine pointers, hover tints the pill toward white (sheet at 60%); the current page is a solid Sheet White pill with Ink 600 text. At the right end, Find (its title names Ctrl/⌘ + K for Go to), then your face (30px) linking to Me, ringed in Ink on your own pages. Timeline and Activity are reached from Home. The nav wraps on narrow screens rather than collapsing.
@@ -477,7 +476,7 @@ A person is their photo, or else up to two initials on a Pill Black disc (650 we
 The project menu and an item's ••• menu use `menu` from `ui.ts`: a 560px column of labelled groups (group-label type), each a Tile Gray card with 24px corners holding 48px rows split by hairlines. A link that opens a page and a form button that acts look like the same row; links end in a muted chevron. Rows hover to Tile Pressed and don't scale on press. "Put … in the trash" is the one Alert Red row, hovering to Alert Blush. Groups with nothing in them for the current person aren't drawn.
 
 ### Record Rows and Threads
-Each row is a 32px face, then a name and muted meta on one baseline, then the body. Chat lines tighten this to 6px vertical padding with no rules between lines. Chat breaks by day with a centered group label between two hairlines, while check-ins use a left label followed by a hairline. File attachments in chat are 12px-round Tile Gray chips. A record's byline is a face, the name in Ink 600, and muted small text.
+Each row is a 32px face, then a name and muted meta on one baseline, then the body. Chat lines tighten this to 4px vertical padding with no rules between lines, and a person's lines within five minutes run together under one face and name (a follow-up shows its time, "1:59", in the face column on hover). Your own lines sit on the right in a Tile Pressed bubble (16px corners, at most 72% wide, 85% on a phone) with no face or name, only the time above the first of a run. A line's React, Edit and Delete float in a small white card on hover: at the top-right corner of someone else's line, beside your bubble (above it on a phone); on touch, a tap on the line shows them. Reactions are pills under the line, one per emoji with its count. Chat breaks by day with a centered group label between two hairlines, while check-ins use a left label followed by a hairline. File attachments in chat are 12px-round Tile Gray chips. A record's byline is a face, the name in Ink 600, and muted small text.
 
 ### The bottom of a record
 Every record page (a post, doc, file, task, card, event, list) ends the same short way, so the record stays the biggest thing on it:
@@ -487,10 +486,10 @@ Every record page (a post, doc, file, task, card, event, list) ends the same sho
 - Then "••• More options for this post".
 
 ### Drawn Check
-The to-do check is a 22px rounded square: 7px radius, 1.5px Control Gray stroke, Sheet White fill. On fine pointers, hover fills it with Peach Wash and turns the stroke Amber Focus. When done, it fills Kargul Orange with a drawn Burnt Ink tick (SVG, 1.8px stroke, round caps). A 28px / 9px-radius variant is used on a to-do's own page, and the marketing demo uses a 16px / 5px-radius static version.
+The to-do check is a 22px rounded square: 7px radius, 1.5px Control Gray stroke, Sheet White fill. On fine pointers, hover fills it with Peach Wash and turns the stroke Amber Focus. When done, it fills Kargul Orange with a drawn Burnt Ink tick (SVG, 1.8px stroke, round caps). A 28px / 9px-radius variant is used on a to-do's own page, and the marketing demo uses a 16px / 5px-radius version (22px for a task heading) that draws its tick and strikes its title when checked.
 
 ### List Progress
-A to-do list card on the Tasks start page is a working preview: the list's title (the only link), a muted xs tabular count over a 6px pill track in Sheet White with a Kargul Orange fill, then up to 5 open tasks, late and soonest first, each with its real check button, its name and a muted xs line of who and when. A late date is set in Accent Text 600, the one place it needs attention now. "See all N open tasks" follows when there are more. The hill chart sits below the lists.
+The Milestones window (tasks under one bar) is one bar and one list, like Basecamp's to-dos. On top, the share of the work done (1.5rem 700, tabular), "done · 2 of 8" and any late count (Accent Text 600) in muted text, then a 6px pill bar. Then the open tasks in order, hairline-split: a check button, the title, a muted "1/3" when it has subtasks, and a muted line of who, when (late in Accent Text 600), comments and 📝 for notes. A task's subtasks sit indented under it (34px) with smaller 18px checks. A task with subtasks is done when they all are: ticking it ticks them, ticking the last one ticks it, reopening one reopens it. Progress counts the work: a task, or in its place its subtasks, so splitting a task never skews the bar. Adding is one line, "Add a task…" and a quiet Add: Enter adds it at once and the field is ready for the next. "+ Subtask" is a quiet row action (on hover) that opens the same one line under the task; Escape closes it. Dates and people are set on the task's page. Tasks reorder by dragging (an orange 2px line shows where it lands) or Alt+↑/↓. Done tasks fold under "Show N done tasks". The project head, Home's cards and the Overview show the same share with the shared `ProgressBar` (Tile Pressed track, Kargul Orange fill).
 
 ### Lineup Bars
 Each dated project is a 34px Tile Gray pill positioned on one shared track, with left and width set as percentages of the date range. The name is 600 weight and the dates muted 400. A 2px Kargul Orange vertical line marks today, topped by an orange "Today" pill in tag type.
@@ -516,16 +515,16 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
   - A flash raised while working in a window floats just above the taskbar (it rises 8px in, 220ms ease-out) instead of pushing the page down, and its Undo runs in that window.
 - **Full screen** lifts the desk over the whole page: the master alone above the taskbar, the page under it held still. Switching windows from the rail (or the taskbar) keeps it on; Escape or the button comes back out. It isn't remembered across visits.
 - **The rail** (desktop, 900px and up) is the one way around: every window as a 40px icon (12px corners), in project order, so a hand learns where Chat is. Nothing sorts, nothing is left out. The open one is Pill Black; one with news is Peach Wash with an 18px Kargul Orange count on its corner (ringed in Tile Gray); one with late work is outlined in orange at 55%. A quiet "+" at the end (for everyone but clients) goes to add or remove windows.
-  - **One list, two looks.** The rail's top button (a panel icon, muted; Tile Hover fill while open) turns the icons into previews, in the same order, each in its icon's place: the window's title bar (the whole bar is the button), then the start of its body, fading out, inert, 168px tall in a 300px column that scrolls when they don't fit. The window in front keeps its place as its title bar alone, "Open now", outlined in orange like the big window. A quiet "Add or remove windows" ends the list. Never two lists side by side: they'd never line up.
+  - **One list, two looks.** The rail's top button (a panel icon, muted; Tile Hover fill while open) turns the icons into previews, in the same order, each in its icon's place: the window's title bar (the whole bar is the button), then the start of its body, fading out, inert, all 168px tall in a 300px column that scrolls when they don't fit. The window in front has no preview: it's already open beside them (its rail icon fades as the others fly). A window with nothing in it yet says so in its title bar ("No files yet") and shows a still skeleton of five Tile Gray 8px lines, the same 168px as the rest: still, not shimmering, since nothing is loading. A quiet "Add or remove windows" ends the list. Never two lists side by side: they'd never line up.
   - **Never over your work.** The rail widens and the master gives way in one slide (280ms open, 200ms close, the drawer curve cubic-bezier(0.32, 0.72, 0, 1)); each icon flies from the rail to its own preview’s title bar on the same curve and time, shrinking from 18px to 16px, while its fill, outline and count fade; the previews fade in 60ms behind and their own icons take over when the flight lands. Closing, the icons fly back. That flight is what ties an icon to its preview. Toggling mid-flight turns the icons around from where they are. The previews never move: their width is fixed, so the slide uncovers them and the icons know where to land. Reduced motion: no slide, no flight, the fades stay.
   - It's a click, not a hover: the master changes width, and work shouldn't reflow because the pointer brushed the edge. Open or closed is remembered in this browser (`saintsflow:previews`).
-  - **Clicking an icon or a preview swaps them in place:** the picked window glides into the master, and the one you left glides into its spot in the list (and the picked one's spot becomes "Open now"). Only those two glide; the other previews hold still.
+  - **Clicking an icon or a preview swaps them in place:** the picked window glides into the master, and the one you left glides into its spot in the list (the picked one leaves the list). Those two glide, and the previews between them slide a slot; the rest hold still.
   - A preview's title bar shows "N new" (an orange xs pill) or its summary.
   - A window with nothing in it yet says so in one muted sentence, its summary ("No files yet."). No placeholder bars: gray bars say "loading", and nothing is.
   - The Tasks preview leads with what's late, in Accent Text 650: "1 late: Pick the type pairing", then who and "was due Oct 20". Previews draw no checkboxes; they'd look tickable and aren't.
 - **What's new, inside a window:** the project's "since" moment reaches the window's pages (`useSince`).
   - Chat draws HEY's line, "New since Tuesday" (the day rule and label in orange), before the first new line, and opens there.
-  - Lists (Posts, Files, Team questions answers) mark each new item with a solid Kargul Orange "New" tag beside its title (`NewTag`), never Peach Wash, which is Pinned. It works whichever way a list runs.
+  - Lists (Posts, Files) mark each new item with a solid Kargul Orange "New" tag beside its title (`NewTag`), never Peach Wash, which is Pinned. It works whichever way a list runs.
   - New means someone else added it after your last visit; what you wrote yourself is never new to you.
 - **A brand-new project** (every window empty) says one line in place of the news: "A fresh start. Invite the people on it, then post what this project is about."
 - **Nothing under the desk** but the taskbar: "Add a link" and "See all activity" live in the ••• project menu.
@@ -538,21 +537,16 @@ $1 what other people added since you last opened that window (comments count in 
 - **Motion:** swapping windows by mouse glides with a view transition (240ms, cubic-bezier(0.32, 0.72, 0, 1)); the windows' pictures are clipped, never stretched. Keyboard swaps are instant. Reduced motion keeps the fades and drops the movement.
 
 ### Shaped for daily use
-- **Task groups:** a group's name, then a quiet ••• (rename, trash) beside it; each group ends in a quiet "+ Add a task" line, and "+ Add a group" is a toggle too. `kit.quietSummary` is that look: a disclosure with no pill and no chevron.
+- **A task's page:** its check and title, then its subtasks (a small bar with "1 of 3 done · this task is done when they all are", each subtask with its check, and the one-line "Add a subtask…"), then its details (assigned, notify, due, notes, added by) and Edit. A subtask's page says "A subtask of …". `kit.quietSummary` is the look of a quiet toggle: a disclosure with no pill and no chevron.
 - **Files:** "Upload files" is the primary, "New doc" beside it, and a quiet ••• holds New folder and "Link a Google Doc, Sheet or other file". Sort and View appear past 10 items. A folder's color is a 9px dot before its name, never the color's name.
-- **Team questions:** Edit, then a quiet ••• holding "Pause asking" and "Put it in the trash", so trashing can't be a slip.
-- **Timesheet:** its filters fold into a quiet "Filter" until there are more than 15 entries (or a filter is on).
 
-### Card Table
-The board is a single row of Tile Gray columns, at least 240px each, that share the width when they fit and otherwise scroll sideways (snap to column start, overscroll contained); while more columns wait off to the right, the row's end fades (`fadeOverflow`). Each column head carries a 9px label dot, the column name and a Sheet White count pill. Cards inside are Sheet White with 16px corners and 12px padding; a card's "Move to…" is a row action that shows on hover. A card's own page leads with its title, then one muted line of facts: its column as a quiet dropdown that moves it, who has it, when it's due. "Mark as done" is the primary, with Edit and "Put on hold" as text actions beside it. Steps use the drawn check, with who and when in xs under the name, and Remove as a row action; "Add a step" is a toggle that opens a small form. "Add a card" is a plain Sheet White button, and "Reorder columns" is folded away, shown only with two columns of your own.
+### Board
+The board follows Fizzy: Not now · To do · your columns · Done, in that order, in a single row of Tile Gray columns at least 240px wide that share the width when they fit and otherwise scroll sideways (snap to column start, overscroll contained, the row's end fading while more wait, `fadeOverflow`). Each column head carries a 9px label dot, the name, a Sheet White count pill and a quiet ••• for its options; watchers, if any, sit in a muted line under it. Cards are Sheet White with 16px corners and 12px padding, sized to what's on them; they drag up and down their column or into another (the dragged card fades to 45%, a 3px Kargul Orange line shows where it will land, and another column under it turns Tile Pressed with a 2px Kargul Orange inset ring), and land exactly there. There's no "Move to…" on the board; on a phone, where nothing drags, a card's page moves it with its column dropdown. New cards land in To do from a quiet "+ Add a card" that opens a one-line field (Enter adds, the next is ready, Escape closes). A Golden Ticket keeps a card at the top of its column, above any reordering, in Peach Wash with an Accent Text ★ before its title. A card nobody touches for 30 days (it, its steps or its comments) moves to Not now on its own, and the activity says so; Golden Tickets stay put. Empty columns say what they're for: "New cards start here.", "Cards nobody touches for 30 days end up here.", "Done cards land here." A card's own page leads with its title, then one muted line of facts: its column as a quiet dropdown that moves it, ★ Golden Ticket, who has it, when it's due. "Mark as done" is the primary, with Edit and "Give it a Golden Ticket" as text actions. Steps use the drawn check, with who and when in xs under the name, and Remove as a row action; "Add a step" is a toggle that opens a small form. Columns are added like Fizzy's: a dashed "+ Add a column" tile after Done opens a one-line name field (Enter adds it before Done, the next is ready, Escape closes). Your own columns reorder by dragging their head (it fades; a 3px Kargul Orange edge shows where it lands); Not now, To do and Done stay put. Pressing the board's background (not a card, a column head, a button or a field) and dragging sideways pans it, Trello-style, with a grab hand while it can scroll (a mouse only; touch scrolls by itself). The board has no scrollbar (the faded end says more columns wait) and fills its window, so all of the space under the columns pans too. Nothing on the board selects as text, so a drag never highlights anything; an empty column keeps its sentence while a card is over it, with the drop line above it.
 
 ### In a project window
 Pages shaped for a project window, which is about 800px wide and 560px tall. Calendar and Chat change only inside a window (`InWindow`); the others look this way on their own page too.
 - **Calendar:** "Coming up" (the next 8) comes first and the month grid follows. On its own page the month leads. A due date reads "Due: …" in the month grid only; the list already says "Due" in its time column.
-- **Chat:** the composer is pinned to the window's bottom while you read back, with the window's white painted into the gap under it, and the conversation opens at its newest lines.
-- **Team questions:** a question card fills the row when it's the only one, and shows its 3 newest answers ("Ann: …") under the schedule.
-- **Links:** each link is a row: a 32px Tile Gray icon square, the name as an underlined link that opens in a new tab, and a muted xs line with the site's host and description. A row-action ••• opens its options; "Add a link" ends the list for anyone but clients.
-- **Timesheet:** "Log time" is the head's primary action and opens the form on its own page, which comes back to the timesheet. Hours everywhere use one format (`fmtHours`, up to 2 decimals), so the title bar and the table total agree.
+- **Chat:** the conversation fills the window, so the composer sits at its bottom even when the talk is short, and stays pinned there while you read back, with the window's white painted into the gap under it. It opens at its newest lines. A new line scrolls the window (never the page): yours always, someone else's only when you're already at the bottom.
 
 ### Month Calendar
 The month calendar is a fixed-layout table inside a 1px Hairline frame with 16px corners. It has Tile Gray header and blank cells, hairline cell borders and 104px cells. Day numbers sit in 24px discs, and today's disc is Kargul Orange. Events are 6px-radius Tile Gray pills, while due dates use Peach Wash pills.
@@ -563,8 +557,8 @@ Vault rows lead with a 40px Tile Gray square (12px radius) holding a 20-unit lin
 ### Slabs
 Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "every project gets its own home" and "fewer features" sections. The app footer is the same material with only its top corners rounded. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
 
-### Hill Chart
-The app and marketing draw the same hill from shared curve math: two cubic curves on a 600-wide viewBox in 2px Ink, a dashed Control Gray divider at the crest, a Hairline baseline, and muted side labels. Work items are 9px Kargul Orange dots, ringed with the color of the surface they sit on (Tile Gray in the app, Sheet White on marketing). On marketing, once scrolled into view, the line draws itself (1s, ease-in-out) and the dots climb into place along it (1.4s, ease-out spline). Under reduced motion or without JavaScript the line is drawn and the dots simply sit in place.
+### Tasks on marketing
+The marketing "progress" section shows a project's tasks the way the app does: the percentage in 3rem 750, "done · 7 of 11", one 10px bar, then each task with its check and its subtasks' count. Once scrolled into view the bar fills from the left (transform: scaleX, 1.1s strong ease-out); under reduced motion or without JavaScript it's simply full.
 
 ### Giant Wordmark
 The marketing footer ends with "Saintsflow" in the giant wordmark step, cropped by the page bottom and hidden from assistive tech. Marketing only.
@@ -581,7 +575,7 @@ The marketing footer ends with "Saintsflow" in the giant wordmark step, cropped 
 - **Do** define every new color in both `light` and `dark` in `tokens.stylex.ts`.
 - **Do** keep app type on the fixed rem steps and reserve `clamp()` steps for marketing.
 - **Do** gate every hover style behind `media.hover`, and let reduced motion remove movement while keeping color and fade transitions.
-- **Do** keep app motion to 150ms color shifts, the 0.97 press and the ease-out curve. Marketing may go further: a staggered blur-and-rise hero entrance, an example project that comes alive (to-dos tick, Campfire messages arrive), scroll-linked reveals via `animation-timeline: view()` behind `@supports`, the cut features struck through as they scroll in, and the giant wordmark rising out of the page edge. Every element rests in its final state, so reduced motion and unsupported browsers see it all in place.
+- **Do** keep app motion to 150ms color shifts, the 0.97 press and the ease-out curve. Marketing may go further: a staggered blur-and-rise hero entrance, an example project that comes alive and can be played with (two to-dos tick themselves off and the Milestones bar slides with them, chat messages arrive with yours on the right, to-dos check off with a click, board cards drag between columns with a 3% lift, a -2° tilt and a shadow, then glide 320ms to their new place, or click one column on; a card let go outside the board glides home; touch scrolls the page, so there a tap moves the card; a keyboard move doesn't glide), the Milestones section's bar filling once it's on screen and following every check, scroll-linked reveals via `animation-timeline: view()` behind `@supports`, the cut features struck through as they scroll in, and the giant wordmark rising out of the page edge. Every element rests in its final state, so reduced motion and unsupported browsers see it all in place (reduced motion: the to-dos start ticked, the bar jumps, the cards don't glide).
 
 ### Don't:
 - **Don't** use Kargul Orange for buttons, headings, backgrounds or decoration; it is for unread, today, done, progress and focus.

@@ -143,12 +143,13 @@ export const routes = [
     Effect.gen(function* () {
       const p = yield* findProject(c, c.params.id)
       const people = yield* projectPeople(p)
-      const input = readEvent(yield* c.form)
+      const fd = yield* c.form
+      const input = readEvent(fd)
       input.participant_ids = input.participant_ids.filter((id) => people.some((x) => x.id === id))
       const { errs, data } = eventData(input, c.me.time_zone)
       if (errs.length) return invalid(errs)
       const r = yield* createRecording(c, {
-        project: p, type: "event", title: input.title, body: input.body, data, visible_to_clients: input.visible_to_clients,
+        project: p, type: "event", tool: str(fd, "tool"), title: input.title, body: input.body, data, visible_to_clients: input.visible_to_clients,
         notifyIds: input.participant_ids, notifyKind: "event", verb: "added an event",
       })
       return redirect(urlFor(r), "Event posted.")

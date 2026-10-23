@@ -15,16 +15,13 @@ import {
 /** Which parent types a recording can live under. Mirrored in client/areas/items.tsx. */
 const DEST: Record<string, { parentTypes: string[]; topLevel: boolean }> = {
   message: { parentTypes: [], topLevel: true },
-  todolist: { parentTypes: [], topLevel: true },
-  todo: { parentTypes: ["todolist", "todogroup"], topLevel: false },
+  todo: { parentTypes: ["todo"], topLevel: true },
   folder: { parentTypes: ["folder"], topLevel: true },
   doc: { parentTypes: ["folder"], topLevel: true },
   upload: { parentTypes: ["folder"], topLevel: true },
   cloudfile: { parentTypes: ["folder"], topLevel: true },
   event: { parentTypes: [], topLevel: true },
   card: { parentTypes: ["column"], topLevel: false },
-  question: { parentTypes: [], topLevel: true },
-  forward: { parentTypes: [], topLevel: true },
 }
 
 const copySubtree = (c: Ctx, src: Recording, projectId: number, parentId: number | null): Effect.Effect<number, unknown, SqlClient.SqlClient> =>

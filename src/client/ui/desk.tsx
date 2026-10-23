@@ -2,13 +2,16 @@
 // rail holds every window as an icon, in project order, with its news count; its top button turns the icons into
 // previews, and the big window makes room for them (nothing covers your work). The rail
 // is the one way around on desktop; under 900px the dark taskbar at the bottom of the screen is, in thumb reach. Nothing
-// to close or drag: they're the project, not tabs. Which window is in front is the page's address (/projects/2/docs/5 is
-// Files, at that doc), so the desk only asks to switch. Full screen lifts the desk over the whole page. Above the desk,
+// to close: they're the project, not tabs. Dragging a rail icon reorders the windows; the big window's name renames it
+// in place; + (on the rail, as the last preview, on the taskbar, on an empty desk) opens the one menu that adds, hides
+// and shows windows. Which window is in front is the page's address (/projects/2/docs/5 is Files, at that doc), so the
+// desk only asks to switch. Full screen lifts the desk over the whole page. Above the desk,
 // one sentence says what's new ("Since Tuesday: 5 new in Chat and Posts."). Design and history: docs/project_ui_explore,
 // docs/app_terms.
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent, type ReactNode } from "react"
 import { flushSync } from "react-dom"
+import { flash } from "../store.ts"
 import { fadeOverflow, sx } from "./kit.tsx"
 import { Icon, type IconName } from "./icons.tsx"
 import { color, light, media, motion, radius, space, text } from "./tokens.stylex.ts"
@@ -42,6 +45,9 @@ const SHEET = "@media (min-width: 768px)"
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)"
 /** The drawer curve: quick to answer, long soft landing. For the rail opening and the windows making room. */
 const EASE_DRAWER = "cubic-bezier(0.32, 0.72, 0, 1)"
+/** A rail icon and the 4px gap under it: how far one window moves when reordering. */
+const SLOT = 44
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const s = stylex.create({
   // No corners of its own: it runs to the sheet's edges and the sheet clips it.
   // The bottom half of the page's card (the project head is the top): Tile Gray, with the sheet's bottom corners.
@@ -87,8 +93,10 @@ const s = stylex.create({
   // In full screen the window fills the screen at every size, so it scrolls inside.
   bodyFull: { overflow: "auto" },
   peek: { overflow: "hidden", fontSize: text.sm, maskImage: "linear-gradient(#000 55%, transparent)", pointerEvents: "none" },
-  // A window with nothing in it yet says so in one plain sentence ("No files yet.").
-  blank: { margin: 0, color: color.muted, fontSize: text.sm },
+  // A window with nothing in it yet: a quiet skeleton of lines in its preview, so it's the same size as the rest. Still,
+  // not shimmering: nothing is loading, there's just nothing there yet.
+  skeleton: { display: "grid", alignContent: "start", gap: 10, paddingTop: 4 },
+  bone: { display: "block", height: 8, borderRadius: radius.pill, backgroundColor: color.tile },
 
   // What's new, in one sentence under the project head: the head's white, the head's padding.
   row: { paddingInline: { default: 20, [DESKTOP]: 28 }, paddingBottom: 16, margin: 0, maxWidth: "none", backgroundColor: color.sheet, fontSize: text.sm },
@@ -105,7 +113,12 @@ const s = stylex.create({
   // One list, two looks: the icons and the previews share a spot, so a window keeps its place either way. Opening, each
   // icon flies to its preview's title bar (and back when closing); see `fly` below.
   stack: { display: "grid", flexGrow: 1, minHeight: 0 },
-  icons: { gridArea: "1 / 1", display: "flex", flexDirection: "column", gap: 4, width: 44, paddingRight: 4 },
+  // More windows than fit scroll (no scrollbar: the cut-off icon at the edge says there's more). It spans the stack, not
+  // just the 44px column, so the icons' flights to their previews aren't clipped any tighter than the rail itself clips.
+  icons: {
+    gridArea: "1 / 1", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, minHeight: 0, paddingTop: 4,
+    overflowX: "hidden", overflowY: "auto", overscrollBehavior: "contain", scrollbarWidth: "none",
+  },
   // While the icons fly they sit above the previews, so the cards fading in don't cover them.
   iconsFlying: { position: "relative", zIndex: 1, pointerEvents: "none" },
   iconsHidden: { opacity: 0 },
@@ -113,12 +126,12 @@ const s = stylex.create({
   glyph: { display: "inline-flex" },
   // A preview's own icon waits, hidden, until the flying one lands on it.
   glyphWaiting: { visibility: "hidden" },
-  railToggle: { color: color.muted, marginBottom: 6, flexShrink: 0 },
+  railToggle: { color: color.muted, marginBottom: 2, flexShrink: 0 },
   railToggleOn: { color: color.ink, backgroundColor: { default: color.tileHover, ":hover": { default: null, [media.hover]: color.tileHover } } },
   railBtn: {
     position: "relative", width: 40, minHeight: 40, padding: 0, borderRadius: 12, color: color.ink,
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tileHover } },
-    transitionProperty: "background-color, color, box-shadow", transitionDuration: "160ms", transitionTimingFunction: EASE_OUT,
+    transitionProperty: "background-color, color, box-shadow, opacity", transitionDuration: "160ms", transitionTimingFunction: EASE_OUT,
   },
   // With the previews open, a button is only its icon (in flight): its fill, outline and count fade away.
   railBare: { color: color.ink, boxShadow: "none", backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } } },
@@ -145,18 +158,34 @@ const s = stylex.create({
     flexShrink: 0, height: 168, cursor: "pointer", transitionProperty: "border-color", transitionDuration: motion.fast,
     borderColor: { default: color.line, ":hover": { default: null, [media.hover]: color.control } },
   },
-  // An empty window takes only the room its sentence needs.
-  colWinEmpty: { height: "auto" },
-  // The window in front keeps its place in the list as its title bar alone, outlined in orange like the big window.
-  colCur: { height: "auto", cursor: "default", borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.accent } } },
   // The whole title bar is the button that brings a window forward.
   colBring: {
     display: "flex", alignItems: "center", justifyContent: "flex-start", gap: space.s2, width: "100%", minHeight: 40, paddingBlock: 4, paddingInline: 12, borderRadius: 0, background: "none",
     color: "inherit", textAlign: "left", fontWeight: "inherit", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line,
     transform: { default: null, ":active": "none" }, backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } },
   },
-  headOnly: { borderBottomWidth: 0 },
-  colPlus: { alignSelf: "flex-start", marginTop: 2, fontSize: text.sm, color: color.muted },
+  // The last preview: a blank, dashed window that adds one. It fills in white on hover, the window it would become.
+  miniAdd: {
+    flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: space.s2, width: "100%", minHeight: 56,
+    borderRadius: radius.md, borderWidth: 1.5, borderStyle: "dashed", fontSize: text.sm, fontWeight: 600,
+    borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.ink } },
+    color: { default: color.muted, ":hover": { default: null, [media.hover]: color.ink } },
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.sheet } },
+    transitionProperty: "border-color, color, background-color", transitionDuration: "150ms", transitionTimingFunction: "ease",
+  },
+  // The + menu: a white card that floats over the desk (in the top layer, so nothing clips it). The + that opened it
+  // places it; its open and close are in app.css.
+  menu: {
+    position: "fixed", inset: "auto", margin: 0, padding: 6, width: 300, overflowY: "auto", overscrollBehavior: "contain",
+    borderWidth: 1, borderStyle: "solid", borderColor: color.line, borderRadius: 14, backgroundColor: color.sheet, color: color.ink,
+    boxShadow: "0 16px 40px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.06)",
+  },
+  // The big window's name, which renames it: a quiet button, then a field in the same spot.
+  nameBtn: {
+    minHeight: 28, paddingBlock: 0, paddingInline: 6, marginInline: -6, borderRadius: radius.sm, color: color.ink, cursor: "text", transform: "none",
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
+  },
+  nameInput: { width: "auto", height: 28, minHeight: 28, paddingBlock: 0, paddingInline: 6, marginInline: -6, borderRadius: radius.sm, fontSize: "0.875rem", fontWeight: 650, letterSpacing: "-0.015em" },
   // A window with news says so in its preview's title bar, in place of its summary.
   newTag: {
     display: "inline-flex", alignItems: "center", height: 18, paddingInline: 7, borderRadius: radius.pill, flexShrink: 0,
@@ -212,10 +241,14 @@ const s = stylex.create({
   tipFirst: { color: color.slabInk, fontWeight: 600 },
 })
 
+/** The + menu is one popover for the whole desk, whichever + opened it. */
+const MENU_ID = "windows-menu"
+export const closeWindowsMenu = () => document.getElementById(MENU_ID)?.hidePopover()
+
 /** "Chat, Posts and Tasks" */
 const and = (xs: ReadonlyArray<string>) => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`
 
-export const Desk = ({ windows, master, onBring, since, note, addHref, project }: {
+export const Desk = ({ windows, master, onBring, since, note, menu, onRename, onReorder, project }: {
   windows: ReadonlyArray<DeskWindow>
   /** The window in front (from the address). */
   master: string
@@ -225,8 +258,12 @@ export const Desk = ({ windows, master, onBring, since, note, addHref, project }
   since?: string
   /** Said in place of the news, when there's something better to say (a brand-new project). */
   note?: string
-  /** Where "+" goes to add or remove windows; none for people who can't. */
-  addHref?: string
+  /** What + opens: adding, hiding and showing windows. None for people who can't change them. */
+  menu?: ReactNode
+  /** Rename a window from its title bar. None for people who can't. */
+  onRename?: (key: string, name: string) => void
+  /** Put the windows in this order (every window's key). None for people who can't. */
+  onReorder?: (keys: string[]) => void
   /** The project's name: full screen leads with it, since the page's head (and its title) is out of sight. */
   project?: string
 }) => {
@@ -309,7 +346,110 @@ export const Desk = ({ windows, master, onBring, since, note, addHref, project }
   // The preview under the pointer: with the one you're leaving, it's what glides when you swap.
   const [hot, setHot] = useState<string | null>(null)
 
+  // The + menu opens beside the + you pressed, or under it when there's no room beside, and grows from that corner.
+  const menuEl = useRef<HTMLDivElement>(null)
+  const opener = useRef<HTMLElement | null>(null)
+  const opening = (e: ReactMouseEvent<HTMLElement>) => { opener.current = e.currentTarget }
+  useEffect(() => {
+    const el = menuEl.current
+    if (!el) return
+    const place = (e: Event) => {
+      const at = opener.current?.getBoundingClientRect()
+      if ((e as ToggleEvent).newState !== "open" || !at) return
+      const edge = 16, gap = 8, width = Math.min(300, innerWidth - 2 * edge)
+      const beside = at.right + gap + width <= innerWidth - edge
+      const left = beside ? at.right + gap : Math.min(Math.max(edge, at.left), innerWidth - edge - width)
+      const x = beside ? "0px" : `${at.left + at.width / 2 - left}px`
+      const top = beside ? at.top : at.bottom + gap
+      const bottom = beside ? at.bottom : at.top - gap
+      // Down from the + or up from it, whichever has more room (a + low on the rail, the phone's taskbar).
+      Object.assign(el.style, innerHeight - top - edge >= bottom - edge
+        ? { width: `${width}px`, left: `${left}px`, top: `${top}px`, bottom: "auto", maxHeight: `${innerHeight - top - edge}px`, transformOrigin: `${x} 0` }
+        : { width: `${width}px`, left: `${left}px`, top: "auto", bottom: `${innerHeight - bottom}px`, maxHeight: `${bottom - edge}px`, transformOrigin: `${x} 100%` })
+    }
+    el.addEventListener("beforetoggle", place)
+    return () => el.removeEventListener("beforetoggle", place)
+  }, [!!menu])
+  const plus = { type: "button", popoverTarget: MENU_ID, onClick: opening } as const
+
+  // Reordering: drag a rail icon up or down (a press that doesn't move is still a click), or Alt+↑/↓ on it. The icon
+  // lifts and follows the pointer; the ones it passes slide a slot out of its way; let go, it settles into its slot.
+  // From the keyboard it moves at once: a repeated action shouldn't wait on an animation.
+  const order = windows.map((w) => w.key)
+  const [drag, setDrag] = useState<{ key: string; from: number; dy: number } | null>(null)
+  const press = useRef<{ from: number; y: number; id: number } | null>(null)
+  const dragged = useRef(false)
+  const railBtn = useRef(new Map<string, HTMLElement>())
+  const landing = useRef<{ key: string; dy: number } | null>(null)
+  const over = drag ? Math.max(0, Math.min(order.length - 1, drag.from + Math.round(drag.dy / SLOT))) : -1
+  const moveTo = (from: number, to: number) => {
+    const next = [...order]
+    next.splice(to, 0, ...next.splice(from, 1))
+    onReorder?.(next)
+  }
+  const reorderable = (key: string, i: number) => !onReorder || col ? {} : {
+    "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown",
+    onPointerDown: (e: PointerEvent<HTMLElement>) => { dragged.current = false; if (e.button === 0) press.current = { from: i, y: e.clientY, id: e.pointerId } },
+    onPointerMove: (e: PointerEvent<HTMLElement>) => {
+      const p = press.current
+      if (!p || p.id !== e.pointerId || (!drag && Math.abs(e.clientY - p.y) < 4)) return
+      if (!drag) { dragged.current = true; e.currentTarget.setPointerCapture(e.pointerId) }
+      setDrag({ key, from: p.from, dy: Math.max(-p.from * SLOT, Math.min((order.length - 1 - p.from) * SLOT, e.clientY - p.y)) })
+    },
+    onPointerUp: () => {
+      press.current = null
+      if (!drag) return
+      landing.current = { key, dy: drag.dy - (over - drag.from) * SLOT }
+      setDrag(null)
+      if (over !== drag.from) moveTo(drag.from, over)
+    },
+    onPointerCancel: () => { press.current = null; setDrag(null) },
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return
+      e.preventDefault()
+      const to = i + (e.key === "ArrowUp" ? -1 : 1)
+      if (to >= 0 && to < order.length) moveTo(i, to)
+    },
+  }
+  /** Where an icon sits while another is dragged: lifted under the pointer, a slot out of the way, or still. */
+  const dragStyle = (key: string, i: number): CSSProperties | undefined => {
+    if (!drag) return undefined
+    if (key === drag.key) return { transform: `translateY(${drag.dy}px) scale(1.06)`, zIndex: 2, cursor: "grabbing", boxShadow: "0 6px 16px rgba(0, 0, 0, 0.18)" }
+    const shift = drag.from < over && i > drag.from && i <= over ? -SLOT : drag.from > over && i >= over && i < drag.from ? SLOT : 0
+    return { transform: `translateY(${shift}px)`, transition: reduced() ? "none" : `transform 150ms ${EASE_OUT}` }
+  }
+  // Escape puts a dragged icon back where it was (and the release that follows isn't a click).
+  useEffect(() => {
+    if (!drag) return
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); press.current = null; setDrag(null) } }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [!!drag])
+  // The window in front stays in sight on a rail that scrolls (without scrolling the page).
+  const iconsBox = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = railBtn.current.get(master), box = iconsBox.current
+    if (!el || !box) return
+    const r = el.getBoundingClientRect(), b = box.getBoundingClientRect()
+    if (r.top < b.top + 4) box.scrollTop -= b.top + 4 - r.top
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom
+  }, [master])
+
+  // Let go: the icon glides the last bit into its slot (the list has already moved it there).
+  useLayoutEffect(() => {
+    const l = landing.current
+    landing.current = null
+    if (l && l.dy && !reduced()) railBtn.current.get(l.key)?.animate([{ transform: `translateY(${l.dy}px) scale(1.06)` }, { transform: "none" }], { duration: 150, easing: EASE_OUT })
+  }, [drag])
+
   const vt = (k: string) => ({ viewTransitionName: `desk-${k}` })
+  // On a swap, the previews from the one you picked to the one you're leaving all change places.
+  const at = (k: string | null) => order.indexOf(k ?? "")
+  const between = (i: number) => {
+    // Before the swap that's the one in front; after it, the one you left.
+    const a = at(hot), b = at(hot === master ? leaving.current : master)
+    return a >= 0 && b >= 0 && i >= Math.min(a, b) && i <= Math.max(a, b)
+  }
   const say = (w: DeskWindow) => [w.name, newsOf(w) > 0 && `${newsOf(w)} new`, (w.late ?? 0) > 0 && `${w.late} late`].filter(Boolean).join(", ")
 
   const lateLine = late.length > 0 && <span {...sx(s.lateLine)}> {late.map((w) => `${w.late} late in ${w.name}`).join(", ")}.</span>
@@ -328,51 +468,54 @@ export const Desk = ({ windows, master, onBring, since, note, addHref, project }
             <button type="button" onClick={toggleCol} aria-expanded={col} aria-label={col ? "Hide previews" : "Show previews"} title={col ? "Hide previews" : "Show previews"}
               {...sx(s.railBtn, s.railToggle, col && s.railToggleOn)}><Icon name="panel" size={18} /></button>
             <div {...sx(s.stack)}>
-              <div inert={col} {...sx(s.icons, flying && s.iconsFlying, col && !flying && s.iconsHidden)}>
-                {windows.map((w) => {
+              <div inert={col} ref={iconsBox} {...sx(s.icons, flying && s.iconsFlying, col && !flying && s.iconsHidden)}>
+                {windows.map((w, i) => {
                   const cur = w.key === master, n = newsOf(w), lateHere = (w.late ?? 0) > 0 && !cur
                   return (
                     <button key={w.key} type="button" aria-current={cur || undefined} aria-label={say(w)} title={w.name}
-                      onClick={(e) => bring(w.key, e.nativeEvent)} {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur, col && s.railBare)}>
+                      ref={(el) => { if (el) railBtn.current.set(w.key, el); else railBtn.current.delete(w.key) }}
+                      onClick={(e) => { if (dragged.current) dragged.current = false; else bring(w.key, e.nativeEvent) }}
+                      {...reorderable(w.key, i)} style={dragStyle(w.key, i)}
+                      {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur, col && s.railBare, col && cur && s.badgeGone)}>
                       <span ref={(el) => { if (el) railGlyph.current.set(w.key, el); else railGlyph.current.delete(w.key) }} {...sx(s.glyph)}><Icon name={w.icon} size={18} /></span>
                       {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge, col && s.badgeGone)}>{n}</span>}
                     </button>
                   )
                 })}
-                {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus, col && s.badgeGone)}><Icon name="plus" size={16} /></a>}
+                {menu && <button {...plus} aria-label="Add a window" title="Add a window" {...sx(s.railBtn, s.railPlus, col && s.badgeGone)}><Icon name="plus" size={16} /></button>}
               </div>
               <div inert={!col} {...sx(s.pane, col && s.paneOpen)}>
-                {windows.map((w) => w.key === master
-                  ? <section key={w.key} aria-current="true" {...sx(s.win, s.colWin, s.colCur)}>
-                      <div {...sx(s.head, s.headOnly)}><span ref={(el) => { if (el) paneGlyph.current.set(w.key, el); else paneGlyph.current.delete(w.key) }} {...sx(s.glyph, flying && s.glyphWaiting)}><Icon name={w.icon} size={16} /></span><b {...sx(s.name)}>{w.name}</b><span {...sx(s.summary)}>Open now</span></div>
-                    </section>
-                  : <section key={w.key}
-                      // Only the two windows trading places glide; the other previews hold still (and stay clipped).
-                      style={col && (w.key === hot || w.key === leaving.current) ? vt(w.key) : undefined}
-                      onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => setHot(w.key)}
-                      {...sx(s.win, s.colWin, w.empty && s.colWinEmpty)}>
-                      <button type="button" aria-label={say(w)} onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} {...sx(s.colBring)}>
-                        <span ref={(el) => { if (el) paneGlyph.current.set(w.key, el); else paneGlyph.current.delete(w.key) }} {...sx(s.glyph, flying && s.glyphWaiting)}><Icon name={w.icon} size={16} /></span><b {...sx(s.name)}>{w.name}</b>
-                        {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
-                      </button>
-                      {w.empty
-                        ? <div {...sx(s.body)}><p {...sx(s.blank)}>{w.summary}.</p></div>
-                        : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
-                    </section>)}
-                {addHref && <a href={addHref} {...sx(s.colPlus)}>Add or remove windows</a>}
+                {/* The window in front is already open beside them: it has no preview. */}
+                {windows.map((w, i) => w.key !== master && (
+                  <section key={w.key}
+                    // The two windows trading places glide, and the previews between them slide a slot; the rest hold
+                    // still (and stay clipped).
+                    style={col && between(i) ? vt(w.key) : undefined}
+                    onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => setHot(w.key)}
+                    {...sx(s.win, s.colWin)}>
+                    <button type="button" aria-label={say(w)} onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} {...sx(s.colBring)}>
+                      <span ref={(el) => { if (el) paneGlyph.current.set(w.key, el); else paneGlyph.current.delete(w.key) }} {...sx(s.glyph, flying && s.glyphWaiting)}><Icon name={w.icon} size={16} /></span><b {...sx(s.name)}>{w.name}</b>
+                      {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : <span {...sx(s.summary)}>{w.summary}</span>}
+                    </button>
+                    {w.empty
+                      ? <div aria-hidden="true" {...sx(s.body, s.peek, s.skeleton)}>{["72%", "90%", "56%", "84%", "64%"].map((wd) => <span key={wd} style={{ width: wd }} {...sx(s.bone)} />)}</div>
+                      : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
+                  </section>
+                ))}
+                {menu && <button {...plus} data-quiet {...sx(s.miniAdd)}><Icon name="plus" size={16} />Add a window</button>}
               </div>
             </div>
           </nav>
         )}
         {m ? (
           <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master)}>
-            <WindowHead w={m}>
+            <WindowHead w={m} onRename={onRename}>
               <button type="button" onClick={(e) => toggleFull(e.nativeEvent)} aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen (Esc)" : "Full screen"} {...sx(s.iconBtn)}><Icon name={full ? "shrink" : "full"} size={16} /></button>
             </WindowHead>
             <div key={m.place} data-window-body {...sx(s.body, full && s.bodyFull)}>{m.work ?? m.body}</div>
           </section>
         ) : (
-          <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p><p>Add one with + above.</p></div>
+          <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p>{menu ? <p><button {...plus}>Add a window</button></p> : <p>There's nothing here yet.</p>}</div>
         )}
       </div>
       <div {...sx(s.strip, full && s.stripFull)}>
@@ -392,20 +535,48 @@ export const Desk = ({ windows, master, onBring, since, note, addHref, project }
               </button>
             )
           })}
+          {menu && <button {...plus} aria-label="Add a window" {...sx(s.tool)}><Icon name="plus" size={18} /></button>}
         </nav>
       </div>
+      {menu && <div id={MENU_ID} popover="auto" ref={menuEl} data-windows-menu role="dialog" aria-label="Windows" {...sx(s.menu)}>{menu}</div>}
     </section>
   )
 }
 
 // Deeper than the tool's start page, the icon gives way to a back button, in the same spot.
-const WindowHead = ({ w, children }: { w: DeskWindow; children: ReactNode }) => (
+const WindowHead = ({ w, onRename, children }: { w: DeskWindow; onRename?: (key: string, name: string) => void; children: ReactNode }) => (
   <div {...sx(s.head, w.back && s.headBack)}>
     {w.back
       ? <button type="button" onClick={w.back} aria-label={`Back in ${w.name}`} title="Back" {...sx(s.iconBtn, s.backBtn)}><Icon name="back" size={16} /></button>
       : <Icon name={w.icon} size={16} />}
-    <b {...sx(s.name)}>{w.name}</b>
+    <WindowName w={w} onRename={onRename} />
     <span {...sx(s.summary)}>{w.summary}</span>
     <span {...sx(s.actions)}>{children}</span>
   </div>
 )
+
+/** The big window's name. With `onRename`, clicking it turns it into a field: Enter or clicking away saves, Escape
+ * cancels (and doesn't leave full screen). No animation: it's a field where the name was. */
+const WindowName = ({ w, onRename }: { w: DeskWindow; onRename?: (key: string, name: string) => void }) => {
+  const [draft, setDraft] = useState<string | null>(null)
+  const closing = useRef(false)
+  if (!onRename) return <b {...sx(s.name)}>{w.name}</b>
+  if (draft === null)
+    return <button type="button" onClick={() => { closing.current = false; setDraft(w.name) }} title="Rename" aria-label={`${w.name} (rename)`} {...sx(s.name, s.nameBtn)}>{w.name}</button>
+  const done = (save: boolean) => {
+    if (closing.current) return
+    closing.current = true
+    const v = draft.trim()
+    setDraft(null)
+    if (!save || v === w.name) return
+    if (!v) flash("A window needs a name.")
+    else onRename(w.key, v)
+  }
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") { e.preventDefault(); done(true) }
+    if (e.key === "Escape") { e.preventDefault(); done(false) }
+  }
+  return <input autoFocus value={draft} maxLength={40} size={Math.max(6, draft.length + 1)} aria-label="Window name"
+    onChange={(e) => setDraft(e.currentTarget.value)} onFocus={(e) => e.currentTarget.select()} onKeyDown={onKey} onBlur={() => done(true)}
+    {...sx(s.nameInput)} />
+}

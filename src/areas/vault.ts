@@ -117,7 +117,7 @@ export const routes = [
       const folder = yield* findFolder(c, p, str(fd, "folder_id"))
       const f = { title: str(fd, "title"), data: { color: COLORS.includes(str(fd, "color")) ? str(fd, "color") : "" } }
       if (!f.title) return invalid(["Your folder needs a name."])
-      const r = yield* createRecording(c, { project: p, type: "folder", parent_id: folder?.id ?? null, ...f, visible_to_clients: folder ? folder.visible_to_clients : undefined, verb: "made a folder" })
+      const r = yield* createRecording(c, { project: p, type: "folder", tool: str(fd, "tool"), parent_id: folder?.id ?? null, ...f, visible_to_clients: folder ? folder.visible_to_clients : undefined, verb: "made a folder" })
       return redirect(urlFor(r))
     })),
 
@@ -142,7 +142,7 @@ export const routes = [
       const d = { title: str(fd, "title"), body: str(fd, "body"), visible_to_clients: fd.get("visible_to_clients") === "on" }
       if (!d.title) return invalid(["Your doc needs a title."])
       const r = yield* createRecording(c, {
-        project: p, type: "doc", parent_id: folder?.id ?? null, ...d, status: draft ? "drafted" : "active",
+        project: p, type: "doc", tool: str(fd, "tool"), parent_id: folder?.id ?? null, ...d, status: draft ? "drafted" : "active",
         notifyIds: draft ? [] : notifyIdsFrom(fd, people, c.me), verb: "posted a doc",
       })
       return redirect(draft ? "/my/drafts" : urlFor(r), draft ? "Saved as a draft." : undefined)
@@ -178,7 +178,7 @@ export const routes = [
       const failed: string[] = []
       for (const file of files) {
         const r = yield* createRecording(c, {
-          project: p, type: "upload", parent_id: folder?.id ?? null, title: safeName(file.name), body: str(fd, "body"),
+          project: p, type: "upload", tool: str(fd, "tool"), parent_id: folder?.id ?? null, title: safeName(file.name), body: str(fd, "body"),
           data: { filename: safeName(file.name), size: file.size, content_type: file.type || "application/octet-stream", versions: [] },
           visible_to_clients: fd.get("visible_to_clients") === "on", verb: "uploaded a file",
         })
@@ -259,7 +259,7 @@ export const routes = [
       const url = str(fd, "url")
       const l = { title: str(fd, "title") || url, data: { url }, visible_to_clients: fd.get("visible_to_clients") === "on" }
       if (!isUrl(url)) return invalid(["That doesn't look like a link."])
-      const r = yield* createRecording(c, { project: p, type: "cloudfile", parent_id: folder?.id ?? null, ...l, verb: "linked a file" })
+      const r = yield* createRecording(c, { project: p, type: "cloudfile", tool: str(fd, "tool"), parent_id: folder?.id ?? null, ...l, verb: "linked a file" })
       return redirect(urlFor(r))
     })),
 
@@ -321,6 +321,7 @@ export const seed = (s: Seed) =>
     })
     yield* updateRecording(s.as(ann), copy, { body: copy.body + "\n\nCTA: See the collection" }, { summary: `edited ${copy.title}` })
     yield* createRecording(s.as(bob), { project: web, type: "doc", title: "Tech notes: hosting", body: "Static site on a CDN. No CMS (see the idea post)." })
+    yield* createRecording(s.as(ann), { project: web, type: "doc", tool: "vault-2", title: "Northwind brand notes", body: "Our colors, our voice, and the words we never use.", visible_to_clients: true })
 
     const addFile = (by: typeof maya, parent: number | null, name: string, type: string, bytes: string, visible = false) =>
       Effect.gen(function* () {

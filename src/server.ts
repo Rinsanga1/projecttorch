@@ -34,7 +34,7 @@ const builtIn = [
   post("/visits", (c) =>
     Effect.gen(function* () {
       const fd = yield* c.form
-      yield* trackVisit(c, str(fd, "href"), str(fd, "title"), num(str(fd, "project_id")) ?? undefined, str(fd, "windows").split(",").filter(Boolean))
+      yield* trackVisit(c, str(fd, "href"), str(fd, "title"), num(str(fd, "project_id")) ?? undefined, str(fd, "windows").split(",").filter(Boolean), str(fd, "window"))
       return json(null)
     })),
   pubGet("/*", () => Effect.succeed({ ...json({ error: "NotFound" }), status: 404 })),

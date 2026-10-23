@@ -11,15 +11,39 @@
 ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 ::view-transition-image-pair(root) { overflow: visible; border-radius: 0; }
 
+/* The + menu of a project's windows (ui/desk.tsx) grows from the + that opened it (its transform-origin is set there)
+   and leaves faster than it came. Reduced motion: it only fades. */
+[data-windows-menu] {
+  transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    overlay 150ms allow-discrete, display 150ms allow-discrete;
+}
+[data-windows-menu]:not(:popover-open) { opacity: 0; transform: scale(0.97); transition-duration: 100ms; }
+@starting-style { [data-windows-menu]:popover-open { opacity: 0; transform: scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { [data-windows-menu], [data-windows-menu]:not(:popover-open) { transform: none; } }
+
 /* A page inside a project window: its title steps down a size, since the window, not the page, is the frame. */
 [data-window-body] h1 { font-size: 1.5rem; }
 /* At a window's start page its title bar already names the tool: the page heading stays for screen readers only. */
 [data-window-root] h1 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
+/* In its window a chat fills the window, so its composer (#say, chat.tsx) sits at the bottom even when the talk is short. */
+[data-window-root]:has(> #say) { min-height: 100%; display: flex; flex-direction: column; }
+[data-window-root] > #say { margin-top: auto; }
+/* In its window the board fills the window too, so all of its background can be dragged to pan it (cards.tsx). */
+[data-window-root]:has(> [data-board]) { min-height: 100%; display: flex; flex-direction: column; }
+[data-window-root] > [data-board] { flex-grow: 1; margin-bottom: 0; }
+
 /* A row's quiet action ("Move to…") shows while the row is hovered or has focus. On touch it's always there. */
 @media (hover: hover) and (pointer: fine) {
   [data-row-action] { opacity: 0; transition: opacity 150ms ease; }
   :is(li, article):is(:hover, :focus-within) [data-row-action] { opacity: 1; }
+  /* A chat line's floating actions overlap the line above: while unseen they mustn't catch its clicks. */
+  li:not(:hover, :focus-within) [data-line-tap] { pointer-events: none; }
+}
+/* On touch a chat line's actions (and a follow-up's time) would cover the talk; a tap on the line shows them. */
+@media not ((hover: hover) and (pointer: fine)) {
+  [data-line-tap] { visibility: hidden; }
+  li[data-open] [data-line-tap] { visibility: visible; }
 }
 
 /* A row that scrolls sideways fades at its end while there's more to scroll to (ui/kit.tsx fadeOverflow). */

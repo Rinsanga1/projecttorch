@@ -1,27 +1,26 @@
-// The project: project home, edit, ••• menu, change tools, people, activity, archived & trashed items, gauge, webhooks.
+// The project: project home and its windows, edit, ••• menu, people, activity, archived & trashed items, webhooks.
 // Posts: src/areas/project.ts.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
 import { useEffect, useState, type ReactNode } from "react"
 import { Form as GetForm, Navigate, Outlet, useLocation, useNavigate, useParams, useSearchParams } from "react-router"
 import { db, temp } from "../store.ts"
-import { me, findProject, projectPeople, accountPeople, memberIds, recordings, commentCount, useApi, useVisit, canInvite, NoAccess } from "../data.ts"
-import { Desk, type DeskWindow } from "../ui/desk.tsx"
+import { me, findProject, projectPeople, accountPeople, memberIds, recordings, commentCount, inWindow, topOf, useApi, useVisit, canInvite, NoAccess } from "../data.ts"
+import { closeWindowsMenu, Desk, type DeskWindow } from "../ui/desk.tsx"
 import { Icon } from "../ui/icons.tsx"
-import { InWindow, WindowSince } from "../ui/in-window.tsx"
-import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, windowOfPath, type Project, type Recording, type ToolType, type WindowKey } from "../../shared/domain.ts"
+import { InWindow, WindowId, WindowSince } from "../ui/in-window.tsx"
+import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, windowIdOf, windowOfPath, windowUrl, type Project, type Recording, type Tool, type ToolType } from "../../shared/domain.ts"
 import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
 import { ActivityList } from "../ui/activity.tsx"
-import { Face, Fmt, kit, menu, PageHead, sx } from "../ui/kit.tsx"
-import { Form, PeopleCheckboxes, submitOnChange } from "../ui/forms.tsx"
+import { Face, Fmt, kit, menu, ProgressBar, sx } from "../ui/kit.tsx"
+import { Form, PeopleCheckboxes, PostOnOpen, submitOnChange, usePost } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, font, radius, space, text } from "../ui/tokens.stylex.ts"
 import { togglePin } from "./home.tsx"
-import { fmtHours } from "./timesheet.tsx"
-import { lateTasks, seenOf, sinceLabel, windowNews } from "../news.ts"
+import { lateTasks, progressOf, seenOf, sinceLabel, windowNews } from "../news.ts"
 
-// The pages off the project menu: activity and gauge updates as rows led by a face, trashed and archived items as
-// rows with their action at the end, a tile around the forms that add something (a webhook, a gauge update).
+// The pages off the project menu: activity as rows led by a face, trashed and archived items as
+// rows with their action at the end, a tile around the forms that add something (a webhook).
 const pm = stylex.create({
   row: { display: "grid", gridTemplateColumns: "24px 1fr auto", columnGap: space.s3, alignItems: "start", paddingBlock: 10 },
   time: { whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" },
@@ -30,25 +29,100 @@ const pm = stylex.create({
   itemTitle: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s2, rowGap: 2, minWidth: 0 },
   tile: { marginTop: space.s6, padding: space.s5, borderRadius: radius.xl, backgroundColor: color.tile },
   tileTitle: { marginTop: 0 },
-  needle: { display: "flex", alignItems: "center", gap: space.s4, marginBottom: space.s5, maxWidth: "none" },
-  needleNum: { fontSize: text.xxl, fontWeight: 700, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", lineHeight: 1 },
-  meter: { width: "min(100%, 320px)", height: 10 },
-  range: { width: "min(100%, 320px)", verticalAlign: "middle" },
   url: { fontFamily: font.mono, fontSize: text.sm, overflowWrap: "anywhere" },
   events: { display: "flex", flexWrap: "wrap", rowGap: space.s2 },
 })
 
 const PITCH: Record<ToolType, string> = {
   message_board: "Share news and ideas with the team. Talk them over in one place.",
-  todos: "Make lists of work. Give each task to someone and set a due date.",
+  todos: "Make a list of what needs doing. Split a big task into subtasks. The bar fills up as things get done.",
   vault: "Keep docs, files, and images here. Sort them into folders.",
   campfire: "Chat with the team about anything.",
   schedule: "Add events and dates. Tasks and cards with due dates show up here too.",
-  checkins: "Ask the team the same question each day or week, like “What did you get done today?”",
   cardtable: "Move cards from column to column as work gets done. Add your first card to New, or set up columns first.",
-  forwards: "Forward emails here so everyone can read them and talk.",
-  timesheet: "Log time on any task and it adds up here.",
 }
+
+/** What each kind of window is for, in a few words, for the + menu. */
+const MENU_PITCH: Record<ToolType, string> = {
+  message_board: "Announcements and write-ups",
+  todos: "The tasks that finish the project, with one progress bar",
+  vault: "Docs, files and folders",
+  campfire: "Quick back-and-forth",
+  schedule: "Events and deadlines",
+  cardtable: "Cards that move across columns",
+}
+
+/** Which window an address is in: the kind from its path, then which one of that kind from its ?w= or the thing it
+ * shows (/projects/2/docs/5 is in whichever Files window doc 5 was made in). Null outside every window. */
+const windowAt = (p: Project, path: string, search: string): string | null => {
+  const type = windowOfPath(path)
+  if (!type) return null
+  const w = new URLSearchParams(search).get("w")
+  if (w && p.tools.some((t) => t.id === w && t.type === type)) return w
+  const id = path.split("/").slice(3).find((s) => /^\d+$/.test(s))
+  const r = id ? db.recordings.get(id) : undefined
+  return (r && r.project_id === p.id && windowIdOf(p, topOf(r))) || type
+}
+
+// The + menu: rows of icon, name and one action, in three groups. Adding makes a new window (a second Files is
+// "Files 2", renamed in its title bar); hiding keeps everything in it, so it can come back from Hidden.
+const wm = stylex.create({
+  group: { display: "grid", gap: 2, paddingBlock: 4 },
+  rule: { height: 1, marginBlock: 4, marginInline: 8, backgroundColor: color.line },
+  label: { margin: 0, paddingInline: 10, paddingTop: 6, paddingBottom: 4, fontSize: text.xs, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
+  row: { display: "flex", alignItems: "center", gap: 10, minHeight: 44, paddingBlock: 6, paddingInline: 10, borderRadius: 10 },
+  // A kind to add: the whole row is the button.
+  pick: {
+    width: "100%", justifyContent: "flex-start", textAlign: "left", fontWeight: 400, color: color.ink,
+    backgroundColor: { default: "transparent", ":hover": { default: null, "@media (hover: hover) and (pointer: fine)": color.tile } },
+  },
+  icon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, flexShrink: 0, borderRadius: 8, backgroundColor: color.tile, color: color.ink },
+  text: { display: "grid", minWidth: 0, flexGrow: 1 },
+  name: { fontSize: text.sm, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  pitch: { fontSize: text.xs, color: color.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  plus: { color: color.muted, flexShrink: 0 },
+  act: { minHeight: 28, paddingBlock: 0, paddingInline: 10, fontSize: text.xs, flexShrink: 0 },
+})
+
+const WindowsMenu = observer(({ p, onAdd, onHide, onShow }: { p: Project; onAdd: (type: ToolType) => void; onHide: (id: string) => void; onShow: (id: string) => void }) => {
+  const shown = p.tools.filter((t) => t.enabled)
+  const hidden = p.tools.filter((t) => !t.enabled)
+  const row = (t: Tool, action: ReactNode) => (
+    <div key={t.id} {...sx(wm.row)}>
+      <span aria-hidden="true" {...sx(wm.icon)}><Icon name={t.type} size={16} /></span>
+      <span {...sx(wm.text)}><span {...sx(wm.name)}>{t.name}</span></span>
+      {action}
+    </div>
+  )
+  return (
+    <>
+      <div role="group" aria-labelledby="wm-add" {...sx(wm.group)}>
+        <p id="wm-add" {...sx(wm.label)}>Add a window</p>
+        {defaultTools().map((d) => (
+          <button key={d.type} type="button" data-quiet onClick={() => onAdd(d.type)} {...sx(wm.row, wm.pick)}>
+            <span aria-hidden="true" {...sx(wm.icon)}><Icon name={d.type} size={16} /></span>
+            <span {...sx(wm.text)}><span {...sx(wm.name)}>{d.name}</span><span {...sx(wm.pitch)}>{MENU_PITCH[d.type]}</span></span>
+            <span aria-hidden="true" {...sx(wm.plus)}><Icon name="plus" size={14} /></span>
+          </button>
+        ))}
+      </div>
+      {shown.length > 0 && <>
+        <div {...sx(wm.rule)} />
+        <div role="group" aria-labelledby="wm-on" {...sx(wm.group)}>
+          <p id="wm-on" {...sx(wm.label)}>On this project</p>
+          {shown.map((t) => row(t, <button type="button" data-quiet onClick={() => onHide(t.id)} aria-label={`Hide ${t.name}`} {...sx(wm.act)}>Hide</button>))}
+        </div>
+      </>}
+      {hidden.length > 0 && <>
+        <div {...sx(wm.rule)} />
+        <div role="group" aria-labelledby="wm-hidden" {...sx(wm.group)}>
+          <p id="wm-hidden" {...sx(wm.label)}>Hidden</p>
+          {hidden.map((t) => row(t, <button type="button" data-quiet onClick={() => onShow(t.id)} aria-label={`Show ${t.name}`} {...sx(wm.act)}>Show</button>))}
+        </div>
+      </>}
+    </>
+  )
+})
 
 // Project home: a compact head (title, description, one line of facts), then the project's tools as windows (master
 // and stack) running to the sheet's edges, with the taskbar below them. The head stays short so the windows get the
@@ -68,15 +142,8 @@ const ps = stylex.create({
   facts: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s4, rowGap: space.s1, maxWidth: "none", marginTop: space.s1, marginBottom: 0, fontSize: text.sm, color: color.muted },
   fact: { display: "inline-flex", alignItems: "center", gap: space.s2 },
   factInk: { color: color.ink },
-  gauge: { width: 64, height: 6 },
   pitch: { margin: 0, fontSize: text.sm, color: color.muted, maxWidth: "48ch" },
-  tileText: { margin: 0, fontSize: text.sm },
-  // A link row in the Links window.
-  door: { display: "flex", alignItems: "flex-start", gap: space.s3, paddingBlock: 10 },
-  doorIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, flexShrink: 0, borderRadius: radius.md, backgroundColor: color.tile },
-  doorText: { minWidth: 0, flexGrow: 1 },
-  doorMore: { flexShrink: 0, paddingInline: space.s2, color: color.muted, textDecoration: "none" },
-  addLink: { marginTop: space.s3, marginBottom: 0, fontSize: text.sm },
+  progressLine: { margin: 0, marginBottom: space.s2, fontSize: text.sm, color: color.muted },
   itemLink: { textDecoration: "none", ":hover": { textDecoration: "underline" } },
   // Inside a window: rows of title, a muted line of facts, and sometimes an excerpt or the next tasks.
   rows: { margin: 0, fontSize: text.base },
@@ -95,11 +162,10 @@ const ps = stylex.create({
 const byPosition = (a: Recording, b: Recording) => a.position - b.position || a.id - b.id
 const newestFirst = (a: Recording, b: Recording) => b.created_at.localeCompare(a.created_at)
 
-const activeIn = (p: Project, type: string | string[]) =>
-  recordings((r) => r.project_id === p.id && r.status === "active" && (typeof type === "string" ? r.type === type : type.includes(r.type)))
-const todosOf = (list: Recording) => {
-  const groups = new Set(recordings((g) => g.parent_id === list.id && g.type === "todogroup").map((g) => g.id))
-  return recordings((x) => x.type === "todo" && x.status === "active" && (x.parent_id === list.id || groups.has(x.parent_id!)))
+/** What's active of `type` in one window of the project. */
+const activeIn = (p: Project, t: Tool, type: string | string[]) => {
+  const here = inWindow(p, t.id)
+  return recordings((r) => r.project_id === p.id && r.status === "active" && (typeof type === "string" ? r.type === type : type.includes(r.type)) && here(r))
 }
 
 const who = (id: number | null) => db.people.get(String(id))?.name ?? "Someone"
@@ -109,123 +175,92 @@ const clock = (at: string) => {
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "am" : "pm"}`
 }
 const KIND: Record<string, string> = { folder: "Folder", doc: "Doc", upload: "File", cloudfile: "Link" }
+const COLUMN_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, done: 3 }
 
 /** What a tool's window shows: its latest things, enough to work from; null shows the tool's pitch instead. */
-const windowBody = (p: Project, t: ToolType): ReactNode => {
+const windowBody = (p: Project, t: Tool): ReactNode => {
   const tz = me().time_zone
   const list = (items: ReactNode[]) => (items.length ? <ul {...sx(ps.rows)}>{items}</ul> : null)
   const row = (key: number, title: ReactNode, meta: ReactNode, more?: ReactNode) =>
     <li key={key}><span {...sx(ps.rowTitle)}>{title}</span><small {...sx(ps.meta)}>{meta}</small>{more}</li>
   const link = (r: Recording, label = titleOf(r)) => <a href={urlFor(r)} {...sx(ps.itemLink)}>{label}</a>
-  switch (t) {
+  switch (t.type) {
     case "message_board":
-      return list(activeIn(p, "message").sort((a, b) => Number(!!b.data.pinned) - Number(!!a.data.pinned) || newestFirst(a, b)).slice(0, 8).map((r) =>
+      return list(activeIn(p, t, "message").sort((a, b) => Number(!!b.data.pinned) - Number(!!a.data.pinned) || newestFirst(a, b)).slice(0, 8).map((r) =>
         row(r.id, <>{link(r)}{r.data.pinned && <span {...sx(kit.tag, kit.tagAccent, ps.tag)}>Pinned</span>}</>,
           `${who(r.creator_id)} · ${fmtDate(r.created_at, tz)} · ${plural(commentCount(r.id), "comment")}`,
           r.body && <span {...sx(ps.excerpt)}>{excerpt(r.body, 150)}</span>)))
     case "todos": {
-      // What's late leads, in orange: it's the thing that needs someone now. Then each list and its next tasks.
-      const lists = activeIn(p, "todolist").sort(byPosition)
+      // The bar, then the next open tasks in order, each with who, when and its subtasks' count.
+      const pr = progressOf(p, t.id)
+      if (!pr.tasks.length) return null
       const firstNames = (x: Recording) => (x.data.assignee_ids ?? []).map((id: number) => who(id).split(" ")[0]).join(", ")
-      const late = lists.flatMap(todosOf).filter((x) => !x.data.completed_at && x.data.due_on && x.data.due_on < today()).sort((a, b) => String(a.data.due_on).localeCompare(String(b.data.due_on)))
-      const lead = late[0] && row(-1, <><span {...sx(ps.late)}>{late.length} late:</span> {link(late[0])}</>, [firstNames(late[0]), `was due ${fmtDate(late[0].data.due_on)}`].filter(Boolean).join(" · "))
-      return list([lead, ...lists.map((l) => {
-        const ts = todosOf(l), done = ts.filter((x) => x.data.completed_at).length
-        const next = ts.filter((x) => !x.data.completed_at && x.id !== late[0]?.id).sort((a, b) => String(a.data.due_on ?? "9").localeCompare(String(b.data.due_on ?? "9"))).slice(0, 3)
-        return row(l.id, link(l), `${done} of ${ts.length} done`, <>
-          <span {...sx(ps.meter)}><span {...sx(ps.fill(ts.length ? `${(done / ts.length) * 100}%` : "0%"))} /></span>
-          {next.map((x) => <span key={x.id} {...sx(ps.todo)}>{link(x)}<small {...sx(ps.todoMeta)}>{[firstNames(x), x.data.due_on && fmtDate(x.data.due_on)].filter(Boolean).join(" · ")}</small></span>)}
-        </>)
-      })].filter(Boolean))
+      const late = (k: Recording) => !!k.data.due_on && k.data.due_on < today()
+      const open = pr.tasks.filter((k) => !k.data.completed_at).sort(byPosition).slice(0, 8)
+      return <>
+        <p {...sx(ps.progressLine)}><b>{pr.pct}% done</b> · {pr.done} of {pr.total}</p>
+        <span {...sx(ps.meter)}><span {...sx(ps.fill(`${pr.pct}%`))} /></span>
+        {list(open.map((k) => {
+          const subs = pr.subtasks.get(k.id) ?? []
+          const meta = [subs.length ? `${subs.filter((s) => s.data.completed_at).length}/${subs.length}` : "", firstNames(k), k.data.due_on ? fmtDate(k.data.due_on) : ""].filter(Boolean).join(" · ")
+          return row(k.id, link(k), <span {...sx(late(k) && ps.late)}>{meta}</span>)
+        }))}
+      </>
     }
     case "vault":
-      return list(activeIn(p, ["folder", "doc", "upload", "cloudfile"]).filter((r) => r.parent_id === null).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 8).map((r) =>
+      return list(activeIn(p, t, ["folder", "doc", "upload", "cloudfile"]).filter((r) => r.parent_id === null).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 8).map((r) =>
         row(r.id, link(r), `${KIND[r.type]} · ${who(r.creator_id)} · ${fmtDate(r.updated_at, tz)}`)))
     case "campfire":
-      return list(activeIn(p, "line").sort(newestFirst).slice(0, 8).reverse().map((l) =>
+      return list(activeIn(p, t, "line").sort(newestFirst).slice(0, 8).reverse().map((l) =>
         <li key={l.id}><b>{l.creator_id ? who(l.creator_id) : `${l.data.chatbot_name ?? "Someone"} (bot)`}:</b> {excerpt(l.body, 140)}</li>))
     case "schedule":
-      return list(upcoming(p).slice(0, 8).map((r) =>
+      return list(upcoming(p, t).slice(0, 8).map((r) =>
         row(r.id, link(r), `${fmtDate(r.data.starts_at)} · ${r.data.all_day ? "All day" : clock(r.data.starts_at)}${r.data.repeat && r.data.repeat !== "never" ? ` · every ${r.data.repeat === "weekly" ? "week" : r.data.repeat.replace(/ly$/, "")}` : ""}`)))
-    case "checkins":
-      return list(activeIn(p, "question").sort(byPosition).map((q) => {
-        const answers = recordings((a) => a.parent_id === q.id && a.type === "answer" && a.status === "active").sort(newestFirst)
-        return row(q.id, link(q), plural(answers.length, "answer"), answers[0] && <span {...sx(ps.excerpt)}><b>{who(answers[0].creator_id).split(" ")[0]}:</b> {excerpt(answers[0].body, 120)}</span>)
-      }))
     case "cardtable":
-      return list(activeIn(p, "column").sort(byPosition).map((c) => {
-        const cards = recordings((k) => k.parent_id === c.id && k.type === "card" && k.status === "active").sort(byPosition)
+      // Fizzy's order: Not now, To do, your columns, Done; Golden Tickets first in each.
+      return list(activeIn(p, t, "column").sort((a, b) => (COLUMN_ORDER[a.data.kind ?? "custom"] ?? 2) - (COLUMN_ORDER[b.data.kind ?? "custom"] ?? 2) || byPosition(a, b)).map((c) => {
+        const cards = recordings((k) => k.parent_id === c.id && k.type === "card" && k.status === "active").sort((a, b) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position)
         return row(c.id, c.title, plural(cards.length, "card"), cards.length > 0 && <span {...sx(ps.excerpt)}>{cards.slice(0, 3).map((k, i) => <span key={k.id}>{i ? " · " : ""}{link(k)}</span>)}{cards.length > 3 ? " …" : ""}</span>)
       }))
-    case "forwards":
-      return list(activeIn(p, "forward").sort(newestFirst).slice(0, 8).map((r) => row(r.id, link(r), `From ${r.data.from ?? "someone"} · ${fmtDate(r.created_at, tz)}`)))
-    case "timesheet": {
-      const m = minutesThisMonth(p)
-      const recent = [...db.time_entries.values()].filter((e) => e.project_id === p.id).sort((a, b) => b.on_date.localeCompare(a.on_date) || b.id - a.id).slice(0, 5)
-      return m || recent.length ? <>
-        <p {...sx(ps.tileText)}><b>{fmtHours(m)} hours</b> logged this month</p>
-        {list(recent.map((e) => row(e.id, e.description || "Time logged", `${who(e.person_id)} · ${fmtDate(e.on_date)} · ${fmtHours(e.minutes)} h`)))}
-      </> : null
-    }
   }
 }
 
-const upcoming = (p: Project) =>
-  activeIn(p, "event").filter((r) => r.data.starts_at >= isoDate(new Date())).sort((a, b) => String(a.data.starts_at).localeCompare(b.data.starts_at))
-const minutesThisMonth = (p: Project) => {
-  const month = today().slice(0, 7) + "-01"
-  return [...db.time_entries.values()].filter((e) => e.project_id === p.id && e.on_date >= month).reduce((n, e) => n + e.minutes, 0)
-}
+const upcoming = (p: Project, t: Tool) =>
+  activeIn(p, t, "event").filter((r) => r.data.starts_at >= isoDate(new Date())).sort((a, b) => String(a.data.starts_at).localeCompare(b.data.starts_at))
 
 /** One line about what's new in a tool, for its window's title bar and its taskbar tip. */
-const summary = (p: Project, t: ToolType): string => {
-  switch (t) {
+const summary = (p: Project, t: Tool): string => {
+  switch (t.type) {
     case "message_board": {
-      const posts = activeIn(p, "message").sort(newestFirst)
+      const posts = activeIn(p, t, "message").sort(newestFirst)
       return posts.length ? `Newest: ${titleOf(posts[0]!)}` : "No posts yet"
     }
     case "todos": {
-      const ts = activeIn(p, "todolist").flatMap(todosOf)
-      const done = ts.filter((x) => x.data.completed_at).length
-      const late = lateTasks(p.id)
-      return ts.length ? `${done} of ${ts.length} done${late ? ` · ${late} late` : ""}` : "No tasks yet"
+      const pr = progressOf(p, t.id)
+      const late = lateTasks(p.id, t.id)
+      return pr.total ? `${pr.pct}% done${late ? ` · ${late} late` : ""}` : "No tasks yet"
     }
     case "vault": {
-      const n = activeIn(p, ["doc", "upload", "cloudfile"]).length
+      const n = activeIn(p, t, ["doc", "upload", "cloudfile"]).length
       return n ? plural(n, "file") : "No files yet"
     }
     case "campfire": {
-      const last = activeIn(p, "line").sort(newestFirst)[0]
+      const last = activeIn(p, t, "line").sort(newestFirst)[0]
       if (!last) return "No messages yet"
       const who = db.people.get(String(last.creator_id))?.name.split(" ")[0] ?? last.data.chatbot_name ?? "Someone"
       return `${who}: ${excerpt(last.body, 60)}`
     }
     case "schedule": {
-      const next = upcoming(p)[0]
+      const next = upcoming(p, t)[0]
       return next ? `Next: ${next.title} · ${fmtDate(next.data.starts_at)}` : "Nothing coming up"
     }
-    case "checkins": {
-      const q = activeIn(p, "question").sort(byPosition)[0]
-      return q ? `${titleOf(q)} · ${plural(recordings((a) => a.parent_id === q.id && a.type === "answer" && a.status === "active").length, "answer")}` : "No questions yet"
-    }
     case "cardtable": {
-      const cols = new Set(activeIn(p, "column").map((c) => c.id))
+      const cols = new Set(activeIn(p, t, "column").map((c) => c.id))
       const cards = recordings((k) => k.type === "card" && k.status === "active" && cols.has(k.parent_id!)).length
       return cards ? `${plural(cards, "card")} in ${plural(cols.size, "column")}` : "No cards yet"
     }
-    case "forwards": {
-      const n = activeIn(p, "forward").length
-      return n ? plural(n, "forwarded email") : "Nothing forwarded yet"
-    }
-    case "timesheet": {
-      const m = minutesThisMonth(p)
-      return m ? `${fmtHours(m)} hours this month` : "No time logged this month"
-    }
   }
 }
-
-/** "https://www.figma.com/file/…" → "figma.com". */
-const hostOf = (url: string) => { try { return new URL(url).host.replace(/^www\./, "") } catch { return url } }
 
 const enabledTools = (p: Project) => p.tools.filter((t) => t.enabled)
 
@@ -245,27 +280,6 @@ const useProject = (opts?: { staff?: boolean }) => {
   if (opts?.staff && isClient(me())) throw new NoAccess()
   return p
 }
-
-/** Each link as a row that reads as a link: icon, its name (underlined, opens in a new tab), the site it goes to. */
-const LinkRows = observer(({ p }: { p: Project }) => {
-  const m = me()
-  const doors = recordings((r) => r.project_id === p.id && r.type === "door" && r.status === "active").sort(byPosition)
-  return (
-    <>
-      {doors.length ? <ul {...sx(ps.rows)}>{doors.map((d) => (
-        <li key={d.id} {...sx(ps.door)}>
-          <span aria-hidden="true" {...sx(ps.doorIcon)}><Icon name="links" size={16} /></span>
-          <span {...sx(ps.doorText)}>
-            <a href={d.data.url} target="_blank" rel="noopener" {...sx(ps.rowTitle)}>{d.title}<span {...sx(kit.srOnly)}> (opens in a new tab)</span></a>
-            <small {...sx(ps.meta)}>{hostOf(d.data.url)}{d.data.description && ` · ${d.data.description}`}</small>
-          </span>
-          {!isClient(m) && <a href={`/projects/${p.id}/links/${d.id}`} aria-label={`Options for ${d.title}`} title="Options" data-row-action {...sx(ps.doorMore)}>•••</a>}
-        </li>
-      ))}</ul> : <p {...sx(ps.pitch)}>Link the outside tools this project uses: Figma, GitHub, a Drive folder.</p>}
-      {!isClient(m) && p.status === "active" && <p {...sx(ps.addLink)}><a href={`/projects/${p.id}/links/new`}>Add a link</a></p>}
-    </>
-  )
-})
 
 /** Where you last were in each window ("2:vault" → "/projects/2/docs/5"), so picking a window takes you back there. */
 const lastIn = new Map<string, string>()
@@ -291,16 +305,19 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
   const [projectSince] = useState(() => m.prefs.project_seen?.[String(p.id)] ?? null)
   const people = projectPeople(p)
   const clients = people.filter(isClient)
-  const tools = isClient(m) ? enabledTools(p).filter((t) => t.type !== "timesheet") : enabledTools(p)
-  const doors = recordings((r) => r.project_id === p.id && r.type === "door" && r.status === "active")
-  const gauge = [...db.gauge_updates.values()].filter((g) => g.project_id === p.id).sort((a, b) => b.id - a.id)[0]
-  const keys: WindowKey[] = [...tools.map((t) => t.type), ...(doors.length ? ["links" as const] : [])]
-  useVisit(projectUrl(p), p.name, p.id, keys)
+  const tools = enabledTools(p)
+  // How far along it is: the share of its tasks done (subtasks counted in their task's place).
+  const pr = progressOf(p)
+  const tasksWindow = tools.find((t) => t.type === "todos")
+  const keys = tools.map((t) => t.id)
 
   // The window in front is the one the address is in; with none (a bare /projects/2), the one you had last.
-  const cur = windowOfPath(loc.pathname)
+  const cur = windowAt(p, loc.pathname, loc.search)
   const front = cur && keys.includes(cur) ? cur : keys.find((k) => k === loadFront(p.id)) ?? keys[0]
-  const rootOf = (k: WindowKey) => (k === "links" ? `/projects/${p.id}/links` : toolUrl(p, k))
+  useVisit(projectUrl(p), p.name, p.id, keys, cur ?? undefined)
+  const toolOf = (k: string) => p.tools.find((t) => t.id === k) ?? { id: k, type: k as ToolType }
+  const rootOf = (k: string) => windowUrl(p, toolOf(k))
+  const atRoot = (k: string) => loc.pathname === toolUrl(p, toolOf(k).type)
   const here = loc.pathname + loc.search + loc.hash
   useEffect(() => {
     if (!cur) return
@@ -310,27 +327,42 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
   // Picking a window goes back to where you were in it. By pointer it glides; by keyboard it's instant.
   const bring = (k: string, e?: MouseEvent) => {
     const glide = (!e || e.detail > 0) && !matchMedia("(prefers-reduced-motion: reduce)").matches
-    navigate(lastIn.get(`${p.id}:${k}`) ?? rootOf(k as WindowKey), { viewTransition: glide })
+    navigate(lastIn.get(`${p.id}:${k}`) ?? rootOf(k), { viewTransition: glide })
   }
 
+  // Changing the windows: drag them into order on the rail; rename in the big window's title bar; add, hide and show
+  // from the + menu. The copy changes at once (the server's reply replaces it), except adding, which waits for the new
+  // window's id.
+  const post = usePost()
+  const canChange = !isClient(m) && p.status === "active"
+  const setTools = (next: Tool[]) => () => { db.projects.set(String(p.id), { ...p, tools: next }) }
+  const rename = (k: string, name: string) => post(`/projects/${p.id}/windows/${k}/rename`, { name }, setTools(p.tools.map((t) => (t.id === k ? { ...t, name } : t))))
+  const hide = (k: string) => {
+    post(`/projects/${p.id}/windows/${k}/hide`, {}, setTools(p.tools.map((t) => (t.id === k ? { ...t, enabled: false } : t))))
+    // Hiding the window you're in moves you to the next one.
+    const next = keys.find((x) => x !== k)
+    if (k === front) navigate(next ? lastIn.get(`${p.id}:${next}`) ?? rootOf(next) : projectUrl(p))
+  }
+  const show = (k: string) => { closeWindowsMenu(); post(`/projects/${p.id}/windows/${k}/show`, {}, setTools(p.tools.map((t) => (t.id === k ? { ...t, enabled: true } : t)))) }
+  const add = (type: ToolType) => { closeWindowsMenu(); post(`/projects/${p.id}/windows`, { type }) }
+  const reorder = (ids: string[]) => post(`/projects/${p.id}/windows/order`, { ids: ids.join(",") }, setTools([...ids.flatMap((id) => p.tools.filter((t) => t.id === id)), ...p.tools.filter((t) => !ids.includes(t.id))]))
+
   const { counts: news, oldest } = windowNews(p.id, m.id, seenAtOpen)
-  const late = lateTasks(p.id)
   const sinceFor = (k: string) => { const at = seenAtOpen(k); return at ? { at, label: sinceLabel(at) } : null }
   // The main window shows the page the address names (Outlet); the stack shows the previews.
-  const work = (k: WindowKey) => k === front && cur === front
+  const work = (k: string) => k === front && cur === front
     // At the window's start page its title bar already names it: the page heading is kept for screen readers (app.css).
-    ? <InWindow.Provider value={true}><WindowSince.Provider value={sinceFor(k)}><div data-window-root={loc.pathname === rootOf(k) || undefined}><Outlet /></div></WindowSince.Provider></InWindow.Provider>
+    ? <InWindow.Provider value={true}><WindowId.Provider value={k}><WindowSince.Provider value={sinceFor(k)}><div data-window-root={atRoot(k) || undefined}><Outlet /></div></WindowSince.Provider></WindowId.Provider></InWindow.Provider>
     : undefined
-  const back = (k: WindowKey) => (k === front && cur === front && loc.pathname !== rootOf(k) ? () => navigate(rootOf(k)) : undefined)
+  const back = (k: string) => (k === front && cur === front && !atRoot(k) ? () => navigate(rootOf(k)) : undefined)
   const windows: DeskWindow[] = tools.map((t) => {
-    const body = windowBody(p, t.type)
+    const body = windowBody(p, t)
     return {
-      key: t.type, name: t.name, icon: t.type, summary: summary(p, t.type),
-      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.type) ?? 0, late: t.type === "todos" ? late : 0,
-      work: work(t.type), back: back(t.type), place: here,
+      key: t.id, name: t.name, icon: t.type, summary: summary(p, t),
+      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.id) ?? 0, late: t.type === "todos" ? lateTasks(p.id, t.id) : 0,
+      work: work(t.id), back: back(t.id), place: here,
     }
   })
-  if (doors.length) windows.push({ key: "links", name: "Links", icon: "links", summary: doors.map((d) => d.title).join(", "), body: <LinkRows p={p} />, work: work("links"), back: back("links"), place: here })
   if (!cur && front) return <Navigate replace to={lastIn.get(`${p.id}:${front}`) ?? rootOf(front)} />
   return (
     <Page title={p.name} crumbs={p.kind === "template" ? [["Templates", "/templates"]] : undefined} flush>
@@ -347,8 +379,11 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
             {p.description && <Fmt text={p.description} {...sx(ps.lede)} />}
             <p {...sx(ps.facts)}>
               {(p.starts_on || p.ends_on) && <span {...sx(ps.fact, ps.factInk)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</span>}
-              {/* The status shows once someone sets it; setting it lives in the ••• menu, not on the most-seen screen. */}
-              {gauge && <a href={`/projects/${p.id}/status`} {...sx(ps.fact)}>Status <meter min={0} max={100} value={gauge.value} {...sx(ps.gauge)}>{gauge.value}%</meter> <span {...sx(ps.factInk)}>{gauge.value}%</span></a>}
+              {tasksWindow && pr.total > 0 && (
+                <a href={rootOf(tasksWindow.id)} title={`${pr.done} of ${pr.total} done`} {...sx(ps.fact)}>
+                  <ProgressBar pct={pr.pct} /> <span {...sx(ps.factInk)}>{pr.pct}% done</span>
+                </a>
+              )}
               {clients.length > 0 && !isClient(m) && <span>Clients see only what you share. <a href={`/projects/${p.id}/clients`}>Client access</a></span>}
             </p>
           </div>
@@ -362,8 +397,9 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
         </div>
       </div>
       <Desk windows={windows} project={p.name} master={front ?? ""} onBring={bring} since={oldest ? sinceLabel(oldest) : projectSince ? sinceLabel(projectSince) : undefined}
-        note={windows.every((w) => w.empty) ? "A fresh start. Invite the people on it, then post what this project is about." : undefined}
-        addHref={!isClient(m) && p.status === "active" ? `/projects/${p.id}/tools` : undefined} />
+        note={!windows.length ? "A fresh start. Add the windows this project needs, then invite the people on it."
+          : windows.every((w) => w.empty) ? "A fresh start. Invite the people on it, then post what this project is about." : undefined}
+        menu={canChange ? <WindowsMenu p={p} onAdd={add} onHide={hide} onShow={show} /> : undefined} onRename={canChange ? rename : undefined} onReorder={canChange ? reorder : undefined} />
     </Page>
   )
 })
@@ -389,24 +425,9 @@ const PeopleForm = ({ p }: { p: Project }) => {
   )
 }
 
-const StatusForm = ({ p, value }: { p: Project; value: number }) => {
-  const [v, setV] = useState(value)
-  return (
-    <Form action={`/projects/${p.id}/status`} {...sx(pm.tile)}>
-      <p><label>How far along? (0–100)<br /><input type="range" name="value" min={0} max={100} step={5} defaultValue={value} onInput={(e) => setV(Number(e.currentTarget.value))} {...sx(pm.range)} /> <output>{v}</output></label></p>
-      <p><label>What changed? (optional)<br /><input name="note" size={60} /></label></p>
-      <button>Update status</button>
-    </Form>
-  )
-}
-
 type Delivery = { webhook_id: number; event: string; status: number | null; error: string | null; created_at: string }
 
 export const routes = [
-  page("/projects/:id/links", () => {
-    const p = useProject()
-    return <Page title="Links" crumbs={projectCrumbs(p)}><PageHead title="Links" /><LinkRows p={p} /></Page>
-  }),
 
   page("/projects/:id/edit", () => {
     const p = useProject({ staff: true })
@@ -437,9 +458,6 @@ export const routes = [
         <menu.Wrap>
           {staff && <menu.Group label="Project" items={[
             <menu.Link href={`/projects/${p.id}/edit`}>Edit name, description & dates</menu.Link>,
-            <menu.Link href={`/projects/${p.id}/status`}>Set the status</menu.Link>,
-            <menu.Link href={`/projects/${p.id}/tools`}>Change tools</menu.Link>,
-            p.status === "active" && <menu.Link href={`/projects/${p.id}/links/new`}>Add a link to another tool (Figma, GitHub, a Drive folder)</menu.Link>,
             <menu.Link href={`/projects/${p.id}/people`}>Add/remove people</menu.Link>,
             <menu.Link href={`/projects/${p.id}/clients`}>Set up client access</menu.Link>,
           ]} />}
@@ -463,28 +481,10 @@ export const routes = [
     )
   }),
 
-  page("/projects/:id/tools", () => {
-    const p = useProject({ staff: true })
-    const tools = [...p.tools, ...defaultTools().filter((d) => !p.tools.some((t) => t.type === d.type))]
-    return (
-      <Page title="Change tools" crumbs={projectCrumbs(p)}>
-        <h1>Change tools</h1>
-        <p>Turning a tool off hides it. Nothing is deleted. Turn it back on and it's all there.</p>
-        <Form action={`/projects/${p.id}/tools`}>
-          <table><thead><tr><th>On</th><th>Name</th><th>Order</th></tr></thead><tbody>
-            {tools.map((t, i) => (
-              <tr key={t.type}>
-                <td><input type="checkbox" name={`on_${t.type}`} defaultChecked={t.enabled} aria-label={`${t.name} on`} /></td>
-                <td><input name={`name_${t.type}`} defaultValue={t.name} aria-label={`Rename ${t.name}`} /></td>
-                <td><input type="number" name={`pos_${t.type}`} defaultValue={i + 1} min={1} max={20} size={3} aria-label="Position" /></td>
-              </tr>
-            ))}
-          </tbody></table>
-          <p><button>Save changes</button> <a href={projectUrl(p)}>Cancel</a></p>
-        </Form>
-        <p><a href={`/projects/${p.id}/links/new`}>Add a link</a></p>
-      </Page>
-    )
+  // The flash's "Undo" after hiding a window.
+  page("/projects/:id/windows/:wid/show", () => {
+    const { id, wid } = useParams()
+    return <Page title="Bringing it back"><p>Bringing it back…</p><PostOnOpen action={`/projects/${id}/windows/${wid}/show`} /></Page>
   }),
 
   page("/projects/:id/people", () => {
@@ -561,29 +561,6 @@ export const routes = [
         <h1>Put {p.name} in the trash?</h1>
         <p>Everything in it goes too. An admin can put it back for 30 days, then it's deleted forever.</p>
         <Form action={`/projects/${p.id}/trash-project`}><button>Yes, put this project in the trash</button> <a href={projectUrl(p)}>Never mind</a></Form>
-      </Page>
-    )
-  }),
-
-  // Gauge
-  page("/projects/:id/status", () => {
-    const p = useProject()
-    const m = me()
-    const ups = [...db.gauge_updates.values()].filter((g) => g.project_id === p.id).sort((a, b) => b.id - a.id)
-    return (
-      <Page title="Status" crumbs={projectCrumbs(p)}>
-        <h1>Status of {p.name}</h1>
-        <p {...sx(pm.intro)}>How far along is this project? A person sets it. It doesn't count tasks.</p>
-        {ups[0] ? <p {...sx(pm.needle)}><span {...sx(pm.needleNum)}>{ups[0].value}%</span> <meter min={0} max={100} value={ups[0].value} {...sx(pm.meter)} /></p> : <p {...sx(pm.intro)}>Not set yet.</p>}
-        {!isClient(m) && <StatusForm p={p} value={ups[0]?.value ?? 0} />}
-        {ups.length > 0 && <><h2>Past updates</h2><ul {...sx(kit.rows)}>{ups.map((u) => {
-          const who = db.people.get(String(u.person_id))
-          return (
-            <li key={u.id} {...sx(pm.row)}><Face p={{ name: who?.name ?? "Someone", avatar_url: who?.avatar_url }} px={24} />
-              <span><b>{u.value}%</b> · {who?.name ?? "Someone"}{u.note && <>: {u.note}</>}</span><small {...sx(pm.time)}>{fmtDateTime(u.created_at, m.time_zone)}</small></li>
-          )
-        })}</ul></>}
-        <p {...sx(kit.links)}><a href="/overview">See every project's status on the Overview</a></p>
       </Page>
     )
   }),

@@ -8,6 +8,8 @@ import { me, accountPeople, visibleProjects, recordings, NoAccess } from "../dat
 import { isClient, projectUrl, titleOf, urlFor, TYPE_NAMES, type Event, type Person, type Recording } from "../../shared/domain.ts"
 import { daysFromToday, excerpt, fmtDate, isoDate, ms, plural, today } from "../../shared/format.ts"
 import { ActivityList, type ActivityItem } from "../ui/activity.tsx"
+import { ProgressBar } from "../ui/kit.tsx"
+import { progressOf } from "../news.ts"
 import { Page, page, type Crumb } from "../ui/page.tsx"
 
 // ---------- shared with find.tsx ----------
@@ -104,12 +106,10 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const EVERYTHING: Record<string, { label: string; types: string[] }> = {
   messages: { label: "Posts", types: ["message"] },
-  todos: { label: "Tasks", types: ["todolist", "todo"] },
+  todos: { label: "Tasks", types: ["todo"] },
   files: { label: "Files", types: ["folder", "doc", "upload", "cloudfile"] },
   cards: { label: "Cards", types: ["card"] },
   events: { label: "Events", types: ["event"] },
-  answers: { label: "Answers", types: ["answer"] },
-  forwards: { label: "Forwarded emails", types: ["forward"] },
 }
 
 export const routes = [
@@ -157,7 +157,6 @@ export const routes = [
           <li><a href="/reports/overdue">What's overdue?</a></li>
           <li><a href="/reports/upcoming">What's coming up?</a></li>
           <li><a href="/reports/tasks">Tasks added & completed</a></li>
-          <li><a href="/timesheet">Timesheet</a></li>
         </ul>
       </Page>
     )
@@ -311,21 +310,16 @@ export const routes = [
     const latest = <T extends { project_id: number | null; created_at: string }>(rows: Iterable<T>, id: number) =>
       [...rows].filter((x) => x.project_id === id).reduce<string | null>((m, x) => (!m || ms(x.created_at) > ms(m) ? x.created_at : m), null)
     const weekAgo = Date.now() - 7 * 86_400_000
-    const twoWeeksAgo = Date.now() - 14 * 86_400_000
     let rows = ps.map((p) => {
       const mine = recs.filter((r) => r.project_id === p.id)
-      const g = [...db.gauge_updates.values()].filter((x) => x.project_id === p.id).sort((a, b) => b.id - a.id)[0]
+      const pr = progressOf(p)
       const s = {
         overdue: mine.filter((r) => DUE_TYPES.includes(r.type) && !r.data.completed_at && r.data.due_on && r.data.due_on < now).length,
-        tracked: mine.filter((r) => r.type === "todolist" && String(r.data.tracked) === "true").length,
-        last_hill: latest(db.hill_updates.values(), p.id),
         last_event: latest(db.events.values(), p.id),
-        gauge: g?.value ?? null,
-        gauge_note: g?.note ?? null,
+        pr,
       }
       const flags = [
         ...(s.overdue ? [`${plural(s.overdue, "overdue item")}`] : []),
-        ...(s.tracked && (!s.last_hill || ms(s.last_hill) < twoWeeksAgo) ? ["progress hasn't moved in 2 weeks"] : []),
         ...(!s.last_event || ms(s.last_event) < weekAgo ? ["gone quiet: nothing in a week"] : []),
       ]
       return { p, s, flags }
@@ -334,7 +328,7 @@ export const routes = [
     const flaggedOnly = q.get("flagged") === "1"
     if (flaggedOnly) rows = rows.filter((r) => r.flags.length)
     rows.sort(sort === "name" ? (a, b) => a.p.name.localeCompare(b.p.name)
-      : sort === "gauge" ? (a, b) => (b.s.gauge ?? -1) - (a.s.gauge ?? -1)
+      : sort === "progress" ? (a, b) => (b.s.pr.total ? b.s.pr.pct : -1) - (a.s.pr.total ? a.s.pr.pct : -1)
       : (a, b) => b.flags.length - a.flags.length || a.p.name.localeCompare(b.p.name))
     return (
       <Page title="Overview" crumbs={[["Activity", "/activity"]]}>
@@ -344,20 +338,20 @@ export const routes = [
           <label>Sort <select name="sort" defaultValue={sort}>
             <option value="flags">Most flags first</option>
             <option value="name">Name</option>
-            <option value="gauge">Status</option></select></label>
+            <option value="progress">Progress</option></select></label>
           {" "}<label><input type="checkbox" name="flagged" value="1" defaultChecked={flaggedOnly} /> Only flagged projects</label>
           {" "}<button>Apply</button>
         </GetForm>
         {rows.length ? (
           <table>
-            <thead><tr><th>Project</th><th>Status</th><th>Flags</th></tr></thead>
+            <thead><tr><th>Project</th><th>Progress</th><th>Flags</th></tr></thead>
             <tbody>
               {rows.map(({ p, s, flags }) => (
                 <tr key={p.id}>
                   <td><a href={projectUrl(p)}>{p.name}</a></td>
-                  <td>{s.gauge !== null
-                    ? <><a href={`/projects/${p.id}/status`}><meter min={0} max={100} value={s.gauge}>{s.gauge}%</meter></a> {s.gauge}%{s.gauge_note && <> <small>{s.gauge_note}</small></>}</>
-                    : <a href={`/projects/${p.id}/status`}>Set the status</a>}</td>
+                  <td>{s.pr.total
+                    ? <><ProgressBar pct={s.pr.pct} width={96} /> {s.pr.pct}% <small>{s.pr.done} of {s.pr.total} done</small></>
+                    : <small>No tasks yet</small>}</td>
                   <td>{flags.length ? <ul>{flags.map((f) => <li key={f}>⚑ {f}</li>)}</ul> : "All clear"}</td>
                 </tr>
               ))}

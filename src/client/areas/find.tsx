@@ -4,21 +4,19 @@ import { useEffect } from "react"
 import { Form as GetForm, useSearchParams } from "react-router"
 import { db, submit } from "../store.ts"
 import { me, account, accountPeople, visibleProjects, recordings, memberIds } from "../data.ts"
-import { isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES } from "../../shared/domain.ts"
+import { isClient, projectUrl, windowUrl, urlFor, titleOf, TYPE_NAMES } from "../../shared/domain.ts"
 import { fmtDate, ms } from "../../shared/format.ts"
 import { Page, page } from "../ui/page.tsx"
 import { scope, personName } from "./reports.tsx"
 
 const TYPES: Record<string, { label: string; types: string[] }> = {
   messages: { label: "Posts", types: ["message"] },
-  todos: { label: "Tasks", types: ["todolist", "todo"] },
+  todos: { label: "Tasks", types: ["todo"] },
   files: { label: "Files", types: ["folder", "doc", "upload", "cloudfile"] },
   chats: { label: "Chats", types: ["line"] },
   comments: { label: "Comments", types: ["comment"] },
   cards: { label: "Cards", types: ["card", "step"] },
-  checkins: { label: "Team questions", types: ["question", "answer"] },
   events: { label: "Events", types: ["event"] },
-  forwards: { label: "Forwarded emails", types: ["forward"] },
 }
 
 const reEscape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -134,8 +132,8 @@ export const routes = [
       const projects = [...visibleProjects(), ...visibleProjects({ kind: "template" })]
       for (const p of projects) {
         if (hits(p.name)) matches.push({ href: projectUrl(p), label: `${p.name}${p.kind === "template" ? " (template)" : ""}` })
-        for (const t of p.tools.filter((t) => t.enabled && !(isClient(m) && t.type === "timesheet")))
-          if (hits(`${p.name} ${t.name}`) && !hits(p.name)) matches.push({ href: toolUrl(p, t.type), label: `${p.name}: ${t.name}` })
+        for (const t of p.tools.filter((t) => t.enabled))
+          if (hits(`${p.name} ${t.name}`) && !hits(p.name)) matches.push({ href: windowUrl(p, t), label: `${p.name}: ${t.name}` })
       }
       // Clients only find people they share a project with.
       const shared = isClient(m) ? new Set(projects.flatMap((p) => memberIds(p.id))) : null

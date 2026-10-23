@@ -21,7 +21,7 @@ export const routes = [
       const m = readMessage(fd)
       if (!m.title) return invalid(["Your post needs a title."])
       const r = yield* createRecording(c, {
-        project: p, type: "message", ...m, status: draft ? "drafted" : "active",
+        project: p, type: "message", tool: str(fd, "tool"), ...m, status: draft ? "drafted" : "active",
         notifyIds: draft ? [] : notifyIdsFrom(fd, people, c.me), verb: "shared a post",
       })
       return redirect(draft ? "/my/drafts" : urlFor(r), draft ? "Saved as a draft." : undefined)

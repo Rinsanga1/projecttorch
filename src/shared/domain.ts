@@ -3,18 +3,15 @@
 //
 // recordings.data by type (all optional):
 //   message:   category_id, pinned
-//   todolist:  tracked (on the progress hill)
-//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id
+//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a task at the top level, a
+//              subtask when its parent is a task; a task with subtasks is done when they all are)
 //   folder:    color
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
 //   event:     starts_at, ends_at, all_day, repeat, participant_ids[]
-//   question:  frequency (daily|weekly|biweekly|monthly), days[0-6], time "HH:MM", asked_ids[], paused, last_asked_on
-//   column:    kind (triage|custom|not_now|done), color, watcher_ids[], on_hold
-//   card:      assignee_ids[], due_on, on_hold, completed_at
+//   column:    kind (triage = "To do" | custom | not_now = "Not now" | done), color, watcher_ids[]
+//   card:      assignee_ids[], due_on, golden (pinned to the top of its column), completed_at
 //   step:      assignee_ids[], due_on, completed_at
-//   forward:   from, to, original_subject
-//   door:      url, description
 //   line:      (body only)
 //   comment:   (body only)
 
@@ -85,8 +82,10 @@ export type Person = {
   created_at: Stamp
 }
 
-export type Tool = { type: ToolType; name: string; enabled: boolean }
-export type ToolType = "message_board" | "todos" | "vault" | "campfire" | "schedule" | "checkins" | "cardtable" | "forwards" | "timesheet"
+/** One of a project's windows. A project can have several of a type: the first one's id is its type ("vault"), copies
+ * get their own ("vault-2"). Things made in a copy carry its id in `data.tool` on the top-level recording. */
+export type Tool = { id: string; type: ToolType; name: string; enabled: boolean }
+export type ToolType = "message_board" | "todos" | "vault" | "campfire" | "schedule" | "cardtable"
 
 export type Project = {
   id: number
@@ -102,7 +101,6 @@ export type Project = {
   starts_on: string | null
   ends_on: string | null
   tools: Tool[]
-  email_token: string | null
   created_by: number | null
   created_at: Stamp
 }
@@ -142,12 +140,6 @@ export type Event = {
 }
 export type Category = { id: number; account_id: number; emoji: string; name: string }
 export type Marker = { id: number; account_id: number; name: string; on_date: string }
-export type HillUpdate = { id: number; project_id: number; person_id: number | null; positions: Record<string, number>; note: string | null; created_at: Stamp }
-export type GaugeUpdate = { id: number; project_id: number; person_id: number | null; value: number; note: string | null; created_at: Stamp }
-export type TimeEntry = {
-  id: number; account_id: number; project_id: number; recording_id: number | null; person_id: number | null
-  on_date: string; minutes: number; description: string; created_at: Stamp
-}
 /** `token` only arrives for people who aren't clients. */
 export type Chatbot = { id: number; account_id: number; name: string; command_url: string | null; token: string | null; created_at: Stamp }
 export type Webhook = { id: number; project_id: number; url: string; types: string[]; created_at: Stamp }
@@ -172,9 +164,6 @@ export type Tables = {
   events: Event
   categories: Category
   markers: Marker
-  hill_updates: HillUpdate
-  gauge_updates: GaugeUpdate
-  time_entries: TimeEntry
   chatbots: Chatbot
   webhooks: Webhook
   public_links: PublicLink
@@ -188,7 +177,7 @@ export const KEYS: { [T in Table]: ReadonlyArray<keyof Tables[T] & string> } = {
   accounts: ["id"], companies: ["id"], people: ["id"], projects: ["id"], project_people: ["project_id", "person_id"],
   pins: ["person_id", "project_id"], recordings: ["id"], subscriptions: ["recording_id", "person_id"], boosts: ["id"],
   bookmarks: ["id"], bubble_ups: ["id"], notifications: ["id"], events: ["id"], categories: ["id"], markers: ["id"],
-  hill_updates: ["id"], gauge_updates: ["id"], time_entries: ["id"], chatbots: ["id"], webhooks: ["id"],
+  chatbots: ["id"], webhooks: ["id"],
   public_links: ["token"], exports: ["id"], connected_apps: ["id"],
 }
 export const TABLES = Object.keys(KEYS) as Table[]
@@ -201,47 +190,38 @@ export const TOOL_PATHS: Record<ToolType, string> = {
   vault: "files",
   campfire: "chat",
   schedule: "calendar",
-  checkins: "questions",
   cardtable: "board",
-  forwards: "forwards",
-  timesheet: "timesheet",
 }
 
-/** A project's windows: its tools, plus Links (its doors). */
-export type WindowKey = ToolType | "links"
 /** Every page inside a project that belongs to one of its windows, by its first path segment. The project's own pages
  * (menu, people, settings, activity, trash…) aren't in here: they stay pages of their own. */
-const WINDOW_SEGMENTS: Record<string, WindowKey> = {
+const WINDOW_SEGMENTS: Record<string, ToolType> = {
   posts: "message_board",
-  tasks: "todos", lists: "todos", progress: "todos",
+  tasks: "todos",
   files: "vault", folders: "vault", docs: "vault", uploads: "vault", cloudfiles: "vault",
   chat: "campfire",
   calendar: "schedule", events: "schedule",
-  questions: "checkins", answers: "checkins",
   board: "cardtable", cards: "cardtable", columns: "cardtable",
-  timesheet: "timesheet", forwards: "forwards", links: "links",
 }
 export const WINDOW_SEGMENT_NAMES = Object.keys(WINDOW_SEGMENTS)
-/** Which window a path belongs to: "/projects/2/docs/5" → "vault"; null for anything else. */
-export const windowOfPath = (path: string): WindowKey | null => {
+/** Which type of window a path belongs to: "/projects/2/docs/5" → "vault"; null for anything else. Which window of that
+ * type it is comes from its ?w= or the recording it shows (see windowIdOf). */
+export const windowOfPath = (path: string): ToolType | null => {
   const m = /^\/projects\/\d+\/([^/?#]+)/.exec(path)
   return (m && WINDOW_SEGMENTS[m[1]!]) || null
 }
 
 export const defaultTools = (): Tool[] => [
-  { type: "message_board", name: "Posts", enabled: true },
-  { type: "todos", name: "Tasks", enabled: true },
-  { type: "vault", name: "Files", enabled: true },
-  { type: "campfire", name: "Chat", enabled: true },
-  { type: "schedule", name: "Calendar", enabled: true },
-  { type: "checkins", name: "Team questions", enabled: true },
-  { type: "cardtable", name: "Board", enabled: false },
-  { type: "forwards", name: "Forwarded emails", enabled: false },
-  { type: "timesheet", name: "Timesheet", enabled: false },
+  { id: "message_board", type: "message_board", name: "Posts", enabled: true },
+  { id: "todos", type: "todos", name: "Milestones", enabled: true },
+  { id: "vault", type: "vault", name: "Files", enabled: true },
+  { id: "campfire", type: "campfire", name: "Chat", enabled: true },
+  { id: "schedule", type: "schedule", name: "Calendar", enabled: true },
+  { id: "cardtable", type: "cardtable", name: "Board", enabled: false },
 ]
 
 type ProjectRef = Pick<Project, "id" | "kind">
-export const toolName = (p: Pick<Project, "tools">, t: ToolType) => p.tools.find((x) => x.type === t)?.name ?? defaultTools().find((x) => x.type === t)!.name
+export const toolName = (p: Pick<Project, "tools">, t: ToolType) => (p.tools.find((x) => x.id === t) ?? p.tools.find((x) => x.type === t))?.name ?? defaultTools().find((x) => x.type === t)!.name
 export const toolUrl = (p: ProjectRef | number, t: ToolType) => `/projects/${typeof p === "number" ? p : p.id}/${TOOL_PATHS[t]}`
 export const projectUrl = (p: ProjectRef | number) => {
   if (typeof p !== "number" && p.kind === "ping") return `/chats/${p.id}`
@@ -251,19 +231,28 @@ export const projectUrl = (p: ProjectRef | number) => {
 /** Which tool a recording type lives in (for breadcrumbs). */
 export const TYPE_TOOL: Record<string, ToolType> = {
   message: "message_board",
-  todolist: "todos", todogroup: "todos", todo: "todos",
+  todo: "todos",
   folder: "vault", doc: "vault", upload: "vault", cloudfile: "vault",
   line: "campfire",
   event: "schedule",
-  question: "checkins", answer: "checkins",
   column: "cardtable", card: "cardtable", step: "cardtable",
-  forward: "forwards",
+}
+
+/** A window's start page: the first of its type at the plain address, a copy with ?w= its id. */
+export const windowQuery = (t: Pick<Tool, "id" | "type">) => (t.id === t.type ? "" : `?w=${encodeURIComponent(t.id)}`)
+export const windowUrl = (p: ProjectRef | number, t: Pick<Tool, "id" | "type">) => toolUrl(p, t.type) + windowQuery(t)
+/** Which window a top-level recording is in: the copy named in its `data.tool` while the project still has it, else the
+ * first of its type. Children are in their top-level ancestor's window. */
+export const windowIdOf = (p: Pick<Project, "tools">, top: Pick<Recording, "type" | "data">): string | null => {
+  const type = TYPE_TOOL[top.type]
+  const id = top.data?.tool
+  return id && p.tools.some((t) => t.id === id && t.type === type) ? String(id) : type ?? null
 }
 
 export const TYPE_NAMES: Record<string, string> = {
-  message: "post", todolist: "task list", todogroup: "group", todo: "task", folder: "folder", doc: "doc",
-  upload: "file", cloudfile: "link", event: "event", question: "question", answer: "answer", column: "column",
-  card: "card", step: "step", forward: "forwarded email", door: "link", line: "chat line", comment: "comment",
+  message: "post", todo: "task", folder: "folder", doc: "doc",
+  upload: "file", cloudfile: "link", event: "event", column: "column",
+  card: "card", step: "step", line: "chat line", comment: "comment",
 }
 
 /** Where a recording lives. Groups, steps, columns, lines and comments point into their parent's page. */
@@ -271,21 +260,15 @@ export const urlFor = (r: Pick<Recording, "id" | "type" | "project_id" | "parent
   const p = `/projects/${r.project_id}`
   switch (r.type) {
     case "message": return `${p}/posts/${r.id}`
-    case "todolist": return `${p}/lists/${r.id}`
-    case "todogroup": return `${p}/lists/${r.parent_id}#group-${r.id}`
     case "todo": return `${p}/tasks/${r.id}`
     case "folder": return `${p}/folders/${r.id}`
     case "doc": return `${p}/docs/${r.id}`
     case "upload": return `${p}/uploads/${r.id}`
     case "cloudfile": return `${p}/cloudfiles/${r.id}`
     case "event": return `${p}/events/${r.id}`
-    case "question": return `${p}/questions/${r.id}`
-    case "answer": return `${p}/answers/${r.id}`
     case "column": return `${p}/board#column-${r.id}`
     case "card": return `${p}/cards/${r.id}`
     case "step": return `${p}/cards/${r.parent_id}#step-${r.id}`
-    case "forward": return `${p}/forwards/${r.id}`
-    case "door": return `${p}/links/${r.id}`
     case "line": return `/r/${r.id}/line`
     case "comment": return `/r/${r.parent_id}/go#comment-${r.id}`
     default: return `/r/${r.id}/go`
@@ -296,7 +279,7 @@ export const titleOf = (r: Pick<Recording, "type" | "title" | "body">) =>
   r.title || (r.body ? r.body.replace(/\s+/g, " ").slice(0, 60) : `Untitled ${TYPE_NAMES[r.type] ?? r.type}`)
 
 /** Types a client sees whenever they see the parent (the flag on the child doesn't matter). */
-export const CLIENT_INHERITS = ["comment", "line", "step", "todogroup", "answer", "column"]
+export const CLIENT_INHERITS = ["comment", "line", "step", "column"]
 
 // ---------- people & access ----------
 type Who = Pick<Person, "role">

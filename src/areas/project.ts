@@ -1,10 +1,33 @@
-// The project: project home, edit, ••• menu, change tools, people, activity, archived & trashed items, gauge, webhooks.
+// The project: project home, edit, ••• menu, its windows, people, activity, archived & trashed items, webhooks.
 // The pages are client/areas/project.tsx; these are their posts, plus webhook deliveries (not synced) as JSON.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { get, post, redirect, invalid, json, str, ids, bool, isClient, NoAccess, type Ctx } from "../lib/web.ts"
-import { findProject, projectUrl, defaultTools, logEvent, canCreateProjects, type Tool } from "../lib/core.ts"
+import { get, post, redirect, back, invalid, json, str, ids, bool, isClient, NoAccess, NotFound, type Ctx } from "../lib/web.ts"
+import { findProject, projectUrl, windowUrl, defaultTools, logEvent, canCreateProjects, type Project, type Tool } from "../lib/core.ts"
 import { copyProject } from "./home.ts"
+
+/** "vault-2", "vault-3"…: the first id no window of the project has. */
+const copyId = (tools: ReadonlyArray<Tool>, type: string) => {
+  let i = 2
+  while (tools.some((t) => t.id === `${type}-${i}`)) i++
+  return `${type}-${i}`
+}
+
+const saveTools = (p: Project, tools: ReadonlyArray<Tool>) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`update projects set tools = ${JSON.stringify(tools)} where id = ${p.id}`
+  })
+
+/** The window named by :wid, for someone who can change it. */
+const findWindow = (c: Ctx) =>
+  Effect.gen(function* () {
+    const p = yield* findProject(c, c.params.id)
+    if (isClient(c.me)) return yield* new NoAccess()
+    const tool = p.tools.find((t) => t.id === c.params.wid)
+    if (!tool) return yield* new NotFound()
+    return { p, tool }
+  })
 
 export const routes = [
   post("/projects/:id/bookmark", (c) =>
@@ -33,18 +56,53 @@ export const routes = [
       return redirect(projectUrl(p), "Saved.")
     })),
 
-  post("/projects/:id/tools", (c) =>
+  // Windows: add one (a copy, "Chat 2", when the project already has that kind), rename one, hide one, show it again.
+  // Hiding deletes nothing: the window and everything in it come back with Show.
+  post("/projects/:id/windows", (c) =>
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
       const p = yield* findProject(c, c.params.id)
       if (isClient(c.me)) return yield* new NoAccess()
-      const fd = yield* c.form
-      const tools: Tool[] = defaultTools()
-        .map((d) => ({ type: d.type, name: str(fd, `name_${d.type}`) || d.name, enabled: bool(fd, `on_${d.type}`), pos: Number(str(fd, `pos_${d.type}`)) || 99 }))
-        .sort((a, b) => a.pos - b.pos)
-        .map(({ pos, ...t }) => t)
-      yield* sql`update projects set tools = ${JSON.stringify(tools)} where id = ${p.id}`
-      return redirect(projectUrl(p), "Tools updated.")
+      const type = str(yield* c.form, "type")
+      const base = defaultTools().find((t) => t.type === type)
+      if (!base) return invalid(["Pick a kind of window to add."])
+      const n = p.tools.filter((t) => t.type === base.type).length
+      const tool: Tool = { ...base, id: n ? copyId(p.tools, base.type) : base.type, name: n ? `${base.name} ${n + 1}` : base.name, enabled: true }
+      yield* saveTools(p, [...p.tools, tool])
+      return redirect(windowUrl(p, tool))
+    })),
+
+  // The windows in the order of `ids` (the ones shown); hidden ones keep their order after them.
+  post("/projects/:id/windows/order", (c) =>
+    Effect.gen(function* () {
+      const p = yield* findProject(c, c.params.id)
+      if (isClient(c.me)) return yield* new NoAccess()
+      const ids = str(yield* c.form, "ids").split(",")
+      const first = ids.flatMap((id) => p.tools.filter((t) => t.id === id))
+      yield* saveTools(p, [...first, ...p.tools.filter((t) => !ids.includes(t.id))])
+      return back(c, projectUrl(p))
+    })),
+
+  post("/projects/:id/windows/:wid/rename", (c) =>
+    Effect.gen(function* () {
+      const { p, tool } = yield* findWindow(c)
+      const name = str(yield* c.form, "name").slice(0, 40)
+      if (!name) return invalid(["A window needs a name."])
+      yield* saveTools(p, p.tools.map((t) => (t.id === tool.id ? { ...t, name } : t)))
+      return back(c, windowUrl(p, tool))
+    })),
+
+  post("/projects/:id/windows/:wid/hide", (c) =>
+    Effect.gen(function* () {
+      const { p, tool } = yield* findWindow(c)
+      yield* saveTools(p, p.tools.map((t) => (t.id === tool.id ? { ...t, enabled: false } : t)))
+      return back(c, projectUrl(p), { msg: `${tool.name} is hidden. Everything in it is safe.`, href: `/projects/${p.id}/windows/${tool.id}/show`, label: "Undo" })
+    })),
+
+  post("/projects/:id/windows/:wid/show", (c) =>
+    Effect.gen(function* () {
+      const { p, tool } = yield* findWindow(c)
+      yield* saveTools(p, p.tools.map((t) => (t.id === tool.id ? { ...t, enabled: true } : t)))
+      return redirect(windowUrl(p, tool))
     })),
 
   post("/projects/:id/people", (c) =>
@@ -85,19 +143,6 @@ export const routes = [
       const t = yield* copyProject(c, p, { name: `${p.name} (template)`, description: p.description, kind: "template" })
       yield* sql`insert into project_people (project_id, person_id) values (${t.id}, ${c.me.id})`
       return redirect(`/projects/${t.id}`, "Saved as a template.")
-    })),
-
-  // Gauge
-  post("/projects/:id/status", (c) =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const p = yield* findProject(c, c.params.id)
-      if (isClient(c.me)) return yield* new NoAccess()
-      const fd = yield* c.form
-      const value = Math.min(100, Math.max(0, Math.round(Number(str(fd, "value")) || 0)))
-      yield* sql`insert into gauge_updates ${sql.insert({ project_id: p.id, person_id: c.me.id, value, note: str(fd, "note") || null })}`
-      yield* logEvent(c, { project_id: p.id, action: "edited", summary: `set the status to ${value}%` })
-      return redirect(projectUrl(p), "Status updated.")
     })),
 
   // Webhooks (the hooks are synced; their delivery log isn't)
