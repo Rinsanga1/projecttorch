@@ -59,7 +59,7 @@ export const shape = (tbl: Table, row: Row, me: Me, s: Scope): Row | null => {
       return row.id === me.id ? rest : { ...rest, prefs: Object.fromEntries(Object.entries(row.prefs ?? {}).filter(([k]) => PUBLIC_PREFS.includes(k))) }
     }
     case "projects": return s.projectIds.has(row.id) ? row : null
-    case "project_people": case "hill_updates": case "gauge_updates": case "time_entries": return s.projectIds.has(row.project_id) ? row : null
+    case "project_people": return s.projectIds.has(row.project_id) ? row : null
     case "webhooks": return s.projectIds.has(row.project_id) && !isClient(me) ? row : null
     case "recordings": return s.recordingIds.has(row.id) ? row : null
     case "subscriptions": case "boosts": return s.recordingIds.has(row.recording_id) ? row : null
@@ -86,7 +86,7 @@ const candidates = (sql: SqlClient.SqlClient, tbl: Table, me: Me) => {
   if (PERSONAL[tbl]) return sql<{ r: Row }>`select to_jsonb(x) as r from ${t} x where person_id = ${me.id}`
   switch (tbl) {
     case "accounts": return sql<{ r: Row }>`select to_jsonb(x) as r from accounts x where id = ${me.account_id}`
-    case "project_people": case "hill_updates": case "gauge_updates": case "webhooks":
+    case "project_people": case "webhooks":
       return sql<{ r: Row }>`select to_jsonb(x) as r from ${t} x join projects p on p.id = x.project_id where p.account_id = ${me.account_id}`
     case "subscriptions": case "boosts": case "public_links":
       return sql<{ r: Row }>`select to_jsonb(x) as r from ${t} x join recordings rr on rr.id = x.recording_id where rr.account_id = ${me.account_id}`

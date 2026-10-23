@@ -2,28 +2,24 @@
 //
 // recordings.data by type (all optional):
 //   message:   category_id, pinned
-//   todolist:  tracked (on the progress hill)
-//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id
+//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a task, or a subtask of one)
 //   folder:    color
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
 //   event:     starts_at, ends_at, all_day, repeat, participant_ids[]
-//   question:  frequency (daily|weekly|biweekly|monthly), days[0-6], time "HH:MM", asked_ids[], paused, last_asked_on
-//   column:    kind (triage|custom|not_now|done), color, watcher_ids[], on_hold
-//   card:      assignee_ids[], due_on, on_hold, completed_at
+//   column:    kind (triage = "To do" | custom | not_now = "Not now" | done), color, watcher_ids[]
+//   card:      assignee_ids[], due_on, golden (pinned to the top of its column), completed_at
 //   step:      assignee_ids[], due_on, completed_at
-//   forward:   from, to, original_subject
-//   door:      url, description
 //   line:      (body only)
 //   comment:   (body only)
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { fmtDate, esc } from "../shared/format.ts"
-import { CLIENT_INHERITS, TYPE_NAMES, titleOf, urlFor, mentionedIds, canSeeProject, windowOfPath, type Tool } from "../shared/domain.ts"
+import { CLIENT_INHERITS, TYPE_NAMES, TYPE_TOOL, titleOf, urlFor, mentionedIds, canSeeProject, type Tool } from "../shared/domain.ts"
 import { NotFound, NoAccess, Deleted, isAdmin, isClient, isQuiet, type Ctx, type Person } from "./web.ts"
 
 export {
-  TOOL_PATHS, defaultTools, toolName, toolUrl, projectUrl, TYPE_TOOL, TYPE_NAMES, urlFor, titleOf, canSeeProject, mentionedIds, CLIENT_INHERITS,
+  TOOL_PATHS, defaultTools, toolName, toolUrl, windowUrl, windowIdOf, projectUrl, TYPE_TOOL, TYPE_NAMES, urlFor, titleOf, canSeeProject, mentionedIds, CLIENT_INHERITS,
 } from "../shared/domain.ts"
 export type { Tool, ToolType } from "../shared/domain.ts"
 
@@ -41,7 +37,6 @@ export type Project = {
   starts_on: string | null
   ends_on: string | null
   tools: Tool[]
-  email_token: string | null
   created_by: number | null
   created_at: Date
 }
@@ -227,7 +222,13 @@ export type NewRecording = {
   verb?: string
   /** Skip the activity event (e.g. chat lines). */
   quiet?: boolean
+  /** The window it's made in (the form's `tool` field). Only a top-level recording in a copy keeps it, in `data.tool`. */
+  tool?: string
 }
+
+/** Made at the top of a copy of a window (not the first of its type, which needs no mark). */
+const inCopy = (n: NewRecording) =>
+  !n.parent_id && !!n.tool && n.project.tools.some((t) => t.id === n.tool && t.type === TYPE_TOOL[n.type] && t.id !== t.type)
 
 export const createRecording = (c: Ctx, n: NewRecording) =>
   Effect.gen(function* () {
@@ -242,7 +243,7 @@ export const createRecording = (c: Ctx, n: NewRecording) =>
       type: n.type,
       title: n.title ?? "",
       body: n.body ?? "",
-      data: JSON.stringify(n.data ?? {}),
+      data: JSON.stringify(inCopy(n) ? { ...n.data, tool: n.tool } : n.data ?? {}),
       status: n.status ?? "active",
       visible_to_clients: n.visible_to_clients ?? (isClient(c.me) ? true : n.project.clients_see_new),
       creator_id: c.me.id,
@@ -337,7 +338,7 @@ export const visibleProjects = (c: Ctx, opts: { status?: string; kind?: string }
   })
 
 /** Remember the last pages someone visited (Go to, Home's "recently visited"), and when they last saw each project and window. */
-export const trackVisit = (c: Ctx, href: string, title: string, projectId?: number, windows: ReadonlyArray<string> = []) =>
+export const trackVisit = (c: Ctx, href: string, title: string, projectId?: number, windows: ReadonlyArray<string> = [], opened = "") =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const pages = [{ href, title }, ...((c.me.prefs as any).recent_pages ?? []).filter((p: any) => p.href !== href)].slice(0, 12)
@@ -350,7 +351,6 @@ export const trackVisit = (c: Ctx, href: string, title: string, projectId?: numb
     // not from this request's copy of prefs: the project page and the page in its window post visits at the same moment.
     const now = new Date().toISOString()
     const start = Object.fromEntries(windows.map((w) => [`${projectId}:${w}`, (c.me.prefs as any).project_seen?.[projectId] ?? now]))
-    const opened = windowOfPath(href)
     yield* sql`update people set prefs = prefs
       || jsonb_build_object('project_seen', coalesce(prefs->'project_seen', '{}'::jsonb) || ${JSON.stringify({ [projectId]: now })}::jsonb)
       || jsonb_build_object('window_seen', ${JSON.stringify(start)}::jsonb || coalesce(prefs->'window_seen', '{}'::jsonb) || ${JSON.stringify(opened ? { [`${projectId}:${opened}`]: now } : {})}::jsonb)

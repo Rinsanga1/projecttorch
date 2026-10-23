@@ -191,31 +191,24 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
 /** Which parent types a recording can live under. null = top level of the tool. Mirrors src/areas/items.ts. */
 const DEST: Record<string, { parentTypes: string[]; topLevel: boolean }> = {
   message: { parentTypes: [], topLevel: true },
-  todolist: { parentTypes: [], topLevel: true },
-  todo: { parentTypes: ["todolist", "todogroup"], topLevel: false },
+  todo: { parentTypes: ["todo"], topLevel: true },
   folder: { parentTypes: ["folder"], topLevel: true },
   doc: { parentTypes: ["folder"], topLevel: true },
   upload: { parentTypes: ["folder"], topLevel: true },
   cloudfile: { parentTypes: ["folder"], topLevel: true },
   event: { parentTypes: [], topLevel: true },
   card: { parentTypes: ["column"], topLevel: false },
-  question: { parentTypes: [], topLevel: true },
-  forward: { parentTypes: [], topLevel: true },
 }
 
 /** Where "Edit" goes for each type. Areas own the edit pages. */
 const EDIT_PATHS: Record<string, (r: Recording) => string> = {
   message: (r) => `/projects/${r.project_id}/posts/${r.id}/edit`,
-  todolist: (r) => `/projects/${r.project_id}/lists/${r.id}/edit`,
   todo: (r) => `/projects/${r.project_id}/tasks/${r.id}/edit`,
   folder: (r) => `/projects/${r.project_id}/folders/${r.id}/edit`,
   doc: (r) => `/projects/${r.project_id}/docs/${r.id}/edit`,
   cloudfile: (r) => `/projects/${r.project_id}/cloudfiles/${r.id}/edit`,
   event: (r) => `/projects/${r.project_id}/events/${r.id}/edit`,
-  question: (r) => `/projects/${r.project_id}/questions/${r.id}/edit`,
-  answer: (r) => `/projects/${r.project_id}/answers/${r.id}/edit`,
   card: (r) => `/projects/${r.project_id}/cards/${r.id}/edit`,
-  door: (r) => `/projects/${r.project_id}/links/${r.id}/edit`,
   upload: (r) => `/projects/${r.project_id}/uploads/${r.id}/edit`,
 }
 

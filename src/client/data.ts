@@ -3,7 +3,7 @@
 // person may see (the server decides), so these don't re-check access, except where the old pages did (trash, drafts).
 import { useEffect, useState } from "react"
 import { db, state, submit } from "./store.ts"
-import { CLIENT_INHERITS, canSeeProject, isAdmin, isClient, type Account, type Person, type Project, type Recording } from "../shared/domain.ts"
+import { CLIENT_INHERITS, canSeeProject, isAdmin, isClient, windowIdOf, type Account, type Person, type Project, type Recording } from "../shared/domain.ts"
 
 // ---------- errors (rendered by the route's error page, see ui/page.tsx) ----------
 export class NotFound extends Error { readonly _tag = "NotFound" }
@@ -105,6 +105,15 @@ export const topLevel = (projectId: number, type: string, status: Recording["sta
 /** Every recording matching `f` (use for anything the helpers above don't cover). */
 export const recordings = (f: (r: Recording) => boolean) => recs().filter(f)
 
+/** A recording's top-level ancestor (itself, at the top): the one whose window everything under it is in. */
+export const topOf = (r: Recording): Recording => {
+  let x = r
+  for (let up = db.recordings.get(String(x.parent_id)); x.parent_id && up; up = db.recordings.get(String(x.parent_id))) x = up
+  return x
+}
+/** Is this recording in that window of the project ("vault", "vault-2")? */
+export const inWindow = (p: Pick<Project, "tools">, windowId: string) => (r: Recording) => windowIdOf(p, topOf(r)) === windowId
+
 export const comments = (recordingId: number) =>
   recs().filter((r) => r.parent_id === recordingId && r.type === "comment" && r.status === "active").sort((a, b) => a.created_at.localeCompare(b.created_at))
 export const commentCount = (recordingId: number) => comments(recordingId).length
@@ -143,13 +152,14 @@ export const useApi = <T,>(path: string | null) => {
 
 /** Remember this page in the Jump menu and Home's "recently visited". */
 /** Record a visit (Go to, recent projects, and what's seen). The project page passes its `windows`, so a window never
- * opened yet gets a starting point for its news. */
-export const useVisit = (href: string, title: string, projectId?: number, windows?: ReadonlyArray<string>) =>
+ * opened yet gets a starting point for its news, and the `window` you're in, which is read as of now. */
+export const useVisit = (href: string, title: string, projectId?: number, windows?: ReadonlyArray<string>, window?: string) =>
   useEffect(() => {
     const fd = new FormData()
     fd.set("href", href)
     fd.set("title", title)
     if (projectId) fd.set("project_id", String(projectId))
     if (windows?.length) fd.set("windows", windows.join(","))
+    if (window) fd.set("window", window)
     submit("/visits", fd).catch(() => {})
-  }, [href, title, projectId, windows?.join()])
+  }, [href, title, projectId, windows?.join(), window])

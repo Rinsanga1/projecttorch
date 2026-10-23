@@ -1,107 +1,97 @@
-// To-dos: the lists index, new list, a list with its groups, add a to-do, a to-do, and the Hill Chart.
-// Posts: src/areas/todos.ts. Completing, moving between groups and reordering change the copy right away.
+// Tasks: one bar for how far along the work is, then the tasks. A task can be split into subtasks (one level), shown
+// under it; it's done when they all are. Adding is one line: type, Enter, the next. Dates and people go on the task's
+// page. Posts: src/areas/todos.ts. Adding, completing and reordering change the copy right away.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
-import { useState } from "react"
-import { useLocation, useParams, useSearchParams } from "react-router"
-import { db } from "../store.ts"
-import {
-  me, findProject, findRecording, projectPeople, children, topLevel, recordings, commentCount, personById, useVisit, NoAccess,
-  type PersonWithCompany,
-} from "../data.ts"
-import { isClient, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
+import { useState, type DragEvent, type KeyboardEvent } from "react"
+import { useParams } from "react-router"
+import { db, temp } from "../store.ts"
+import { me, findProject, findRecording, projectPeople, recordings, commentCount, personById, useVisit, type PersonWithCompany } from "../data.ts"
+import { isClient, urlFor, windowUrl, type Project, type Recording, type Tool } from "../../shared/domain.ts"
+import { useWindow, WindowField } from "../ui/in-window.tsx"
 import { daysFromToday, fmtDate, fmtDateTime, isoDate, plural } from "../../shared/format.ts"
-import { Fmt, PageHead, hill, kit, sx } from "../ui/kit.tsx"
-import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, TextArea, TextField } from "../ui/forms.tsx"
+import { Fmt, kit, sx } from "../ui/kit.tsx"
+import { Form, PeopleCheckboxes, PostOnOpen, usePost, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
+import { progressOf } from "../news.ts"
 
 const ts = stylex.create({
-  row: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s3, rowGap: space.s1, paddingBlock: 10 },
+  // The bar on top: the share done in big type, the count, the bar.
+  overall: { display: "grid", gap: space.s2, marginBottom: space.s4 },
+  overallLine: { display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: space.s2, margin: 0, maxWidth: "none" },
+  overallPct: { fontSize: text.xl, fontWeight: 700, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", lineHeight: 1 },
+  overallText: { color: color.muted, fontSize: text.sm },
+  bar: { display: "block", height: 6, borderRadius: radius.pill, backgroundColor: color.tile, overflow: "hidden" },
+  fill: { display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
+  fillDone: { backgroundColor: color.control },
+  width: (w: string) => ({ width: w }),
+
+  list: { display: "grid", margin: 0, padding: 0, listStyle: "none" },
+  // A task: its row, then its subtasks indented under it. Rows are hairline-split; drag a task to reorder.
+  task: { borderTopWidth: 0, borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line, paddingBlock: 2, transitionProperty: "opacity", transitionDuration: "120ms" },
+  dragging: { opacity: 0.45 },
+  dropBefore: { boxShadow: `inset 0 2px 0 ${color.accent}` },
+  dropAfter: { boxShadow: `inset 0 -2px 0 ${color.accent}` },
+  row: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s3, rowGap: 2, paddingBlock: 8 },
   title: { fontWeight: 500, textDecoration: "none", ":hover": { textDecoration: "underline" } },
-  meta: { display: "inline-flex", flexWrap: "wrap", columnGap: space.s3 },
-  move: { marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: space.s2 },
+  done: { color: color.muted },
+  meta: { display: "inline-flex", flexWrap: "wrap", columnGap: space.s3, fontSize: text.sm, color: color.muted },
+  count: { fontVariantNumeric: "tabular-nums" },
+  // Late is the case orange is kept for: it needs attention now.
+  late: { color: color.accentText, fontWeight: 600 },
+  rowAction: { marginLeft: "auto", fontSize: text.sm },
+  subs: { display: "grid", margin: 0, padding: 0, paddingLeft: 34, paddingBottom: 6, listStyle: "none" },
+  sub: { borderTopWidth: 0, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s3, paddingBlock: 4 },
+  subTitle: { fontSize: text.sm, fontWeight: 500, textDecoration: "none", ":hover": { textDecoration: "underline" } },
+
+  // The one-line add: a field and a quiet Add, on its own or under a task.
+  quick: { display: "flex", gap: space.s2, alignItems: "center", margin: 0, marginTop: space.s2, maxWidth: 560 },
+  quickSub: { marginTop: 2, maxWidth: 480 },
+  quickField: { flexGrow: 1, minWidth: 0, width: "auto", minHeight: 36, paddingBlock: 6 },
+  quickBtn: { minHeight: 36 },
+  showDone: { marginTop: space.s4 },
+  empty: { padding: space.s5, borderRadius: radius.xl, backgroundColor: color.tile },
+  emptyText: { margin: 0, color: color.muted, maxWidth: "60ch" },
+
   check: {
     width: 22, height: 22, minHeight: 22, padding: 0, flexShrink: 0, borderRadius: 7, backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.accentSoft } },
     borderWidth: 1.5, borderStyle: "solid", borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.focus } }, color: color.onAccent,
     transitionProperty: "background-color, border-color", transitionDuration: motion.fast,
   },
+  checkSmall: { width: 18, height: 18, minHeight: 18, borderRadius: 6 },
   checkDone: { backgroundColor: color.accent, borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.focus } } },
   checkLarge: { width: 28, height: 28, minHeight: 28, borderRadius: 9, verticalAlign: "-3px", marginRight: space.s2 },
-  done: { color: color.muted },
   static: { display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" },
+  // On a task's page: its subtasks under a small bar.
+  subsHead: { display: "grid", gap: space.s2, maxWidth: 480, marginTop: space.s4, marginBottom: space.s2 },
+  details: { marginTop: space.s6 },
 })
 
 const Tick = ({ size }: { size: number }) => (
   <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
-/** The same box, not clickable, for read-only lists. */
-const CheckMark = ({ t }: { t: Recording }) => (
-  <span role="img" aria-label={t.data.completed_at ? "Done" : "Not done"} {...sx(ts.check, ts.static, !!t.data.completed_at && ts.checkDone)}>{t.data.completed_at ? <Tick size={12} /> : null}</span>
-)
-// The lists as cards with a progress bar; the Hill Chart drawn as the hill, one orange dot per tracked list.
-const ls = stylex.create({
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: space.s3, margin: 0, marginBottom: space.s5 },
-  // A list on the Tasks start page: its title and progress, then its next open tasks to tick off in place.
-  card: { borderTopWidth: 0, padding: space.s5, borderRadius: radius.xl, display: "grid", gap: space.s2, alignContent: "start", backgroundColor: color.tile },
-  cardTitle: { fontSize: text.md, fontWeight: 650, letterSpacing: "-0.02em", textDecoration: "none", ":hover": { textDecoration: "underline" } },
-  cardText: { margin: 0, fontSize: text.sm, color: color.muted },
-  bar: { height: 6, borderRadius: radius.pill, backgroundColor: color.sheet, overflow: "hidden" },
-  tasks: { display: "grid", gap: space.s1, margin: 0, marginTop: space.s2 },
-  task: { display: "flex", alignItems: "flex-start", gap: 10, borderTopWidth: 0, paddingBlock: 3 },
-  taskTitle: { fontSize: text.sm, fontWeight: 500, textDecoration: "none", ":hover": { textDecoration: "underline" } },
-  taskMeta: { display: "block", fontSize: text.xs, color: color.muted },
-  // Late is the case orange is kept for: it needs attention now.
-  late: { color: color.accentText, fontWeight: 600 },
-  more: { fontSize: text.sm, marginTop: space.s1 },
-  // A list's groups: the name and a quiet ••• for its options.
-  groupHead: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: space.s3, marginTop: space.s6 },
-  groupTitle: { margin: 0 },
-  groupMore: { margin: 0 },
-  fill: (w: string) => ({ width: w }),
-  fillBox: { display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
-  count: { fontSize: text.xs, fontWeight: 600, color: color.muted, fontVariantNumeric: "tabular-nums" },
-  hillCard: { padding: { default: space.s3, "@media (min-width: 768px)": space.s5 }, borderRadius: radius.xl, backgroundColor: color.tile, marginBottom: space.s5 },
-  hillHead: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: space.s2 },
-  hillTitle: { margin: 0, fontSize: text.md },
-  svg: { display: "block", width: "100%", height: "auto", overflow: "visible" },
-  line: { fill: "none", stroke: color.ink, strokeWidth: 2 },
-  base: { stroke: color.line, strokeWidth: 1 },
-  divide: { stroke: color.control, strokeWidth: 1, strokeDasharray: "3 5" },
-  side: { fill: color.muted, fontSize: { default: 13, "@media (max-width: 640px)": 22 } },
-  dot: { fill: color.accent, stroke: color.tile, strokeWidth: 3 },
-  label: { fill: color.ink, fontSize: { default: 13, "@media (max-width: 640px)": 22 }, fontWeight: 600 },
-  history: { margin: 0 },
-})
-
-const hillLabel = (v: number) => (v < 50 ? "Working it out" : v < 100 ? "Getting it done" : "Done")
-
-/** The Hill Chart: each list's dot at its position, labelled on the side away from the top. */
-// ponytail: labels stack by order to avoid overlap; dots at the same spot still sit on top of each other
-const HillChart = ({ items }: { items: ReadonlyArray<{ label: string; value: number }> }) => (
-  <svg viewBox="-150 0 900 262" role="img" aria-label={`Progress hill: ${items.map((i) => `${i.label} at ${i.value}, ${hillLabel(i.value).toLowerCase()}`).join("; ")}`} {...sx(ls.svg)}>
-    <line x1="0" y1="210" x2="600" y2="210" {...sx(ls.base)} />
-    <line x1="300" y1="30" x2="300" y2="210" {...sx(ls.divide)} />
-    <path d={hill.curve([hill.UP, hill.DOWN])} {...sx(ls.line)} />
-    <text x="150" y="246" textAnchor="middle" {...sx(ls.side)}>Working it out</text>
-    <text x="450" y="246" textAnchor="middle" {...sx(ls.side)}>Getting it done</text>
-    {items.map((i, n) => {
-      const [x, y] = hill.at(i.value)
-      const right = i.value > 50
-      return <g key={n} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}><circle r="8" {...sx(ls.dot)} /><text x={right ? 14 : -14} y={-8 - (n % 3) * 16} textAnchor={right ? "start" : "end"} {...sx(ls.label)}>{i.label}</text></g>
-    })}
-  </svg>
+/** The same box, not clickable, for read-only tasks. */
+const CheckMark = ({ t, small = false }: { t: Recording; small?: boolean }) => (
+  <span role="img" aria-label={t.data.completed_at ? "Done" : "Not done"} {...sx(ts.check, ts.static, small && ts.checkSmall, !!t.data.completed_at && ts.checkDone)}>{t.data.completed_at ? <Tick size={small ? 10 : 12} /> : null}</span>
 )
 
 // ---------- optimistic changes (mirror the posts in src/areas/todos.ts) ----------
 
-/** /tasks/:tid/complete: flip completed_at and completer_id. */
+/** /tasks/:tid/complete: a task takes its subtasks with it; a subtask settles its task (done when all of them are). */
 const toggleDone = (t: Recording) => {
   const cur = db.recordings.get(String(t.id)) ?? t
-  const done = !cur.data.completed_at
   const now = new Date().toISOString()
-  db.recordings.set(String(t.id), { ...cur, data: { ...cur.data, completed_at: done ? now : null, completer_id: done ? me().id : null }, updated_at: now })
+  const mark = (r: Recording, done: boolean) =>
+    db.recordings.set(String(r.id), { ...r, data: { ...r.data, completed_at: done ? now : null, completer_id: done ? me().id : null }, updated_at: now })
+  const done = !cur.data.completed_at
+  mark(cur, done)
+  if (!cur.parent_id) for (const s of subtasksOf(cur.id)) mark(s, done)
+  else {
+    const task = db.recordings.get(String(cur.parent_id))
+    if (task) mark(task, subtasksOf(task.id).every((s) => !!s.data.completed_at))
+  }
 }
 
 /** The reorder posts: every `pos_<id>` field becomes that recording's position. Cards' column order uses it too. */
@@ -112,102 +102,112 @@ export const reorderLocal = (fd: FormData) => {
   }
 }
 
-/** The round-trip "done" toggle: a box that fills orange with a check. */
-const CheckButton = ({ p, t, large = false }: { p: Project; t: Recording; large?: boolean }) => {
-  const label = t.data.completed_at ? "Mark as not done" : "Mark as done"
-  return (
-    <Form action={`/projects/${p.id}/tasks/${t.id}/complete`} style={{ display: "inline" }} optimistic={() => toggleDone(t)}>
-      <button aria-label={label} title={label} {...sx(ts.check, !!t.data.completed_at && ts.checkDone, large && ts.checkLarge)}>{t.data.completed_at ? <Tick size={large ? 16 : 12} /> : null}</button>
-    </Form>
-  )
+/** A new task or subtask shows at once, at the end, until the server's row replaces it. */
+const addLocal = (p: Project, title: string, parent: Recording | null, w?: Tool) => {
+  const now = new Date().toISOString()
+  temp("recordings", {
+    account_id: p.account_id, project_id: p.id, parent_id: parent?.id ?? null, type: "todo", title, body: "", status: "active", trashed_at: null,
+    data: { assignee_ids: [], notify_ids: [], completed_at: null, ...(w && w.id !== w.type ? { tool: w.id } : {}) },
+    position: Number.MAX_SAFE_INTEGER, visible_to_clients: parent?.visible_to_clients ?? true, creator_id: me().id, created_at: now, updated_at: now,
+  })
 }
 
 // ---------- reads ----------
 
 const byPosition = (a: Recording, b: Recording) => a.position - b.position || a.id - b.id
-/** Late and soonest due first, then the ones with no date in list order. */
-const soonestFirst = (a: Recording, b: Recording) => String(a.data.due_on ?? "9").localeCompare(String(b.data.due_on ?? "9")) || byPosition(a, b)
-
-/** Active to-dos on a list, counting to-dos inside its groups too, by position. */
-const todosIn = (listId: number) => {
-  const groupIds = children(listId, "todogroup").map((g) => g.id)
-  return recordings((t) => t.type === "todo" && t.status === "active" && (t.parent_id === listId || groupIds.includes(t.parent_id ?? 0))).sort(byPosition)
-}
-
-/** The list a to-do or group belongs to. */
-const listOf = (r: Recording) => {
-  const { r: parent } = findRecording(r.parent_id ?? 0, ["todolist", "todogroup"])
-  if (parent.type === "todolist") return { list: parent, group: null as Recording | null }
-  return { list: findRecording(parent.parent_id ?? 0, "todolist").r, group: parent }
-}
-
-/** Latest hill position for each list, from the newest update that mentions it. */
-const hillPositions = (projectId: number) => {
-  const pos = new Map<number, number>()
-  const ups = [...db.hill_updates.values()].filter((u) => u.project_id === projectId).sort((a, b) => a.id - b.id)
-  for (const u of ups) for (const [k, v] of Object.entries(u.positions)) pos.set(Number(k), v)
-  return pos
-}
+const subtasksOf = (taskId: number) => recordings((s) => s.type === "todo" && s.status === "active" && s.parent_id === taskId).sort(byPosition)
 
 type People = ReadonlyArray<PersonWithCompany>
-
 const names = (people: People, idList: ReadonlyArray<number> | undefined) =>
   (idList ?? []).map((id) => people.find((p) => p.id === id)?.name).filter(Boolean).join(", ")
 
+const isLate = (t: Recording) => !t.data.completed_at && !!t.data.due_on && daysFromToday(t.data.due_on) < 0
 const dueText = (t: Recording) => {
   const d = t.data
   if (!d.due_on) return ""
   const when = d.starts_on ? `${fmtDate(d.starts_on)} – ${fmtDate(d.due_on)}` : fmtDate(d.due_on)
-  const late = !d.completed_at ? -daysFromToday(d.due_on) : 0
-  return late > 0 ? `${when} (${plural(late, "day")} late)` : when
+  return isLate(t) ? `${when} (${plural(-daysFromToday(d.due_on), "day")} late)` : when
 }
 
-const listCrumbs = (p: Project, list: Recording) => [...projectCrumbs(p, "todos"), [list.title, urlFor(list)] as const]
+const Bar = ({ pct, done = false }: { pct: number; done?: boolean }) => (
+  <span aria-hidden="true" {...sx(ts.bar)}><span {...sx(ts.fill, done && ts.fillDone, ts.width(`${pct}%`))} /></span>
+)
 
 // ---------- pieces ----------
 
-/** One to-do row on a list: checkbox, title, who, when, comments, "Move to…". */
-const TodoRow = observer(({ p, t, people, moveTargets, readOnly }: { p: Project; t: Recording; people: People; moveTargets: ReadonlyArray<{ id: number; label: string }>; readOnly: boolean }) => {
-  const comments = commentCount(t.id)
+/** The round-trip "done" toggle: a box that fills orange with a check. */
+const CheckButton = ({ p, t, large = false, small = false }: { p: Project; t: Recording; large?: boolean; small?: boolean }) => {
+  const label = t.data.completed_at ? `Mark “${t.title}” as not done` : `Mark “${t.title}” as done`
   return (
-    <li id={`todo-${t.id}`} {...sx(ts.row)}>
-      {readOnly ? <CheckMark t={t} /> : <CheckButton p={p} t={t} />}
-      <a href={urlFor(t)} {...sx(ts.title, !!t.data.completed_at && ts.done)}>{t.data.completed_at ? <s>{t.title}</s> : t.title}</a>
-      <span {...sx(ts.meta)}>
-        {t.data.assignee_ids?.length > 0 && <small>{names(people, t.data.assignee_ids)}</small>}
-        {t.data.due_on && <small>{dueText(t)}</small>}
-        {comments > 0 && <small>{plural(comments, "comment")}</small>}
-        {t.body && <small>📝 notes</small>}
-      </span>
-      {!readOnly && !t.data.completed_at && moveTargets.length > 1 && (
-        <Form
-          action={`/projects/${p.id}/tasks/${t.id}/move-group`}
-          optimistic={(fd) => db.recordings.set(String(t.id), { ...t, parent_id: Number(fd.get("parent_id")) || t.parent_id, updated_at: new Date().toISOString() })}
-          {...sx(ts.move)}
-          style={{ display: "inline" }}
-        >
-          {/* Picking a place moves it: no separate Move button. Quiet until the row is hovered or focused (app.css). */}
-          <select name="parent_id" defaultValue="" onChange={submitOwnForm} aria-label={`Move “${t.title}” to…`} data-row-action {...sx(kit.quietSelect)}>
-            <option value="" disabled hidden>Move to…</option>
-            {moveTargets.filter((m) => m.id !== t.parent_id).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
-        </Form>
+    <Form action={`/projects/${p.id}/tasks/${t.id}/complete`} style={{ display: "inline" }} optimistic={() => toggleDone(t)}>
+      <button aria-label={label} title={t.data.completed_at ? "Mark as not done" : "Mark as done"} {...sx(ts.check, small && ts.checkSmall, !!t.data.completed_at && ts.checkDone, large && ts.checkLarge)}>
+        {t.data.completed_at ? <Tick size={large ? 16 : small ? 10 : 12} /> : null}
+      </button>
+    </Form>
+  )
+}
+
+/** Who and when, quietly: "Ann · Oct 21 (2 days late)". */
+const Meta = ({ t, people }: { t: Recording; people: People }) => {
+  const n = commentCount(t.id)
+  return (
+    <span {...sx(ts.meta)}>
+      {t.data.assignee_ids?.length > 0 && <span>{names(people, t.data.assignee_ids)}</span>}
+      {t.data.due_on && <span {...sx(isLate(t) && ts.late)}>{dueText(t)}</span>}
+      {n > 0 && <span>{plural(n, "comment")}</span>}
+      {t.body && <span>📝</span>}
+    </span>
+  )
+}
+
+/** The one-line add: type, Enter, and it's ready for the next. Escape closes it when it was opened for a subtask. */
+const QuickAdd = ({ p, action, placeholder, parent = null, w, autoFocus = false, onClose }: {
+  p: Project; action: string; placeholder: string; parent?: Recording | null; w?: Tool; autoFocus?: boolean; onClose?: () => void
+}) => (
+  <Form action={action} optimistic={(fd) => addLocal(p, String(fd.get("title") ?? "").trim(), parent, w)} {...sx(ts.quick, !!parent && ts.quickSub)}>
+    {w && <WindowField w={w} />}
+    <input name="title" required autoFocus={autoFocus} placeholder={placeholder} aria-label={placeholder} autoComplete="off" {...sx(ts.quickField)}
+      onKeyDown={(e) => { if (e.key === "Escape" && onClose) { e.preventDefault(); onClose() } }} />
+    <button data-quiet {...sx(ts.quickBtn)}>Add</button>
+  </Form>
+)
+
+/** A task on the list: its row, then its subtasks, and a one-line add for one more when asked. */
+const TaskItem = observer(({ p, t, people, active, adding, onAdd }: { p: Project; t: Recording; people: People; active: boolean; adding: boolean; onAdd: (on: boolean) => void }) => {
+  const subs = subtasksOf(t.id)
+  const done = subs.filter((s) => s.data.completed_at).length
+  return (
+    <>
+      <div {...sx(ts.row)}>
+        {active ? <CheckButton p={p} t={t} /> : <CheckMark t={t} />}
+        <a href={urlFor(t)} {...sx(ts.title, !!t.data.completed_at && ts.done)}>{t.data.completed_at ? <s>{t.title}</s> : t.title}</a>
+        {subs.length > 0 && <span {...sx(ts.meta, ts.count)}>{done}/{subs.length}</span>}
+        <Meta t={t} people={people} />
+        {active && !adding && <button type="button" data-quiet data-row-action onClick={() => onAdd(true)} {...sx(kit.linkButton, ts.rowAction)}>+ Subtask</button>}
+      </div>
+      {(subs.length > 0 || adding) && (
+        <ul {...sx(ts.subs)} aria-label={`Subtasks of ${t.title}`}>
+          {subs.map((s) => (
+            <li key={s.id} {...sx(ts.sub)}>
+              {active ? <CheckButton p={p} t={s} small /> : <CheckMark t={s} small />}
+              <a href={urlFor(s)} {...sx(ts.subTitle, !!s.data.completed_at && ts.done)}>{s.data.completed_at ? <s>{s.title}</s> : s.title}</a>
+              <Meta t={s} people={people} />
+            </li>
+          ))}
+          {adding && <li {...sx(ts.sub)}><QuickAdd p={p} action={`/projects/${p.id}/tasks/${t.id}/subtasks`} placeholder="Add a subtask…" parent={t} autoFocus onClose={() => onAdd(false)} /></li>}
+        </ul>
       )}
-    </li>
+    </>
   )
 })
 
-/** Fields for adding or editing a to-do. */
-const TodoFields = ({ people, t, groups = [], groupId }: { people: People; t: Partial<Recording>; groups?: ReadonlyArray<Recording>; groupId?: number | null }) => {
+/** Fields for editing a task. */
+const TodoFields = ({ people, t }: { people: People; t: Partial<Recording> }) => {
   const d = t.data ?? {}
   const mode = d.starts_on ? "range" : d.due_on ? "day" : "none"
   return (
     <>
       <TextField label="Task" name="title" value={t.title ?? ""} placeholder="What needs to be done?" />
-      {groups.length > 0 && (
-        <p><label>In group<br /><select name="group_id" defaultValue={groupId ?? ""}><option value="">No group</option>
-          {groups.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}</select></label></p>
-      )}
       <fieldset><legend>Assigned to</legend><PeopleCheckboxes name="assignee_ids" people={people} checked={d.assignee_ids ?? []} /></fieldset>
       <fieldset><legend>When done, notify</legend><PeopleCheckboxes name="notify_ids" people={people} checked={d.notify_ids ?? []} /></fieldset>
       <fieldset><legend>Due on</legend>
@@ -223,198 +223,107 @@ const TodoFields = ({ people, t, groups = [], groupId }: { people: People; t: Pa
   )
 }
 
-const ListForm = ({ p, people, l }: { p: Project; people: People; l: Partial<Recording> }) => (
-  <Form action={l.id ? `/projects/${p.id}/lists/${l.id}/edit` : `/projects/${p.id}/lists`}>
-    <TextField label="Name this list…" name="title" value={l.title ?? ""} required />
-    <TextArea label="Notes" name="body" value={l.body ?? ""} placeholder="Add extra details or attach a file…" />
-    <ClientSwitch project={p} people={people} current={l.visible_to_clients} />
-    <p><button>{l.id ? "Save changes" : "Add this list"}</button> <a href={l.id ? urlFor(l as Recording) : toolUrl(p, "todos")}>Cancel</a></p>
-  </Form>
-)
-
-/** A slider with its number next to it. */
-const Slider = ({ name, value }: { name: string; value: number }) => {
-  const [v, setV] = useState(value)
-  return <><input type="range" name={name} min={0} max={100} step={5} defaultValue={value} onInput={(e) => setV(Number(e.currentTarget.value))} /> <output>{v}</output></>
+const crumbs = (p: Project, t: Recording) => {
+  const task = t.parent_id ? db.recordings.get(String(t.parent_id)) : undefined
+  return [...projectCrumbs(p, "todos"), ...(task ? [[task.title, urlFor(task)] as const] : [])]
 }
 
 // ---------- pages ----------
 export const routes = [
   page("/projects/:id/tasks", () => {
-    const [q] = useSearchParams()
     const p = findProject(useParams().id)
     const m = me()
-    useVisit(toolUrl(p, "todos"), `${p.name}: Tasks`, p.id)
-    const lists = topLevel(p.id, "todolist")
-    const tracked = lists.filter((l) => l.data.tracked)
-    const pos = hillPositions(p.id)
-    const reorder = q.get("reorder") === "1" && !isClient(m)
+    const w = useWindow(p, "todos")
+    useVisit(windowUrl(p, w), `${p.name}: ${w.name}`, p.id)
+    const pr = progressOf(p, w.id)
     const people = projectPeople(p)
-    return (
-      <Page title="Tasks" crumbs={projectCrumbs(p)}>
-        <PageHead title="Tasks" actions={[p.status === "active" && <a key="new" href={`/projects/${p.id}/lists/new`} data-button>New list</a>]} />
-        {lists.length === 0 ? (
-          <p {...sx(kit.empty)}>Make lists of work. Give each task to someone and set a due date.</p>
-        ) : reorder ? (
-          <Form action={`/projects/${p.id}/lists/reorder`} optimistic={reorderLocal}>
-            <ol>{lists.map((l, i) => <li key={l.id}><label>{l.title} <input type="number" name={`pos_${l.id}`} defaultValue={i + 1} min={1} size={3} aria-label="Position" /></label></li>)}</ol>
-            <button>Save order</button> <a href={toolUrl(p, "todos")}>Cancel</a>
-          </Form>
-        ) : (
-          // Each list shows its next open tasks, late ones first, to tick off right here; the list page has the rest.
-          <ul {...sx(ls.grid)}>{lists.map((l) => {
-            const all = todosIn(l.id)
-            const s = { done: all.filter((t) => t.data.completed_at).length, total: all.length }
-            const open = all.filter((t) => !t.data.completed_at).sort(soonestFirst)
-            return (
-              <li key={l.id} {...sx(ls.card)}>
-                <a href={urlFor(l)} {...sx(ls.cardTitle)}>{l.title}</a>
-                <span {...sx(ls.count)}>{s.done}/{s.total} completed</span>
-                <span {...sx(ls.bar)} aria-hidden="true"><span {...sx(ls.fillBox, ls.fill(`${s.total ? Math.round((s.done / s.total) * 100) : 0}%`))} /></span>
-                {open.length > 0 ? (
-                  <ul {...sx(ls.tasks)}>{open.slice(0, 5).map((t) => {
-                    const late = t.data.due_on && daysFromToday(t.data.due_on) < 0
-                    return (
-                      <li key={t.id} {...sx(ls.task)}>
-                        {p.status === "active" ? <CheckButton p={p} t={t} /> : <CheckMark t={t} />}
-                        <span>
-                          <a href={urlFor(t)} {...sx(ls.taskTitle)}>{t.title}</a>
-                          {(t.data.assignee_ids?.length > 0 || t.data.due_on) && (
-                            <small {...sx(ls.taskMeta)}>
-                              {names(people, t.data.assignee_ids)}{t.data.assignee_ids?.length > 0 && t.data.due_on && " · "}
-                              {t.data.due_on && <span {...sx(late && ls.late)}>{dueText(t)}</span>}
-                            </small>
-                          )}
-                        </span>
-                      </li>
-                    )
-                  })}</ul>
-                ) : <p {...sx(ls.cardText)}>{s.total ? "All done." : "No tasks yet."}</p>}
-                {open.length > 5 && <a href={urlFor(l)} {...sx(ls.more)}>See all {open.length} open tasks</a>}
-              </li>
-            )
-          })}</ul>
-        )}
-        {tracked.length > 0 && (
-          <section aria-label="Progress" {...sx(ls.hillCard)}>
-            <div {...sx(ls.hillHead)}><h2 {...sx(ls.hillTitle)}><a href={`/projects/${p.id}/progress`}>Progress</a></h2></div>
-            <HillChart items={tracked.map((l) => ({ label: l.title, value: pos.get(l.id) ?? 0 }))} />
-          </section>
-        )}
-        <p {...sx(kit.links)}>
-          {lists.length > 1 && !isClient(m) && !reorder && <a href="?reorder=1">Reorder lists</a>}
-          <a href={`/projects/${p.id}/progress`}>Progress</a><a href={`/projects/${p.id}/trash`}>Archived lists</a>
-        </p>
-      </Page>
-    )
-  }),
+    const active = p.status === "active"
+    const open = pr.tasks.filter((t) => !t.data.completed_at).sort(byPosition)
+    const finished = pr.tasks.filter((t) => t.data.completed_at).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at)))
+    const late = pr.tasks.flatMap((t) => [t, ...(pr.subtasks.get(t.id) ?? [])]).filter(isLate).length
+    const [showDone, setShowDone] = useState(false)
+    const [adding, setAdding] = useState<number | null>(null)
 
-  page("/projects/:id/lists/new", () => {
-    const p = findProject(useParams().id)
-    return <Page title="New list" crumbs={projectCrumbs(p, "todos")}><h1>New list</h1><ListForm p={p} people={projectPeople(p)} l={{}} /></Page>
-  }),
+    // Reordering: drag a task (with its subtasks), or Alt+↑/↓ on it. The order saves at once.
+    const post = usePost()
+    const canOrder = active && !isClient(m) && open.length > 1
+    const [dragId, setDragId] = useState<number | null>(null)
+    const [drop, setDrop] = useState<number | null>(null)
+    const ids = open.map((t) => t.id)
+    const moveTo = (id: number, to: number) => {
+      const next = ids.filter((x) => x !== id)
+      next.splice(to, 0, id)
+      if (next.join() === ids.join()) return
+      const fd = new FormData()
+      fd.set("tool", w.id)
+      next.forEach((x, i) => fd.set(`pos_${x}`, String(i + 1)))
+      post(`/projects/${p.id}/tasks/reorder`, fd, () => reorderLocal(fd))
+    }
+    const dragProps = (id: number, i: number) => !canOrder ? {} : {
+      draggable: true,
+      tabIndex: 0,
+      "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown",
+      onDragStart: (e: DragEvent) => { setDragId(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(id)) },
+      onDragOver: (e: DragEvent<HTMLLIElement>) => {
+        if (dragId === null) return
+        e.preventDefault()
+        const r = e.currentTarget.getBoundingClientRect()
+        setDrop(e.clientY < r.top + r.height / 2 ? i : i + 1)
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault()
+        if (dragId !== null && drop !== null) moveTo(dragId, drop > ids.indexOf(dragId) ? drop - 1 : drop)
+        setDragId(null); setDrop(null)
+      },
+      onDragEnd: () => { setDragId(null); setDrop(null) },
+      onKeyDown: (e: KeyboardEvent) => {
+        if (e.target !== e.currentTarget || !e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return
+        e.preventDefault()
+        const to = i + (e.key === "ArrowUp" ? -1 : 1)
+        if (to >= 0 && to < ids.length) moveTo(id, to)
+      },
+    }
+    const addTask = active && <QuickAdd p={p} w={w} action={`/projects/${p.id}/tasks`} placeholder="Add a task…" />
 
-  page("/projects/:id/lists/:lid", () => {
-    const [q] = useSearchParams()
-    const loc = useLocation()
-    const { r: list, project: p } = findRecording(useParams().lid, "todolist")
-    const m = me()
-    useVisit(urlFor(list), list.title, p.id)
-    const people = projectPeople(p)
-    const groups = children(list.id, "todogroup")
-    const todos = todosIn(list.id)
-    const open = todos.filter((t) => !t.data.completed_at)
-    const done = todos.filter((t) => t.data.completed_at).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at)))
-    const showDone = q.get("completed") === "1"
-    const reorder = q.get("reorder") === "1"
-    const readOnly = list.status !== "active"
-    const targets = [{ id: list.id, label: "No group" }, ...groups.map((g) => ({ id: g.id, label: g.title }))]
-    const row = (t: Recording) => <TodoRow key={t.id} p={p} t={t} people={people} moveTargets={targets} readOnly={readOnly} />
-    // Keyed by the location: after a post lands back here the fields start blank, as after the old page reload.
-    const composer = (groupId: number | null) => (
-      <details open={open.length === 0 && groups.length === 0}><summary {...sx(kit.quietSummary)}>+ Add a task</summary>
-        <Form key={loc.key} action={`/projects/${p.id}/lists/${list.id}/tasks`}>
-          {groupId && <input type="hidden" name="group_id" value={groupId} />}
-          <TodoFields people={people} t={{}} groups={groupId ? [] : groups} />
-          <p><button>Add this task</button></p>
-        </Form>
-      </details>
-    )
     return (
-      <Page title={list.title} crumbs={projectCrumbs(p, "todos")}>
-        <StatusBanner r={list} />
-        <ClientBanner r={list} hasClients={people.some(isClient)} />
-        <h1>{list.title}</h1>
-        {list.body && <Fmt text={list.body} {...sx(kit.prose)} />}
-        <p>{done.length}/{todos.length} completed{list.data.tracked ? " · On the progress hill" : ""}
-          {!readOnly && !isClient(m) && <> · <a href={`/projects/${p.id}/lists/${list.id}/edit`}>Edit</a></>}</p>
-        {!readOnly && !isClient(m) && (
-          <Form action={`/projects/${p.id}/lists/${list.id}/track`}>
-            <button data-quiet {...sx(kit.linkButton)}>{list.data.tracked ? "Take this list off the progress hill" : "Show this list on the progress hill"}</button>
-            {list.data.tracked && <> <a href={`/projects/${p.id}/progress`}>See the hill</a></>}
-          </Form>
-        )}
-        {reorder && !readOnly ? (
-          <Form action={`/projects/${p.id}/lists/${list.id}/reorder`} optimistic={reorderLocal}>
-            <ol>{open.map((t, i) => <li key={t.id}><label>{t.title} <input type="number" name={`pos_${t.id}`} defaultValue={i + 1} min={1} size={3} aria-label="Position" /></label></li>)}</ol>
-            <button>Save order</button> <a href={urlFor(list)}>Cancel</a>
-          </Form>
+      <Page title={w.name} crumbs={projectCrumbs(p)}>
+        <h1>{w.name}</h1>
+        {pr.tasks.length === 0 ? (
+          <div {...sx(ts.empty)}>
+            <p {...sx(ts.emptyText)}>Make a list of what needs doing. Split a big task into subtasks. The bar fills up as things get done.</p>
+            {addTask}
+          </div>
         ) : (
           <>
-            <ul>{open.filter((t) => t.parent_id === list.id).map(row)}</ul>
-            {!readOnly && composer(null)}
-            {groups.map((g) => (
-              <section key={g.id} id={`group-${g.id}`} aria-label={g.title}>
-                {/* A group's name, with its options tucked into a ••• beside it. */}
-                <div {...sx(ls.groupHead)}>
-                  <h2 {...sx(ls.groupTitle)}>{g.title}</h2>
-                  {!readOnly && (
-                    <details {...sx(ls.groupMore)}><summary aria-label={`Options for ${g.title}`} title="Rename or remove this group" {...sx(kit.quietSummary)}>•••</summary>
-                      <Form action={`/projects/${p.id}/groups/${g.id}`}><input name="title" defaultValue={g.title} aria-label="Group name" required /> <button>Rename</button></Form>
-                      <p><a href={`/r/${g.id}/trash`}>Put this group in the trash</a></p>
-                    </details>
-                  )}
-                </div>
-                <ul>{open.filter((t) => t.parent_id === g.id).map(row)}</ul>
-                {!readOnly && composer(g.id)}
-              </section>
-            ))}
-            {open.length === 0 && todos.length > 0 && <p>Everything on this list is done.</p>}
-            {!readOnly && (
-              <details><summary {...sx(kit.quietSummary)}>+ Add a group</summary>
-                <Form key={loc.key} action={`/projects/${p.id}/lists/${list.id}/groups`}>
-                  <p><label>Name this group <input name="title" required autoFocus /></label> <button>Add this group</button></p>
-                </Form>
-              </details>
+            <div {...sx(ts.overall)}>
+              <p {...sx(ts.overallLine)}>
+                <span {...sx(ts.overallPct)}>{pr.pct}%</span>
+                <span {...sx(ts.overallText)}>done · {pr.done} of {pr.total}{late > 0 && <span {...sx(ts.late)}> · {late} late</span>}</span>
+              </p>
+              <Bar pct={pr.pct} done={pr.total > 0 && pr.done === pr.total} />
+            </div>
+            {open.length > 0
+              ? <ol {...sx(ts.list)} aria-label="Tasks">
+                  {open.map((t, i) => (
+                    <li key={t.id} {...dragProps(t.id, i)} title={canOrder ? "Drag to reorder (or Alt+↑/↓)" : undefined}
+                      {...sx(ts.task, dragId === t.id && ts.dragging, dragId !== null && drop === i && ts.dropBefore, dragId !== null && drop === i + 1 && i === ids.length - 1 && ts.dropAfter)}>
+                      <TaskItem p={p} t={t} people={people} active={active} adding={adding === t.id} onAdd={(on) => setAdding(on ? t.id : null)} />
+                    </li>
+                  ))}
+                </ol>
+              : <p {...sx(ts.emptyText)}>Everything's done. 🎉</p>}
+            {addTask}
+            {finished.length > 0 && (
+              <div {...sx(ts.showDone)}>
+                <button type="button" data-quiet aria-expanded={showDone} onClick={() => setShowDone(!showDone)} {...sx(kit.linkButton)}>
+                  {showDone ? "Hide done tasks" : `Show ${plural(finished.length, "done task")}`}
+                </button>
+                {showDone && <ul {...sx(ts.list)}>{finished.map((t) => <li key={t.id} {...sx(ts.task)}><TaskItem p={p} t={t} people={people} active={active} adding={false} onAdd={() => {}} /></li>)}</ul>}
+              </div>
             )}
-            {open.length > 1 && !readOnly && <p><a href="?reorder=1">Reorder tasks</a></p>}
           </>
         )}
-        {done.length > 0 && (showDone
-          ? <><h2>Completed</h2><ul>{done.map(row)}</ul><p><a href={urlFor(list)}>Hide done tasks</a></p></>
-          : <p><a href="?completed=1">Show {plural(done.length, "done task")}</a></p>)}
-        <ItemFooter r={list} project={p} />
-      </Page>
-    )
-  }),
-
-  page("/projects/:id/lists/:lid/edit", () => {
-    const { r: list, project: p } = findRecording(useParams().lid, "todolist")
-    if (isClient(me()) && list.creator_id !== me().id) throw new NoAccess()
-    return <Page title="Edit list" crumbs={listCrumbs(p, list)}><h1>Edit list</h1><ListForm p={p} people={projectPeople(p)} l={list} /></Page>
-  }),
-
-  page("/projects/:id/lists/:lid/tasks/new", () => {
-    const [q] = useSearchParams()
-    const { r: list, project: p } = findRecording(useParams().lid, "todolist")
-    const groupId = Number(q.get("group_id")) || null
-    return (
-      <Page title="Add a task" crumbs={listCrumbs(p, list)}>
-        <h1>Add a task to {list.title}</h1>
-        <Form action={`/projects/${p.id}/lists/${list.id}/tasks`}>
-          <TodoFields people={projectPeople(p)} t={{}} groups={children(list.id, "todogroup")} groupId={groupId} />
-          <p><button>Add this task</button> <a href={urlFor(list)}>Cancel</a></p>
-        </Form>
+        <p {...sx(kit.links)}><a href={`/projects/${p.id}/trash`}>Archived & trashed tasks</a></p>
       </Page>
     )
   }),
@@ -423,30 +332,53 @@ export const routes = [
     const { r: t, project: p } = findRecording(useParams().tid, "todo")
     const m = me()
     useVisit(urlFor(t), t.title, p.id)
-    const { list, group } = listOf(t)
     const people = projectPeople(p)
     const author = personById(t.creator_id)
     const completer = personById(t.data.completer_id)
-    const readOnly = t.status !== "active"
+    const readOnly = t.status !== "active" || p.status !== "active"
+    const parent = t.parent_id ? db.recordings.get(String(t.parent_id)) : undefined
+    const subs = parent ? [] : subtasksOf(t.id)
+    const done = subs.filter((s) => s.data.completed_at).length
+    const pct = subs.length ? Math.round((done / subs.length) * 100) : 0
     return (
-      <Page title={t.title} crumbs={listCrumbs(p, list)}>
+      <Page title={t.title} crumbs={crumbs(p, t)}>
         <StatusBanner r={t} />
-        <ClientBanner r={list} hasClients={people.some(isClient)} />
+        <ClientBanner r={parent ?? t} hasClients={people.some(isClient)} />
         <article>
-          <p>In <a href={urlFor(list)}>{list.title}</a>{group && <> › <a href={urlFor(group)}>{group.title}</a></>}</p>
+          {parent && <p>A subtask of <a href={urlFor(parent)}>{parent.title}</a></p>}
           <h1>
             {!readOnly && <CheckButton p={p} t={t} large />}
             {t.data.completed_at ? <s>{t.title}</s> : t.title}
           </h1>
           {t.data.completed_at && <p>Completed by {completer?.name ?? "someone"} on {fmtDate(t.data.completed_at, m.time_zone)}</p>}
-          <dl>
+          {/* A task's subtasks come first: for a split task they're the work. Its details follow. */}
+          {!parent && (subs.length > 0 || !readOnly) && (
+            <section aria-label="Subtasks">
+              <div {...sx(ts.subsHead)}>
+                <h2 style={{ margin: 0 }}>Subtasks</h2>
+                {subs.length > 0 ? <><Bar pct={pct} done={done === subs.length} /><small>{done} of {subs.length} done · this task is done when they all are</small></>
+                  : <small>Split this task into smaller steps. It's done when they all are.</small>}
+              </div>
+              <ul {...sx(ts.list)}>
+                {subs.map((s) => (
+                  <li key={s.id} {...sx(ts.sub)}>
+                    {readOnly ? <CheckMark t={s} small /> : <CheckButton p={p} t={s} small />}
+                    <a href={urlFor(s)} {...sx(ts.subTitle, !!s.data.completed_at && ts.done)}>{s.data.completed_at ? <s>{s.title}</s> : s.title}</a>
+                    <Meta t={s} people={people} />
+                  </li>
+                ))}
+              </ul>
+              {!readOnly && <QuickAdd p={p} action={`/projects/${p.id}/tasks/${t.id}/subtasks`} placeholder="Add a subtask…" parent={t} />}
+            </section>
+          )}
+          <dl {...sx(ts.details)}>
             <dt>Assigned to</dt><dd>{names(people, t.data.assignee_ids) || "Unassigned"}</dd>
             <dt>When done, notify</dt><dd>{names(people, t.data.notify_ids) || "Nobody"}</dd>
             <dt>Due on</dt><dd>{dueText(t) || "No due date"}</dd>
             <dt>Notes</dt><dd>{t.body ? <Fmt text={t.body} {...sx(kit.prose)} /> : "None"}</dd>
             <dt>Added by</dt><dd>{author?.name ?? "Someone"} on {fmtDateTime(t.created_at, m.time_zone)}</dd>
           </dl>
-          <p>{!readOnly && <a href={`/projects/${p.id}/tasks/${t.id}/edit`}>Edit</a>}{!isClient(m) && <> · <a href={`/projects/${p.id}/tasks/${t.id}/time`}>Log time</a></>}</p>
+          <p>{!readOnly && <a href={`/projects/${p.id}/tasks/${t.id}/edit`}>Edit</a>}</p>
         </article>
         <ItemFooter r={t} project={p} />
       </Page>
@@ -461,55 +393,13 @@ export const routes = [
 
   page("/projects/:id/tasks/:tid/edit", () => {
     const { r: t, project: p } = findRecording(useParams().tid, "todo")
-    const { list } = listOf(t)
     return (
-      <Page title="Edit task" crumbs={listCrumbs(p, list)}>
+      <Page title="Edit task" crumbs={crumbs(p, t)}>
         <h1>Edit task</h1>
         <Form action={`/projects/${p.id}/tasks/${t.id}/edit`}>
           <TodoFields people={projectPeople(p)} t={t} />
           <p><button>Save changes</button> <a href={urlFor(t)}>Cancel</a></p>
         </Form>
-      </Page>
-    )
-  }),
-
-  // Hill Chart
-  page("/projects/:id/progress", () => {
-    const [q] = useSearchParams()
-    const p = findProject(useParams().id)
-    const m = me()
-    const lists = topLevel(p.id, "todolist").filter((l) => l.data.tracked === true)
-    const pos = hillPositions(p.id)
-    const ups = [...db.hill_updates.values()].filter((u) => u.project_id === p.id).sort((a, b) => b.id - a.id).slice(0, 50)
-    const listName = (id: string) => lists.find((l) => l.id === Number(id))?.title
-    const editing = q.get("update") === "1" && !isClient(m)
-    return (
-      <Page title="Progress" crumbs={projectCrumbs(p, "todos")}>
-        <PageHead title="Progress" actions={[lists.length > 0 && !editing && !isClient(m) && <a key="update" href="?update=1" data-button>Update the hill</a>]} />
-        <p>Uphill (0–49): working it out. Downhill (50–100): getting it done.</p>
-        {lists.length === 0 ? (
-          <><p>No lists on the hill yet. Open a list and pick “Show this list on the progress hill.”</p><p><a href={toolUrl(p, "todos")}>Go to the lists</a></p></>
-        ) : editing ? (
-          <Form action={`/projects/${p.id}/progress`}>
-            {lists.map((l) => <p key={l.id}><label>{l.title}<br /><Slider name={`pos_${l.id}`} value={pos.get(l.id) ?? 0} /></label></p>)}
-            <p><label>Add a note to this update (optional)<br /><input name="note" size={60} /></label></p>
-            <button>Save positions</button> <a href={`/projects/${p.id}/progress`}>Cancel</a>
-          </Form>
-        ) : (
-          <>
-            <div {...sx(ls.hillCard)}><HillChart items={lists.map((l) => ({ label: l.title, value: pos.get(l.id) ?? 0 }))} /></div>
-            <ul>{lists.map((l) => <li key={l.id}><a href={urlFor(l)}>{l.title}</a> <small>{pos.get(l.id) ?? 0} · {hillLabel(pos.get(l.id) ?? 0)}</small></li>)}</ul>
-          </>
-        )}
-        <section id="history" aria-label="Previous updates">
-          <h2>See previous updates</h2>
-          {ups.length ? (
-            <ul>{ups.map((u) => (
-              <li key={u.id}>{fmtDateTime(u.created_at, m.time_zone)} · {personById(u.person_id)?.name ?? "Someone"}:{" "}
-                {Object.entries(u.positions).filter(([id]) => listName(id)).map(([id, v]) => `${listName(id)} at ${v}`).join("; ")}{u.note ? ` · “${u.note}”` : ""}</li>
-            ))}</ul>
-          ) : <p>No updates yet.</p>}
-        </section>
       </Page>
     )
   }),

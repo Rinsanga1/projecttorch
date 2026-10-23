@@ -52,7 +52,7 @@ export const baseSeed = Effect.gen(function* () {
       const [row] = yield* sql<Project>`insert into projects ${sql.insert({
         account_id: account!.id, kind: p.kind ?? "project", is_hq: p.is_hq ?? false, name: p.name, description: p.description ?? null,
         all_access: p.all_access ?? false, status: p.status ?? "active", starts_on: p.starts_on ?? null, ends_on: p.ends_on ?? null,
-        tools: JSON.stringify(p.tools ?? defaultTools()), email_token: crypto.randomUUID().slice(0, 12), created_by: maya.id,
+        tools: JSON.stringify(p.tools ?? defaultTools()), created_by: maya.id,
       })} returning *`
       for (const m of members) yield* sql`insert into project_people (project_id, person_id) values (${row!.id}, ${m.id})`
       return row!
@@ -61,7 +61,7 @@ export const baseSeed = Effect.gen(function* () {
   const day = (n: number) => new Date(Date.now() + n * 86400_000).toISOString().slice(0, 10)
   const hq = yield* project({ name: "Acme HQ", description: "Company-wide announcements and stuff everyone needs.", is_hq: true, all_access: true }, [maya, ann, bob, cara])
   const website = yield* project({ name: "Website Redesign", description: "New marketing site for Northwind.", starts_on: day(-20), ends_on: day(25),
-    tools: defaultTools().map((t) => ({ ...t, enabled: t.type !== "forwards" })) }, [maya, ann, bob, dan])
+    tools: [...defaultTools().map((t) => ({ ...t, enabled: true })), { id: "vault-2", type: "vault" as const, name: "Client files", enabled: true }] }, [maya, ann, bob, dan])
   const marketing = yield* project({ name: "Marketing Plan", description: "Q4 campaigns.", starts_on: day(-5), ends_on: day(60) }, [maya, cara, bob])
   const offsite = yield* project({ name: "2025 Offsite", description: "Done and dusted.", status: "archived", starts_on: day(-300), ends_on: day(-290) }, [maya, ann])
   const template = yield* project({ name: "New Client Onboarding", description: "Copy this for every new client.", kind: "template" }, [maya, ann])

@@ -61,7 +61,6 @@ create table projects (
   starts_on   date,
   ends_on     date,
   tools       jsonb not null default '[]',                 -- [{type, name, enabled}] in display order
-  email_token text unique,                                 -- Email Forwards address
   created_by  int references people on delete set null,
   created_at  timestamptz not null default now()
 );
@@ -84,7 +83,7 @@ create table recordings (
   account_id  int not null references accounts on delete cascade,
   project_id  int not null references projects on delete cascade,
   parent_id   int references recordings on delete cascade,
-  type        text not null,  -- message todolist todogroup todo folder doc upload cloudfile event question answer column card step forward door line comment
+  type        text not null,  -- message todo folder doc upload cloudfile event column card step line comment
   title       text not null default '',
   body        text not null default '',
   data        jsonb not null default '{}',                 -- type-specific fields, see src/lib/core.ts
@@ -162,7 +161,7 @@ create table events (
   project_id  int references projects on delete cascade,
   recording_id int references recordings on delete cascade,
   person_id   int references people on delete set null,
-  action      text not null,   -- created completed uncompleted commented edited trashed restored archived moved copied answered uploaded
+  action      text not null,   -- created completed uncompleted commented edited trashed restored archived moved copied uploaded
   summary     text not null,
   created_at  timestamptz not null default now()
 );
@@ -180,36 +179,6 @@ create table markers (
   account_id  int not null references accounts on delete cascade,
   name        text not null,
   on_date     date not null
-);
-
-create table hill_updates (
-  id          serial primary key,
-  project_id  int not null references projects on delete cascade,
-  person_id   int references people on delete set null,
-  positions   jsonb not null,    -- {"<todolist id>": 0..100}
-  note        text,
-  created_at  timestamptz not null default now()
-);
-
-create table gauge_updates (
-  id          serial primary key,
-  project_id  int not null references projects on delete cascade,
-  person_id   int references people on delete set null,
-  value       int not null check (value between 0 and 100),
-  note        text,
-  created_at  timestamptz not null default now()
-);
-
-create table time_entries (
-  id          serial primary key,
-  account_id  int not null references accounts on delete cascade,
-  project_id  int not null references projects on delete cascade,
-  recording_id int references recordings on delete set null,
-  person_id   int references people on delete set null,
-  on_date     date not null,
-  minutes     int not null check (minutes > 0),
-  description text not null default '',
-  created_at  timestamptz not null default now()
 );
 
 create table chatbots (
@@ -311,8 +280,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['accounts','companies','people','projects','project_people','pins','recordings','subscriptions',
-    'boosts','bookmarks','bubble_ups','notifications','events','categories','markers','hill_updates','gauge_updates',
-    'time_entries','chatbots','webhooks','public_links','exports','connected_apps'] loop
+    'boosts','bookmarks','bubble_ups','notifications','events','categories','markers',
+    'chatbots','webhooks','public_links','exports','connected_apps'] loop
     execute format('create trigger sync after insert or update or delete on %I for each row execute function log_sync()', t);
   end loop;
 end $$;

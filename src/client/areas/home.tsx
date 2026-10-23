@@ -4,10 +4,10 @@ import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-rou
 import { db } from "../store.ts"
 import { observer } from "mobx-react-lite"
 import { me, account, findProject, visibleProjects, accountPeople, canCreateProjects, canInvite, projectPeople, recordings, NoAccess, type ProjectRow } from "../data.ts"
-import { isClient, projectUrl, toolName, type Recording, type ToolType } from "../../shared/domain.ts"
-import { addDays, fmtDate, excerpt, ms, today } from "../../shared/format.ts"
-import { Face, kit, sx } from "../ui/kit.tsx"
-import { lateTasks, seenOf, windowNews } from "../news.ts"
+import { isClient, projectUrl, type Recording } from "../../shared/domain.ts"
+import { addDays, fmtDate, excerpt, ms, plural, today } from "../../shared/format.ts"
+import { Face, kit, ProgressBar, sx } from "../ui/kit.tsx"
+import { lateTasks, progressOf, seenOf, windowNews } from "../news.ts"
 import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
@@ -51,6 +51,9 @@ const hs = stylex.create({
   },
   hdesc: { margin: 0, fontSize: text.sm, color: color.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   hdates: { fontSize: text.xs, color: color.muted, fontVariantNumeric: "tabular-nums" },
+  // How far along: a thin bar and the share of the tasks done.
+  hprogress: { display: "flex", alignItems: "center", gap: space.s2, margin: 0, fontSize: text.xs, color: color.muted, fontVariantNumeric: "tabular-nums" },
+  hprogressName: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: color.ink, fontWeight: 600 },
   // The card's news, the same as the project's window row: "Chat 5 · Files 2", and what's late, outlined.
   hnews: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: 0, marginTop: "auto", paddingTop: space.s2, fontSize: text.sm, fontWeight: 600 },
   hnewsItem: { display: "inline-flex", alignItems: "center", gap: 5 },
@@ -142,9 +145,11 @@ const HomeCard = observer(({ p }: { p: ProjectRow }) => {
   const m = me()
   const since = m.prefs.project_seen?.[String(p.id)] ?? null
   // The same counts as the project's window row: per window, since you last opened that window.
-  const enabled = new Set(p.tools.filter((t) => t.enabled).map((t) => t.type))
-  const news = [...windowNews(p.id, m.id, seenOf(m.prefs, p.id)).counts].filter(([t]) => enabled.has(t as ToolType)).sort((a, b) => b[1] - a[1]).slice(0, 3)
-  const late = enabled.has("todos") ? lateTasks(p.id) : 0
+  const shown = p.tools.filter((t) => t.enabled)
+  const nameOf = new Map(shown.map((t) => [t.id, t.name]))
+  const news = [...windowNews(p.id, m.id, seenOf(m.prefs, p.id)).counts].filter(([id]) => nameOf.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const late = shown.some((t) => t.type === "todos") ? lateTasks(p.id) : 0
+  const pr = progressOf(p)
   const people = projectPeople(p)
   return (
     <li {...sx(hs.hcard)}>
@@ -152,8 +157,13 @@ const HomeCard = observer(({ p }: { p: ProjectRow }) => {
       {p.is_hq && <span {...sx(hs.tag)}>HQ</span>}
       {p.description && <p {...sx(hs.hdesc)}>{excerpt(p.description, 120)}</p>}
       {(p.starts_on || p.ends_on) && <small {...sx(hs.hdates)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</small>}
+      {pr.total > 0 && (
+        <p {...sx(hs.hprogress)} title={`${pr.done} of ${pr.total} done`}>
+          <ProgressBar pct={pr.pct} width={56} /><span {...sx(hs.hprogressName)}>{pr.pct}% done</span>
+        </p>
+      )}
       <p {...sx(hs.hnews)}>
-        {news.map(([t, n]) => <span key={t} {...sx(hs.hnewsItem)}>{toolName(p, t as ToolType)}<span {...sx(hs.hnum)} aria-label={`${n} new`}>{n}</span></span>)}
+        {news.map(([id, n]) => <span key={id} {...sx(hs.hnewsItem)}>{nameOf.get(id)}<span {...sx(hs.hnum)} aria-label={`${n} new`}>{n}</span></span>)}
         {late > 0 && <span {...sx(hs.hlate)}>{late} late</span>}
         {!news.length && !late && since && <span {...sx(hs.hcalm)}>All caught up.</span>}
       </p>

@@ -1,11 +1,11 @@
 // Outside the app: every email we'd send lands in the dev inbox, where you can read it, follow its link,
-// and reply to it (replying comments or answers as the recipient). Plus what push would have sent.
+// and reply to it (commenting as the recipient). Plus what push would have sent.
 // The pages are client/areas/outside.tsx; `emails` aren't synced, so the inbox reads them from here.
 // ponytail: no real email or push yet. The `emails` table is the outbox; wire SMTP/APNs to it when it matters.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { pubGet, pubPost, redirect, json, str, type Ctx, type PubCtx, type Person, type Account } from "../lib/web.ts"
-import { findRecording, createRecording, urlFor, titleOf, type Recording } from "../lib/core.ts"
+import { findRecording, urlFor, titleOf, type Recording } from "../lib/core.ts"
 import { addComment } from "./items.ts"
 
 type Email = {
@@ -62,7 +62,7 @@ export const routes = [
       const [rec] = e.reply_to_recording_id ? yield* sql<Recording>`select * from recordings where id = ${e.reply_to_recording_id}` : []
       return json({
         email: { id: e.id, to_email: e.to_email, subject: e.subject, body: e.body, kind: e.kind, link: e.link, created_at: e.created_at },
-        rec: rec ? { href: urlFor(rec), title: titleOf(rec), question: rec.type === "question", active: rec.status === "active", replyable: !!e.reply_person_id } : null,
+        rec: rec ? { href: urlFor(rec), title: titleOf(rec), active: rec.status === "active", replyable: !!e.reply_person_id } : null,
       })
     })),
 
@@ -77,9 +77,7 @@ export const routes = [
       // Same access rules as the app: if they can't see it anymore, the reply bounces.
       const { r, project } = yield* findRecording(ctx, e.reply_to_recording_id)
       if (r.status !== "active") return redirect(`/inbox/${e.id}`, "That's been archived or trashed, so your reply wasn't posted.")
-      const posted = r.type === "question"
-        ? yield* createRecording(ctx, { project, type: "answer", parent_id: r.id, body, visible_to_clients: r.visible_to_clients, verb: `answered ${titleOf(r)}` })
-        : yield* addComment(ctx, r, project, body)
+      const posted = yield* addComment(ctx, r, project, body)
       return redirect(`/inbox/${e.id}`, { msg: `Posted as ${ctx.me.name}.`, href: urlFor(posted), label: "See it" })
     })),
 

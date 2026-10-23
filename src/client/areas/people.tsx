@@ -8,7 +8,7 @@ import {
   me, account, accountPeople, findProject, projectPeople, visibleProjects, memberIds, canInvite, recordings, personById,
   NoAccess, NotFound, type PersonWithCompany,
 } from "../data.ts"
-import { isAdmin, isClient, isOutOfOffice, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, TYPE_TOOL, CLIENT_INHERITS, type Person, type Recording } from "../../shared/domain.ts"
+import { isAdmin, isClient, isOutOfOffice, projectUrl, windowUrl, urlFor, titleOf, TYPE_NAMES, TYPE_TOOL, CLIENT_INHERITS, type Person, type Recording } from "../../shared/domain.ts"
 import { fmtDate, fmtDateTime } from "../../shared/format.ts"
 import { Form } from "../ui/forms.tsx"
 import { Face, Fmt, kit, sx } from "../ui/kit.tsx"
@@ -214,7 +214,7 @@ export const routes = [
       .sort((a, b) => a.type.localeCompare(b.type) || a.position - b.position || a.id - b.id)
     const members = new Set(memberIds(p.id))
     const people = [...db.people.values()].filter((x) => members.has(x.id) && !x.removed_at && x.joined_at).sort((a, b) => a.name.localeCompare(b.name))
-    const tools = p.tools.filter((t) => t.enabled && t.type !== "timesheet")
+    const tools = p.tools.filter((t) => t.enabled)
     return (
       <Page title="What a client sees" crumbs={[[p.name, projectUrl(p)]]}>
         <h1>What a client sees on {p.name}</h1>
@@ -224,7 +224,7 @@ export const routes = [
           const items = shown.filter((r) => TYPE_TOOL[r.type] === t.type)
           return (
             <li key={t.type} {...sx(pv.tool)}>
-              <a href={toolUrl(p, t.type)} {...sx(pv.toolName)}>{t.name}</a>
+              <a href={windowUrl(p, t)} {...sx(pv.toolName)}>{t.name}</a>
               {items.length
                 ? <ul {...sx(pv.items)}>{items.map((r) => <li key={r.id} {...sx(pv.item)}><span {...sx(kit.tag, pv.tag)}>{TYPE_NAMES[r.type]}</span> <a href={urlFor(r)}>{titleOf(r)}</a></li>)}</ul>
                 : <p {...sx(pv.none)}>Nothing visible yet</p>}

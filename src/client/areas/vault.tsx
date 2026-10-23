@@ -2,14 +2,15 @@
 // Stored files (raw, download, public download) are served by the server under /api.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
+import { useContext, type ReactNode } from "react"
 import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
-import { me, findProject, findRecording, projectPeople, personById, recordings, commentCount, useApi, useVisit, NoAccess, NotFound } from "../data.ts"
-import { isClient, titleOf, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
+import { me, findProject, findRecording, projectPeople, personById, recordings, commentCount, inWindow, useApi, useVisit, NoAccess, NotFound } from "../data.ts"
+import { isClient, titleOf, urlFor, windowQuery, windowUrl, type Project, type Recording } from "../../shared/domain.ts"
 import { fmtDate, plural } from "../../shared/format.ts"
 import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
-import { NewTag } from "../ui/in-window.tsx"
+import { NewTag, useWindow, WindowId } from "../ui/in-window.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
@@ -52,7 +53,11 @@ const folderCrumbs = (p: Project, parentId: number | null): Crumb[] => {
   return [...projectCrumbs(p, "vault"), ...chain]
 }
 
-const backTo = (p: Project, folder: Recording | null) => (folder ? urlFor(folder) : toolUrl(p, "vault"))
+/** Out of a "new" form: back to the folder it's in, else the top of this Files window. */
+const BackTo = ({ p, folder, children }: { p: Project; folder: Recording | null; children: ReactNode }) => {
+  const w = useWindow(p, "vault")
+  return <a href={folder ? urlFor(folder) : windowUrl(p, w)}>{children}</a>
+}
 
 // ---------- pieces ----------
 
@@ -93,7 +98,8 @@ const Drawn = ({ type, size = 20 }: { type: string; size?: number }) => (
 )
 
 const NewMenu = ({ p, folderId }: { p: Project; folderId: number | null }) => {
-  const q = folderId ? `?folder=${folderId}` : ""
+  const w = useWindow(p, "vault")
+  const q = folderId ? `?folder=${folderId}` : windowQuery(w)
   return (
     <div {...sx(vs.new)}>
       <a href={`/projects/${p.id}/uploads/new${q}`} data-button data-primary>Upload files</a>
@@ -144,8 +150,9 @@ const Listing = ({ items, view }: { items: ReadonlyArray<Recording>; view: strin
     </ul>
   )
 
-const SortViewForm = ({ sort, view }: { sort: string; view: string }) => (
-  <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}>
+const SortViewForm = ({ sort, view }: { sort: string; view: string }) => <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}>
+    {/* A copy of Files keeps its ?w= through the sort. */}
+    <KeepWindow />
     <label>Sort <select name="sort" defaultValue={sort} {...sx(kit.toolbarControl)}>
       <option value="position">Your order</option>
       <option value="newest">Newest</option>
@@ -153,15 +160,25 @@ const SortViewForm = ({ sort, view }: { sort: string; view: string }) => (
     </select></label>
     <label>View <select name="view" defaultValue={view} {...sx(kit.toolbarControl)}><option value="list">List</option><option value="grid">Grid</option></select></label>
   </GetForm>
-)
+
+const KeepWindow = () => {
+  const [q] = useSearchParams()
+  return q.get("w") ? <input type="hidden" name="w" value={q.get("w")!} /> : null
+}
 
 const useSortView = () => {
   const [q] = useSearchParams()
   return { sort: q.get("sort") ?? "position", view: q.get("view") === "grid" ? "grid" : "list" }
 }
 
-const FolderField = ({ folder }: { folder: Recording | null }) =>
-  folder ? <><input type="hidden" name="folder_id" value={folder.id} /><p>In the folder <b>{folder.title}</b></p></> : null
+/** Where a new thing goes: its folder, and the window it's in (which only counts at the top level). */
+const FolderField = ({ folder }: { folder: Recording | null }) => {
+  const w = useContext(WindowId)
+  return <>
+    {w && <input type="hidden" name="tool" value={w} />}
+    {folder && <><input type="hidden" name="folder_id" value={folder.id} /><p>In the folder <b>{folder.title}</b></p></>}
+  </>
+}
 
 // ---------- forms ----------
 
@@ -170,7 +187,7 @@ const FolderForm = ({ p, folder, f }: { p: Project; folder: Recording | null; f:
     {!f.id && <FolderField folder={folder} />}
     <TextField label="Name this folder" name="title" value={f.title ?? ""} required />
     <p><label>Color<br /><select name="color" defaultValue={f.data?.color ?? ""}>{COLORS.map((k) => <option key={k} value={k}>{k || "None"}</option>)}</select></label></p>
-    <p><button>{f.id ? "Save changes" : "Create folder"}</button> <a href={f.id ? urlFor(f as Recording) : backTo(p, folder)}>Cancel</a></p>
+    <p><button>{f.id ? "Save changes" : "Create folder"}</button> {f.id ? <a href={urlFor(f as Recording)}>Cancel</a> : <BackTo p={p} folder={folder}>Cancel</BackTo>}</p>
   </Form>
 )
 
@@ -187,7 +204,7 @@ const DocForm = observer(({ p, folder, d }: { p: Project; folder: Recording | nu
       <p>
         <button name="publish" value="1">{published ? "Save changes" : "Post this doc"}</button>{" "}
         {!published && <button name="draft" value="1">Save as a draft</button>}{" "}
-        <a href={d.id ? urlFor(d as Recording) : backTo(p, folder)}>{d.id ? "Cancel" : "Discard"}</a>
+        {d.id ? <a href={urlFor(d as Recording)}>Cancel</a> : <BackTo p={p} folder={folder}>Discard</BackTo>}
       </p>
     </Form>
   )
@@ -199,7 +216,7 @@ const CloudForm = observer(({ p, folder, l }: { p: Project; folder: Recording | 
     <TextField label="Paste the link" name="url" value={l.data?.url ?? ""} required type="url" placeholder="https://docs.google.com/…" />
     <TextField label="Title" name="title" value={l.title ?? ""} />
     {!l.id && <ClientSwitch project={p} people={projectPeople(p)} current={l.visible_to_clients} />}
-    <p><button>{l.id ? "Save changes" : "Add this link"}</button> <a href={l.id ? urlFor(l as Recording) : backTo(p, folder)}>Cancel</a></p>
+    <p><button>{l.id ? "Save changes" : "Add this link"}</button> {l.id ? <a href={urlFor(l as Recording)}>Cancel</a> : <BackTo p={p} folder={folder}>Cancel</BackTo>}</p>
   </Form>
 ))
 
@@ -238,11 +255,12 @@ export const routes = [
   page("/projects/:id/files", () => {
     const p = findProject(useParams().id)
     const { sort, view } = useSortView()
-    const items = vaultItems(p.id, null, sort)
-    useVisit(toolUrl(p, "vault"), `${p.name}: Files`, p.id)
+    const w = useWindow(p, "vault")
+    const items = vaultItems(p.id, null, sort).filter(inWindow(p, w.id))
+    useVisit(windowUrl(p, w), `${p.name}: ${w.name}`, p.id)
     return (
-      <Page title="Files" crumbs={projectCrumbs(p)}>
-        <PageHead title="Files" />
+      <Page title={w.name} crumbs={projectCrumbs(p)}>
+        <PageHead title={w.name} />
         {p.status === "active" && <NewMenu p={p} folderId={null} />}
         {items.length > 10 && <SortViewForm sort={sort} view={view} />}
         {items.length ? <Listing items={items} view={view} /> : <p {...sx(kit.empty)}>Keep docs, files, and images here. Put them in folders so they're easy to find.</p>}
@@ -314,7 +332,7 @@ export const routes = [
           <TextArea label="Add a note about these files (optional)" name="body" />
           <NotifyPicker people={people} me={me()} />
           <ClientSwitch project={p} people={people} />
-          <p><button>Post these files</button> <a href={backTo(p, folder)}>Cancel</a></p>
+          <p><button>Post these files</button> <BackTo p={p} folder={folder}>Cancel</BackTo></p>
         </Form>
       </Page>
     )

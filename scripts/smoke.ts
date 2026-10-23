@@ -8,14 +8,16 @@ const BASE = process.env.BASE ?? "http://localhost:3000"
 const LIMIT = Number(process.env.LIMIT ?? 400)
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
 const executablePath = process.env.BROWSER ?? (process.platform === "win32" ? EDGE : undefined)
-// Links that change something when opened, or leave the app.
-const SKIP = /\/(undo-trash|open|download|raw)(\/|$|\?)|^\/api\/|^\/(signout|marketting)/
+// Links that change something when opened, or leave the app (the dev inbox is everyone's mail, linking to their pages).
+const SKIP = /\/(undo-trash|open|download|raw)(\/|$|\?)|^\/api\/|^\/(signout|marketting|inbox)/
 
 const people = ((await (await fetch(`${BASE}/api/dev/people`)).json()) as { data: { id: number; name: string }[] }).data
+// PEOPLE="Cara Wu,Dan Client" crawls only those people.
+const only = process.env.PEOPLE?.split(",").map((n) => n.trim())
 const browser = await chromium.launch({ executablePath, headless: true })
 let failures = 0
 
-for (const person of people) {
+for (const person of people.filter((p) => !only || only.includes(p.name))) {
   const ctx = await browser.newContext()
   await ctx.addCookies([{ name: "pid", value: String(person.id), url: BASE }])
   const page = await ctx.newPage()
@@ -23,6 +25,7 @@ for (const person of people) {
   page.on("pageerror", (e) => (crash ??= e.message))
   const seen = new Set<string>()
   const queue = ["/"]
+  const via = new Map<string, string>() // where each page was linked from, to report it
   while (queue.length && seen.size < LIMIT) {
     const path = queue.shift()!
     if (seen.has(path)) continue
@@ -37,13 +40,20 @@ for (const person of people) {
     const problem = crash ?? (h1 === "Something went wrong" ? (await page.locator("main pre").first().textContent().catch(() => "")) || "error page" : h1 === "Page not found" ? "page not found" : null)
     if (problem) {
       failures++
-      console.log(`[${person.name}] ${path}  ${problem.slice(0, 200)}`)
+      console.log(`[${person.name}] ${path}  ${problem.slice(0, 200)}${via.has(path) ? ` (linked from ${via.get(path)})` : ""}`)
       continue
     }
-    for (const href of await page.$$eval("a[href^='/']", (as) => as.map((a) => a.getAttribute("href")!)))
+    // A page that reloads the browser on its own (a full navigation) is reported, and the crawl goes on from where it landed.
+    const hrefs = await page.$$eval("a[href^='/']", (as) => as.map((a) => a.getAttribute("href")!)).catch(() => null)
+    if (!hrefs) {
+      console.log(`[${person.name}] ${path}  navigated away on its own, to ${new URL(page.url()).pathname}`)
+      await page.waitForLoadState().catch(() => {})
+      continue
+    }
+    for (const href of hrefs)
       if (!SKIP.test(href)) {
         const p = href.split("#")[0]!
-        if (p && !seen.has(p)) queue.push(p)
+        if (p && !seen.has(p)) { queue.push(p); if (!via.has(p)) via.set(p, path) }
       }
   }
   console.log(`${person.name}: opened ${seen.size} pages`)

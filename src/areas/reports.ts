@@ -14,22 +14,17 @@ export const routes = []
 export const seed = (s: Seed) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    if ((yield* sql`select 1 from recordings where type = 'todolist' limit 1`).length) return
+    if ((yield* sql`select 1 from recordings where type = 'todo' limit 1`).length) return
     const { maya, ann, bob, dan } = s.people
     const day = (n: number) => isoDate(new Date(Date.now() + n * 86_400_000))
-    const list = yield* createRecording(s.as(maya), {
-      project: s.projects.website, type: "todolist", title: "Launch checklist", body: "Everything that has to happen before the site goes live.",
-      data: { tracked: true }, visible_to_clients: true,
-    })
-    yield* createRecording(s.as(maya), { project: s.projects.website, type: "todo", parent_id: list.id, title: "Approve final homepage copy",
+    yield* createRecording(s.as(maya), { project: s.projects.website, type: "todo", title: "Approve final homepage copy",
       data: { assignee_ids: [dan.id], due_on: day(-3) }, visible_to_clients: true, notifyIds: [dan.id], notifyKind: "assigned", verb: "assigned a task" })
-    yield* createRecording(s.as(maya), { project: s.projects.website, type: "todo", parent_id: list.id, title: "Set up redirects from the old site",
+    yield* createRecording(s.as(maya), { project: s.projects.website, type: "todo", title: "Set up redirects from the old site",
       data: { assignee_ids: [bob.id], due_on: day(4) }, visible_to_clients: true })
-    const done = yield* createRecording(s.as(ann), { project: s.projects.website, type: "todo", parent_id: list.id, title: "Pick the typeface",
+    const done = yield* createRecording(s.as(ann), { project: s.projects.website, type: "todo", title: "Pick the typeface",
       data: { assignee_ids: [ann.id], due_on: day(-6), completed_at: new Date().toISOString(), completer_id: ann.id }, visible_to_clients: true })
     yield* logEvent(s.as(ann), { project_id: s.projects.website.id, recording_id: done.id, action: "completed", summary: `completed ${done.title}` })
-    const q4 = yield* createRecording(s.as(maya), { project: s.projects.marketing, type: "todolist", title: "Q4 campaigns" })
-    yield* createRecording(s.as(maya), { project: s.projects.marketing, type: "todo", parent_id: q4.id, title: "Draft the Q4 email calendar",
+    yield* createRecording(s.as(maya), { project: s.projects.marketing, type: "todo", title: "Draft the Q4 email calendar",
       data: { assignee_ids: [s.people.cara.id], due_on: day(-1) } })
     yield* createRecording(s.as(maya), { project: s.projects.website, type: "event", title: "Design review with Northwind",
       data: { starts_at: `${day(3)}T15:00`, ends_at: `${day(3)}T16:00`, participant_ids: [maya.id, ann.id, dan.id] }, visible_to_clients: true })

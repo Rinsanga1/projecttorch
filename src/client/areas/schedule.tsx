@@ -2,12 +2,12 @@
 // Events keep wall-clock times in data.starts_at / ends_at: "YYYY-MM-DD" (all day) or "YYYY-MM-DDTHH:MM",
 // plus data.tz, the time zone of whoever saved it. Plain strings, so they sort and compare to today().
 import * as stylex from "@stylexjs/stylex"
-import { Fragment, useContext, useState } from "react"
+import { Fragment, useContext, useState, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
 import { useParams, useSearchParams } from "react-router"
-import { InWindow } from "../ui/in-window.tsx"
-import { me, findProject, findRecording, projectPeople, personById, peopleByIds, recordings, useApi, useVisit, NoAccess } from "../data.ts"
-import { isClient, titleOf, toolUrl, urlFor, type Project, type Recording } from "../../shared/domain.ts"
+import { InWindow, useWindow, WindowField } from "../ui/in-window.tsx"
+import { me, findProject, findRecording, projectPeople, personById, peopleByIds, recordings, inWindow as inCalendar, useApi, useVisit, NoAccess } from "../data.ts"
+import { isClient, titleOf, urlFor, windowQuery, windowUrl, type Project, type Recording } from "../../shared/domain.ts"
 import { addDays, fmtDate, today } from "../../shared/format.ts"
 import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, TextArea, TextField } from "../ui/forms.tsx"
@@ -68,9 +68,10 @@ const fmtWhen = (e: Recording) => {
 type Item = { date: string; title: string; href: string; kind: "event" | "due"; time: string; r: Recording }
 type Rows = { events: ReadonlyArray<Recording>; dues: ReadonlyArray<Recording> }
 
-const projectRows = (projectId: number): Rows => ({
-  events: recordings((r) => r.project_id === projectId && r.type === "event" && r.status === "active"),
-  dues: recordings((r) => r.project_id === projectId && (r.type === "todo" || r.type === "card") && r.status === "active" && r.data.due_on != null && r.data.completed_at == null),
+/** A calendar's events (a project can have several calendars), and every date due in the project. */
+const projectRows = (p: Project, windowId: string): Rows => ({
+  events: recordings((r) => r.project_id === p.id && r.type === "event" && r.status === "active" && inCalendar(p, windowId)(r)),
+  dues: recordings((r) => r.project_id === p.id && (r.type === "todo" || r.type === "card") && r.status === "active" && r.data.due_on != null && r.data.completed_at == null),
 })
 
 // ponytail: expands every event in JS per render; fine for hundreds of events, add a date index when a project has thousands
@@ -164,9 +165,9 @@ const MonthCalendar = ({ month, items, base }: { month: string; items: ReadonlyA
         </table>
       </div>
       <nav aria-label="Months" {...sx(ss.nav)}>
-        {prev >= addMonths(thisMonth, -12)! && <a href={`${base}?month=${prev.slice(0, 7)}`} data-button>← {label(prev)}</a>}
+        {prev >= addMonths(thisMonth, -12)! && <a href={`${base}${base.includes("?") ? "&" : "?"}month=${prev.slice(0, 7)}`} data-button>← {label(prev)}</a>}
         <a href={base} data-button>This month</a>
-        {next <= addMonths(thisMonth, 12)! && <a href={`${base}?month=${next.slice(0, 7)}`} data-button>{label(next)} →</a>}
+        {next <= addMonths(thisMonth, 12)! && <a href={`${base}${base.includes("?") ? "&" : "?"}month=${next.slice(0, 7)}`} data-button>{label(next)} →</a>}
       </nav>
     </>
   )
@@ -185,10 +186,11 @@ const fromEvent = (e: Recording): EventInput => {
   }
 }
 
-const EventForm = observer(({ p, e, action, cancel }: { p: Project; e: EventInput; action: string; cancel: string }) => {
+const EventForm = observer(({ p, e, action, cancel, extra }: { p: Project; e: EventInput; action: string; cancel: string; extra?: ReactNode }) => {
   const people = projectPeople(p)
   return (
     <Form action={action}>
+      {extra}
       <TextField label="Name this event" name="title" value={e.title} required />
       <p><label>Starts <input type="date" name="starts_on" defaultValue={e.starts_on} required /></label>{" "}
         <label>at <input type="time" name="start_time" defaultValue={e.start_time} /></label></p>
@@ -234,9 +236,10 @@ export const routes = [
   page("/projects/:id/calendar", () => {
     const p = findProject(useParams().id)
     const [q] = useSearchParams()
-    const rows = projectRows(p.id)
-    const base = toolUrl(p, "schedule")
-    useVisit(base, `${p.name}: Calendar`, p.id)
+    const w = useWindow(p, "schedule")
+    const rows = projectRows(p, w.id)
+    const base = windowUrl(p, w)
+    useVisit(base, `${p.name}: ${w.name}`, p.id)
     const inWindow = useContext(InWindow)
     if (q.get("past")) {
       const past = itemsBetween({ events: rows.events, dues: [] }, addDays(today(), -365), addDays(today(), -1)).reverse().slice(0, 60)
@@ -252,9 +255,9 @@ export const routes = [
     const monthItems = itemsBetween(rows, month + "-01", addDays(addMonths(month + "-01", 1)!, -1))
     const upcoming = itemsBetween(rows, today(), addDays(today(), 60)).slice(0, 30)
     return (
-      <Page title="Calendar" crumbs={projectCrumbs(p)}>
-        <PageHead title="Calendar" actions={[
-          p.status === "active" && <a key="new" href={`/projects/${p.id}/events/new`} data-button>New event</a>,
+      <Page title={w.name} crumbs={projectCrumbs(p)}>
+        <PageHead title={w.name} actions={[
+          p.status === "active" && <a key="new" href={`/projects/${p.id}/events/new${windowQuery(w)}`} data-button>New event</a>,
           <a key="feed" href={`/projects/${p.id}/calendar/feed`} data-button>Add to your calendar app</a>,
         ]} />
         {!rows.events.length && !rows.dues.length
@@ -275,7 +278,7 @@ export const routes = [
               </>
             )
           )}
-        <p {...sx(kit.links)}><a href={`${base}?past=1`}>See past events</a></p>
+        <p {...sx(kit.links)}><a href={`${base}${base.includes("?") ? "&" : "?"}past=1`}>See past events</a></p>
       </Page>
     )
   }),
@@ -284,10 +287,11 @@ export const routes = [
     const p = findProject(useParams().id)
     const [q] = useSearchParams()
     const day = /^\d{4}-\d{2}-\d{2}$/.test(q.get("on") ?? "") ? q.get("on")! : today()
+    const w = useWindow(p, "schedule")
     const blank: EventInput = { title: "", body: "", starts_on: day, start_time: "", ends_on: "", end_time: "", all_day: false, repeat: "never", participant_ids: [] }
     return (
       <Page title="New event" crumbs={projectCrumbs(p, "schedule")}>
-        <h1>New event</h1><EventForm p={p} e={blank} action={`/projects/${p.id}/events`} cancel={toolUrl(p, "schedule")} />
+        <h1>New event</h1><EventForm p={p} e={blank} action={`/projects/${p.id}/events`} cancel={windowUrl(p, w)} extra={<WindowField w={w} />} />
       </Page>
     )
   }),

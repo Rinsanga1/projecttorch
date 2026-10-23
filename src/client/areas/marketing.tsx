@@ -1,21 +1,19 @@
 // The marketing page. Stands alone, outside the app chrome: the kargul.studio look at full strength
 // (big Geist type, pill buttons, dark rounded slabs), showing a real project rather than describing one.
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useRef, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as PE, type ReactNode } from "react"
 import { Navigate } from "react-router"
-import { hill, sx } from "../ui/kit.tsx"
+import { sx } from "../ui/kit.tsx"
 import { page } from "../ui/page.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
 
 const TOOLS = [
   ["Posts", "Share news and ideas. Talk them over right below."],
-  ["Tasks", "Make a list. Give each task a person and a date. Check it off when it's done."],
+  ["Milestones", "List what has to get done. Split a big task into smaller ones. The bar fills up as things get done."],
   ["Files", "Keep docs, files and links in folders. Old versions are saved too."],
   ["Chat", "Ask a quick question. Get a quick answer."],
   ["Calendar", "See every date and deadline. Add them to the calendar you already use."],
-  ["Team questions", "Ask the team the same thing each day or week. The answers come in on their own."],
-  ["Boards", "Move cards from column to column as the work moves along."],
-  ["Progress", "See which work is still being worked out and which is nearly done."],
+  ["Boards", "Drag cards across as the work moves. A Golden Ticket keeps one on top. Cards nobody touches close themselves."],
 ]
 
 const CUTS = [
@@ -27,15 +25,23 @@ const CUTS = [
   ["Automation builders", "Most teams don't need them. The few who do can hook up their own tools."],
 ]
 
-// ---------- the hill ----------
-// Two cubic curves make the hill. Each dot sits partway along it and, when scrolled into view, travels there
-// from the bottom-left along the curve itself (SMIL animateMotion on a path relative to where the dot rests,
-// so without JS or with reduced motion the dot is simply in place).
-const { UP, DOWN, head, curve } = hill
-const DOTS = [
-  { label: "Build", note: "working it out", path: [head(UP, 0.58)] },
-  { label: "Design", note: "getting it done", path: [UP, head(DOWN, 0.5)] },
+// ---------- the example project ----------
+// Milestones as the app shows them: one bar for the whole list, then the tasks, the big ones split into subtasks.
+// The bar counts what's checked off, subtasks included, like progressOf in news.ts. Everything here can be clicked.
+const MILESTONES = [
+  { name: "Homepage design", subs: [["Sketches", true], ["Pick the font", true], ["Sign off on the look", true]] },
+  { name: "Build the site", subs: [["Set up hosting", true], ["Page templates", true], ["Contact form", true], ["Redirects", true], ["Footer links", false], ["Speed check", false]] },
+  { name: "Launch", subs: [["Launch email", false], ["Tell Northwind", false]] },
 ] as const
+// The demo's Milestones tile: two get checked off a moment after the page loads (unless motion is reduced).
+const LAUNCH = [["Pick the font", true, ""], ["Write the homepage text", true, ""], ["Set up redirects", false, "Bob, Oct 25"], ["Sign off on the text", false, "Dan"]] as const
+const COLS = ["To do", "In progress", "Done"]
+const CARDS = [
+  { id: 1, title: "Launch email", col: 0, golden: true }, { id: 2, title: "Dark mode", col: 0 },
+  { id: 3, title: "404 page", col: 1 }, { id: 4, title: "Favicon", col: 2 },
+]
+const EASE = "cubic-bezier(.23, 1, .32, 1)"
+const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 
 // ---------- motion ----------
 // Every element rests in its final state; keyframes only say where it comes from. So under reduced motion (the base
@@ -107,22 +113,59 @@ const s = stylex.create({
   demoHead: { display: "flex", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", gap: space.s2, paddingInline: space.s2, marginBottom: space.s4 },
   demoTitle: { margin: 0, fontSize: { default: text.xl, [DESKTOP]: text.xxl }, letterSpacing: "-0.03em" },
   demoMeta: { margin: 0, fontSize: text.sm, color: color.muted },
-  demoGrid: { display: "grid", gridTemplateColumns: { default: "1fr", "@media (min-width: 640px)": "1fr 1fr", [DESKTOP]: "repeat(3, 1fr)" }, gap: space.s3 },
+  // Dense, so on two columns the wide Board tile doesn't leave a hole.
+  demoGrid: { display: "grid", gridTemplateColumns: { default: "1fr", "@media (min-width: 640px)": "1fr 1fr", [DESKTOP]: "repeat(3, 1fr)" }, gridAutoFlow: "dense", gap: space.s3 },
   demoTile: { backgroundColor: color.tile, borderRadius: radius.xl, padding: space.s5, minHeight: { default: 0, "@media (min-width: 640px)": 190 } },
+  wide: { gridColumn: { default: null, "@media (min-width: 640px)": "span 2" } },
   demoTileTitle: { margin: 0, marginBottom: space.s3, fontSize: text.base, fontWeight: 650, letterSpacing: "-0.015em" },
   demoList: { margin: 0, padding: 0, listStyle: "none", fontSize: text.sm, display: "grid", gap: 9 },
+  below: { marginTop: space.s4 },
+  plain: { padding: 0, borderTopWidth: 0 },
   demoItem: { padding: 0, borderTopWidth: 0, display: "flex", alignItems: "center", gap: 9, color: color.ink },
+  mine: { justifyContent: "flex-end" },
+  bubble: { paddingBlock: 6, paddingInline: 12, borderRadius: 16, backgroundColor: color.tileHover },
   who: { fontWeight: 600 },
   muted: { color: color.muted },
+  // A to-do row is one button: the whole line checks it off.
+  check: {
+    display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 9, width: "100%", minHeight: 0, padding: 0, borderRadius: 6,
+    fontSize: "inherit", fontWeight: 400, textAlign: "left", color: color.ink, backgroundColor: { default: "transparent", ":hover": "transparent" },
+    transform: { default: null, ":active": { default: "scale(.98)", [media.reduce]: null } },
+  },
+  checkBig: { fontSize: { default: text.md, [DESKTOP]: text.lg }, fontWeight: 700, letterSpacing: "-0.025em" },
+  meta: { marginLeft: "auto", fontSize: text.sm, fontWeight: 400, letterSpacing: 0, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
   box: {
     width: 16, height: 16, flexShrink: 0, borderRadius: 5, borderWidth: 1.5, borderStyle: "solid", borderColor: color.control,
     display: "inline-flex", alignItems: "center", justifyContent: "center", color: color.onAccent,
   },
+  boxBig: { width: 22, height: 22, borderRadius: 7 },
   boxDone: { backgroundColor: color.accent, borderColor: color.accent },
   ticking: { animationName: fillIn, animationDuration: "300ms", animationTimingFunction: motion.out, animationFillMode: "both" },
-  tickDraw: { display: "block", animationName: wipe, animationDuration: "350ms", animationTimingFunction: motion.out, animationFillMode: "both" },
-  struck: { animationName: strikeIn, animationDuration: "400ms", animationTimingFunction: motion.out, animationFillMode: "both" },
-  stage: { fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", paddingBlock: 4, paddingInline: 8, borderRadius: radius.pill, backgroundColor: color.sheet },
+  tickDraw: { display: "block", animationName: wipe, animationDuration: "350ms", animationDelay: "80ms", animationTimingFunction: motion.out, animationFillMode: "both" },
+  struck: { animationName: strikeIn, animationDuration: "400ms", animationDelay: "150ms", animationTimingFunction: motion.out, animationFillMode: "both" },
+  // The bar's fill slides in from the left (transform only), so its rounded end stays round at any width.
+  bar: { display: "block", height: 8, borderRadius: radius.pill, backgroundColor: color.sheet, overflow: "hidden" },
+  barBig: { height: 10, backgroundColor: color.tile },
+  fill: {
+    display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent,
+    transitionProperty: "transform", transitionDuration: { default: "600ms", [media.reduce]: "0s" }, transitionTimingFunction: motion.out,
+  },
+  board: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: space.s2, userSelect: "none" },
+  col: {
+    display: "grid", alignContent: "start", gap: 6, minHeight: 132, padding: 6, borderRadius: radius.lg, backgroundColor: color.sheet,
+    transitionProperty: "background-color", transitionDuration: motion.fast,
+  },
+  colOver: { backgroundColor: color.accentSoft },
+  colName: { margin: 0, paddingBlock: 2, paddingInline: 4, fontSize: text.xs, fontWeight: 700, color: color.muted },
+  kard: {
+    position: "relative", justifyContent: "flex-start", minHeight: 0, paddingBlock: 8, paddingInline: 10, borderRadius: radius.md,
+    textAlign: "left", fontSize: text.sm, backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
+    cursor: "grab", touchAction: "manipulation",
+  },
+  golden: { backgroundColor: { default: color.accentSoft, ":hover": { default: null, [media.hover]: color.accentSoft } } },
+  star: { color: color.accentText },
+  // Picked up: above the rest, with a shadow under it, following the pointer (the transform is set as it moves).
+  lifted: { zIndex: 2, cursor: "grabbing", boxShadow: "0 12px 28px -8px rgba(0,0,0,.28)", transitionProperty: "none" },
   label: { marginTop: space.s3, marginBottom: 0, textAlign: "center", fontSize: text.xs, color: color.muted },
 
   section: { paddingBlock: { default: space.s8, [DESKTOP]: 120 } },
@@ -148,15 +191,15 @@ const s = stylex.create({
   cardTitle: { margin: 0, fontSize: text.lg, fontWeight: 700, letterSpacing: "-0.025em" },
   cardText: { marginTop: space.s2, marginBottom: 0, fontSize: text.base, color: color.muted, lineHeight: 1.55 },
 
-  hillCard: { backgroundColor: color.sheet, borderRadius: { default: radius.xl, [DESKTOP]: 32 }, padding: { default: space.s4, [DESKTOP]: space.s7 }, marginBottom: space.s3 },
-  hill: { display: "block", width: "100%", height: "auto", overflow: "visible" },
-  hillLine: { fill: "none", stroke: color.ink, strokeWidth: 2 },
-  hillDivide: { stroke: color.control, strokeWidth: 1, strokeDasharray: "3 5" },
-  hillBase: { stroke: color.line, strokeWidth: 1 },
-  hillSide: { fill: color.muted, fontSize: { default: 13, [PHONE]: 24 }, fontWeight: 500 },
-  dot: { fill: color.accent, stroke: color.sheet, strokeWidth: 3 },
-  dotLabel: { fill: color.ink, fontSize: { default: 14, [PHONE]: 26 }, fontWeight: 650 },
-  dotNote: { fill: color.muted, fontSize: 13, display: { default: "inline", [PHONE]: "none" } },
+  tasksCard: { backgroundColor: color.sheet, borderRadius: { default: radius.xl, [DESKTOP]: 32 }, padding: { default: space.s4, [DESKTOP]: space.s7 }, marginBottom: space.s3 },
+  msOverall: { display: "flex", alignItems: "baseline", gap: space.s3, margin: 0, marginBottom: space.s5 },
+  msPct: { fontSize: { default: text.xxl, [DESKTOP]: "3rem" }, fontWeight: 750, letterSpacing: "-0.04em", lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  msNow: { color: color.muted, fontSize: text.base },
+  msList: {
+    display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "repeat(3, 1fr)" }, alignItems: "start", gap: { default: space.s5, [DESKTOP]: space.s6 },
+    margin: 0, marginTop: space.s6, padding: 0, listStyle: "none",
+  },
+  subs: { marginTop: space.s3, paddingLeft: 31 },
   trio: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "repeat(3, 1fr)" }, gap: space.s3, margin: 0 },
 
   cuts: { margin: 0, borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: color.slabTile },
@@ -197,73 +240,180 @@ const s = stylex.create({
 const Arrow = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10M8 3l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
-const Tick = ({ at }: { at: number }) => (
-  <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true" {...sx(s.tickDraw, s.delay(at + 120))}><path d="M2.5 6.2 5 8.6l4.5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+const Tick = () => (
+  <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true" {...sx(s.tickDraw)}><path d="M2.5 6.2 5 8.6l4.5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
 
-// `at`: when (ms after load) a done to-do gets checked off, or a message arrives.
-const Todo = ({ title, at = null, meta = "" }: { title: string; at?: number | null; meta?: string }) => (
-  <li {...sx(s.demoItem)}>
-    <span {...sx(s.box, at != null && [s.boxDone, s.ticking, s.delay(at)])}>{at != null && <Tick at={at} />}</span>
-    <span {...sx(at != null && s.muted)}>{at != null ? <s {...sx(s.struck, s.delay(at + 250))}>{title}</s> : title}{meta && <> <span {...sx(s.muted)}>{meta}</span></>}</span>
+// A to-do you can check off: the box fills, the tick draws, the name gets struck through.
+const Check = ({ title, done, toggle, meta, big }: { title: string; done: boolean; toggle: () => void; meta?: string; big?: boolean }) => (
+  <button type="button" role="checkbox" aria-checked={done} onClick={toggle} {...sx(s.check, big && s.checkBig)}>
+    <span aria-hidden="true" {...sx(s.box, big && s.boxBig, done && [s.boxDone, s.ticking])}>{done && <Tick />}</span>
+    <span {...sx(done && s.muted)}>{done ? <s {...sx(s.struck)}>{title}</s> : title}</span>
+    {meta && <span {...sx(s.muted, s.meta)}>{meta}</span>}
+  </button>
+)
+// The one bar. `shown` is what it draws (empty until it's on screen); `pct` is what it says.
+const Bar = ({ pct, shown = pct, big }: { pct: number; shown?: number; big?: boolean }) => (
+  <span role="progressbar" aria-label="Done" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} {...sx(s.bar, big && s.barBig)}>
+    <span style={{ transform: `translateX(${shown - 100}%)` }} {...sx(s.fill)} />
+  </span>
+)
+
+// `at`: when (ms after load) a message arrives. Yours sit on the right, in a bubble, as in the app.
+const Said = ({ who, what, at, mine }: { who?: string; what: string; at?: number; mine?: boolean }) => (
+  <li {...sx(s.demoItem, mine && s.mine, at != null && [s.pop, s.delay(at)])}>
+    {mine ? <span {...sx(s.bubble)}>{what}</span> : <span><span {...sx(s.who)}>{who}:</span> {what}</span>}
   </li>
 )
-const Said = ({ who, what, at }: { who: string; what: string; at?: number }) => (
-  <li {...sx(s.demoItem, at != null && [s.pop, s.delay(at)])}><span><span {...sx(s.who)}>{who}:</span> {what}</span></li>
-)
-const Tile = ({ i, title, children }: { i: number; title: string; children: ReactNode }) => (
-  <div {...sx(s.demoTile, s.enter, s.delay(450 + i * 60))}><h3 {...sx(s.demoTileTitle)}>{title}</h3><ul {...sx(s.demoList)}>{children}</ul></div>
+const Tile = ({ i, title, wide, children }: { i: number; title: ReactNode; wide?: boolean; children: ReactNode }) => (
+  <div {...sx(s.demoTile, wide && s.wide, s.enter, s.delay(450 + i * 60))}><h3 {...sx(s.demoTileTitle)}>{title}</h3>{children}</div>
 )
 const Dated = ({ when, what }: { when: string; what: string }) => <li {...sx(s.demoItem)}><span {...sx(s.who)}>{when}</span><span>{what}</span></li>
 
-const HillChart = () => {
-  const ref = useRef<SVGSVGElement>(null)
-  // Once the hill is on screen its line draws itself and the dots climb into place along it.
-  // Reduced motion (or no JS): the line is drawn and the dots are already there.
+// The demo's Milestones tile. Shortly after load two to-dos check themselves off and the bar moves with them,
+// unless you got there first.
+const LaunchTile = () => {
+  const [done, setDone] = useState(() => LAUNCH.map(([, d]) => d && calm()))
+  const touched = useRef(false)
   useEffect(() => {
-    const svg = ref.current
-    if (!svg || !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    svg.querySelectorAll("animateMotion").forEach((a) => a.beginElement())
-    svg.pauseAnimations(); svg.setCurrentTime(0)
-    const draw = svg.querySelector("path")!.animate([{ strokeDasharray: "1", strokeDashoffset: "1" }, { strokeDasharray: "1", strokeDashoffset: "0" }],
-      { duration: 1000, easing: "cubic-bezier(.65, 0, .35, 1)", fill: "backwards" })
-    draw.pause()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const io = new IntersectionObserver((es) => {
-      if (!es[0]!.isIntersecting) return
-      draw.play(); timer = setTimeout(() => svg.unpauseAnimations(), 550); io.disconnect()
-    }, { threshold: 0.5 })
-    io.observe(svg)
-    return () => { io.disconnect(); clearTimeout(timer); draw.cancel(); svg.unpauseAnimations() }
+    if (calm()) return
+    const ts = LAUNCH.flatMap(([, d], i) => d ? [setTimeout(() => touched.current || setDone((ds) => ds.map((x, j) => x || j === i)), 1300 + i * 400)] : [])
+    return () => ts.forEach(clearTimeout)
   }, [])
+  const pct = Math.round((done.filter(Boolean).length / done.length) * 100)
   return (
-    <svg ref={ref} viewBox="-20 0 640 260" role="img" aria-label="Progress: Build is still being worked out, Design is getting done" {...sx(s.hill)}>
-      <line x1="0" y1="210" x2="600" y2="210" {...sx(s.hillBase)} />
-      <line x1="300" y1="30" x2="300" y2="210" {...sx(s.hillDivide)} />
-      <path d={curve([UP, DOWN])} pathLength={1} {...sx(s.hillLine)} />
-      <text x="150" y="245" textAnchor="middle" {...sx(s.hillSide)}>Working it out</text>
-      <text x="450" y="245" textAnchor="middle" {...sx(s.hillSide)}>Getting it done</text>
-      {DOTS.map((d) => {
-        const end = d.path.at(-1)![3]
-        const [x, y] = end
-        const right = x > 300
-        return (
-          <g key={d.label} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}><g>
-            <animateMotion begin="indefinite" dur="1.4s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines=".22 1 .36 1" path={curve(d.path, end)} />
-            <circle r="9" {...sx(s.dot)} />
-            <text x={right ? 16 : -16} y="-14" textAnchor={right ? "start" : "end"} {...sx(s.dotLabel)}>{d.label}</text>
-            <text x={right ? 16 : -16} y="4" textAnchor={right ? "start" : "end"} {...sx(s.dotNote)}>{d.note}</text>
-          </g></g>
-        )
-      })}
-    </svg>
+    <Tile i={1} title={<>Milestones <span {...sx(s.muted)}>{pct}%</span></>}>
+      <Bar pct={pct} />
+      <ul {...sx(s.demoList, s.below)}>
+        {LAUNCH.map(([t, , meta], i) => (
+          <li key={t} {...sx(s.plain)}><Check title={t} meta={meta} done={done[i]!} toggle={() => { touched.current = true; setDone((ds) => ds.map((x, j) => (j === i ? !x : x))) }} /></li>
+        ))}
+      </ul>
+    </Tile>
+  )
+}
+
+// A small board after the app's: drag a card to another column (or click it to send it one column on). It glides
+// to its new place from where you let go. Touch scrolls the page, so there a tap moves the card.
+const Board = () => {
+  const [cards, setCards] = useState(CARDS)
+  const [over, setOver] = useState<number | null>(null)
+  const [lifted, setLifted] = useState<number | null>(null)
+  const root = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const dragged = useRef(false)
+  const flip = useRef<{ id: number; from?: DOMRect; focus: boolean } | null>(null)
+  const glide = (el: HTMLElement, from: DOMRect) => {
+    const to = el.getBoundingClientRect()
+    if (!calm()) el.animate([{ transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)` }, { transform: "none" }], { duration: 320, easing: EASE })
+  }
+  // A moved card goes on top of its new column, under a Golden Ticket, as in the app.
+  const move = (id: number, col: number, from?: DOMRect) => {
+    flip.current = { id, from, focus: !from }
+    setCards((cs) => [{ ...cs.find((c) => c.id === id)!, col }, ...cs.filter((c) => c.id !== id)])
+  }
+  useLayoutEffect(() => {
+    const f = flip.current, el = f && root.current?.querySelector<HTMLElement>(`[data-id="${f.id}"]`)
+    flip.current = null
+    if (!f || !el) return
+    if (f.from) glide(el, f.from)
+    if (f.focus) el.focus()
+  }, [cards])
+  const colAt = (x: number, y: number) => {
+    const c = document.elementsFromPoint(x, y).find((e) => e instanceof HTMLElement && e.dataset.col)
+    return c ? Number((c as HTMLElement).dataset.col) : null
+  }
+  const down = (e: PE<HTMLButtonElement>) => {
+    dragged.current = false
+    if (e.pointerType === "touch" || e.button !== 0) return
+    drag.current = { x: e.clientX, y: e.clientY, moved: false }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const follow = (e: PE<HTMLButtonElement>, id: number, from: number) => {
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.x, dy = e.clientY - d.y
+    if (!d.moved && Math.hypot(dx, dy) < 4) return
+    if (!d.moved) { d.moved = true; setLifted(id) }
+    e.currentTarget.style.transform = `translate(${dx}px, ${dy}px) rotate(-2deg) scale(1.03)`
+    const c = colAt(e.clientX, e.clientY)
+    setOver(c === from ? null : c) // only a column it would move to lights up
+  }
+  const drop = (e: PE<HTMLButtonElement>, id: number, col: number) => {
+    const d = drag.current
+    drag.current = null
+    if (!d?.moved) return
+    dragged.current = true
+    const el = e.currentTarget, from = el.getBoundingClientRect(), to = colAt(e.clientX, e.clientY)
+    el.style.transform = ""
+    setOver(null); setLifted(null)
+    // Let go over another column: it moves there. Anywhere else: it goes back.
+    if (to != null && to !== col) move(id, to, from)
+    else glide(el, from)
+  }
+  const sorted = [...cards].sort((a, b) => Number(!!b.golden) - Number(!!a.golden))
+  return (
+    <div ref={root} {...sx(s.board)}>
+      {COLS.map((name, col) => (
+        <section key={name} data-col={col} aria-label={name} {...sx(s.col, over === col && s.colOver)}>
+          <h4 {...sx(s.colName)}>{name}</h4>
+          {sorted.filter((c) => c.col === col).map((c) => (
+            <button key={c.id} type="button" data-id={c.id} aria-label={`${c.title}. Move to ${COLS[(col + 1) % COLS.length]}`}
+              onPointerDown={down} onPointerMove={(e) => follow(e, c.id, col)} onPointerUp={(e) => drop(e, c.id, col)}
+              onPointerCancel={(e) => { drag.current = null; e.currentTarget.style.transform = ""; setOver(null); setLifted(null) }}
+              // A click sends it one column on (Done goes back to To do). From the keyboard it doesn't glide.
+              onClick={(e) => (dragged.current && e.detail ? (dragged.current = false) : move(c.id, (col + 1) % COLS.length, e.detail ? e.currentTarget.getBoundingClientRect() : undefined))}
+              {...sx(s.kard, c.golden && s.golden, lifted === c.id && s.lifted)}>
+              {c.golden && <span title="Golden Ticket" {...sx(s.star)}>★ </span>}{c.title}
+            </button>
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}
+
+// The Milestones window at full size. Check off anything; the bar and the count follow.
+const Milestones = () => {
+  const [subs, setSubs] = useState(() => MILESTONES.map((m) => m.subs.map(([, d]) => d as boolean)))
+  const [seen, setSeen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  // The bar waits empty until it's on screen, then fills from the left.
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !("IntersectionObserver" in window) || calm()) return setSeen(true)
+    const io = new IntersectionObserver((es) => { if (es[0]!.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold: 0.4 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  const all = subs.flat(), done = all.filter(Boolean).length, pct = Math.round((done / all.length) * 100)
+  // As in the app: checking a task checks its subtasks, and a task is done when all of its subtasks are.
+  const set = (i: number, j: number | null, v: boolean) => setSubs((ss) => ss.map((row, a) => (a !== i ? row : row.map((x, b) => (j === null || b === j ? v : x)))))
+  return (
+    <div ref={ref}>
+      <p {...sx(s.msOverall)}><span {...sx(s.msPct)}>{pct}%</span><span {...sx(s.msNow)}>done · {done} of {all.length}</span></p>
+      <Bar pct={pct} shown={seen ? pct : 0} big />
+      <ul {...sx(s.msList)}>
+        {MILESTONES.map((m, i) => {
+          const row = subs[i]!, n = row.filter(Boolean).length, whole = n === row.length
+          return (
+            <li key={m.name} {...sx(s.plain)}>
+              <Check big title={m.name} done={whole} meta={`${n}/${row.length}`} toggle={() => set(i, null, !whole)} />
+              <ul {...sx(s.demoList, s.subs)}>
+                {m.subs.map(([t], j) => <li key={t} {...sx(s.plain)}><Check title={t} done={row[j]!} toggle={() => set(i, j, !row[j])} /></li>)}
+              </ul>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
 const Marketing = () => (
   <>
     <title>Saintsflow: all your work in one place</title>
-    <meta name="description" content="Keep each project's posts, tasks, files, chat and dates in one place, so your team always knows what's next." />
+    <meta name="description" content="Keep each project's posts, milestones, boards, files, chat and dates in one place, so your team always knows what's next." />
     <a href="/signup" {...sx(s.strip)}>Try it free. No card needed. <Arrow /></a>
     <header {...sx(s.wrap)}>
       <div {...sx(s.header)}>
@@ -272,7 +422,7 @@ const Marketing = () => (
           <nav aria-label="Main" {...sx(s.nav)}>
             <a href="#product" {...sx(s.navLink)}>Product</a>
             <a href="#calm" {...sx(s.navLink)}>Quiet hours</a>
-            <a href="#progress" {...sx(s.navLink)}>Progress</a>
+            <a href="#progress" {...sx(s.navLink)}>Milestones</a>
             <a href="#less" {...sx(s.navLink)}>What we skipped</a>
           </nav>
         </div>
@@ -286,7 +436,7 @@ const Marketing = () => (
     <main>
       <section {...sx(s.wrap, s.hero)}>
         <h1 {...sx(s.h1, s.enter)}>All your work in one place</h1>
-        <p {...sx(s.lede, s.enter, s.delay(90))}>Saintsflow keeps each project's posts, tasks, files, chat and dates together. Everyone can see what's done and what's next.</p>
+        <p {...sx(s.lede, s.enter, s.delay(90))}>Saintsflow keeps each project's posts, milestones, boards, files and chat together. Everyone can see what's done and what's next.</p>
         <p {...sx(s.ctas, s.enter, s.delay(180))}>
           <a href="/signup" {...sx(s.pill, s.pillLarge, s.dark)}>Try it free</a>
           <a href="#product" {...sx(s.pill, s.pillLarge, s.light)}>See how it works</a>
@@ -301,27 +451,19 @@ const Marketing = () => (
           </div>
           <div {...sx(s.demoGrid)}>
             <Tile i={0} title="Posts">
-              <Said who="Maya" what="Kickoff: what we're building and why" /><Said who="Bob" what="Idea: skip the CMS" /><Said who="Ann" what="First homepage sketches" />
+              <ul {...sx(s.demoList)}><Said who="Maya" what="Kickoff: what we're building and why" /><Said who="Bob" what="Idea: skip the CMS" /><Said who="Ann" what="First homepage sketches" /></ul>
             </Tile>
-            <Tile i={1} title="Tasks: Launch list">
-              <Todo title="Pick the font" at={1300} /><Todo title="Write the homepage text" at={1700} />
-              <Todo title="Set up redirects" meta="Bob, Oct 25" /><Todo title="Sign off on the text" meta="Dan" />
+            <LaunchTile />
+            <Tile i={2} title="Chat">
+              <ul {...sx(s.demoList)}><Said who="Ann" what="The test site is up 🎉" at={1200} /><Said who="Dan" what="Looks great on my phone" at={1900} /><Said mine what="Nice. I'll check the footer" at={2600} /></ul>
             </Tile>
-            <Tile i={2} title="Progress">
-              <li {...sx(s.demoItem)}>Build <span {...sx(s.stage)}>working it out</span></li><li {...sx(s.demoItem)}>Design <span {...sx(s.stage)}>getting it done</span></li>
-            </Tile>
-            <Tile i={3} title="Chat">
-              <Said who="Ann" what="The test site is up 🎉" at={1200} /><Said who="Dan" what="Looks great on my phone" at={1900} /><Said who="Bob" what="@Ann can you check the footer?" at={2600} />
-            </Tile>
+            <Tile i={3} wide title="Board"><Board /></Tile>
             <Tile i={4} title="Calendar">
-              <Dated when="Oct 28" what="Design review with Northwind" /><Dated when="Nov 3" what="Weekly call" /><Dated when="Nov 15" what="Launch day" />
-            </Tile>
-            <Tile i={5} title="Team questions">
-              <li {...sx(s.demoItem, s.muted)}>What did you get done today?</li><Said who="Ann" what="Laid out the pricing page" /><Said who="Bob" what="Redirects for the old blog" />
+              <ul {...sx(s.demoList)}><Dated when="Oct 28" what="Design review with Northwind" /><Dated when="Nov 3" what="Weekly call" /><Dated when="Nov 15" what="Launch day" /></ul>
             </Tile>
           </div>
         </div>
-        <p {...sx(s.label)}>A made-up project, to show how it looks.</p>
+        <p {...sx(s.label)}>A made-up project. Go ahead: check things off, drag the cards.</p>
       </section>
 
       <section {...sx(s.section)}>
@@ -329,7 +471,7 @@ const Marketing = () => (
           <div {...sx(s.wrap)}>
             <div {...sx(s.sectionHead, s.reveal)}>
               <h2 {...sx(s.h2)}>Each project gets its own space</h2>
-              <p {...sx(s.sub, s.slabSub)}>No more chat in one app, tasks in another, and choices lost in email. Each project keeps it all together, so everyone sees the same thing.</p>
+              <p {...sx(s.sub, s.slabSub)}>No more chat in one app, tasks in another, and choices lost in email. Give a project only the windows it needs, name them, and put them in order. Two chats? Add two.</p>
             </div>
             <dl {...sx(s.tools)}>
               {TOOLS.map(([t, d]) => <div key={t} {...sx(s.tool, s.reveal)}><dt {...sx(s.toolName)}>{t}</dt><dd {...sx(s.toolText)}>{d}</dd></div>)}
@@ -354,13 +496,13 @@ const Marketing = () => (
 
       <section id="progress" {...sx(s.wrap, s.section)}>
         <div {...sx(s.sectionHead, s.center, s.reveal)}>
-          <h2 {...sx(s.h2)}>See how work is going, no meeting needed</h2>
-          <p {...sx(s.sub)}>Updates come to you, from the people doing the work.</p>
+          <h2 {...sx(s.h2)}>See how far along it is, no meeting needed</h2>
+          <p {...sx(s.sub)}>One bar per project. Split a big task into smaller ones, check them off, and the bar moves. Try it.</p>
         </div>
-        <div {...sx(s.hillCard, s.reveal)}><HillChart /></div>
+        <div {...sx(s.tasksCard, s.reveal)}><Milestones /></div>
         <dl {...sx(s.trio)}>
-          <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Progress</dt><dd {...sx(s.cardText)}>Each task list sits on the hill. Going up means still working it out. Going down means getting it done.</dd></div>
-          <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Team questions</dt><dd {...sx(s.cardText)}>Ask the same question every day or week. People can answer by email, too.</dd></div>
+          <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Progress</dt><dd {...sx(s.cardText)}>Nobody sets it by hand. It counts what's checked off, subtasks included, so it's always true.</dd></div>
+          <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Late work</dt><dd {...sx(s.cardText)}>Anything past its due date shows up first, in orange, so nothing slips by quietly.</dd></div>
           <div {...sx(s.card, s.reveal)}><dt {...sx(s.cardTitle)}>Timeline</dt><dd {...sx(s.cardText)}>See what's happening now, what's next and what's late, across all your projects.</dd></div>
         </dl>
       </section>

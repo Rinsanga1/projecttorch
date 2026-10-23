@@ -74,7 +74,7 @@ details[open]>summary{margin-bottom:${space.s4}}
 summary:active{transform:scale(.97)}
 a,button,summary,label{-webkit-tap-highlight-color:transparent}
 
-/* Links that act as buttons ("New list", "Make a new project") carry data-button and look exactly like <button>. */
+/* Links that act as buttons ("Write a post", "Make a new project") carry data-button and look exactly like <button>. */
 button,::file-selector-button,a[data-button]{font:inherit;font-size:${text.sm};font-weight:600;letter-spacing:-0.005em;line-height:1.2;
   display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px ${space.s4};
   border:0;border-radius:${radius.pill};background:${color.tile};color:${color.ink};cursor:pointer;vertical-align:middle;text-decoration:none;

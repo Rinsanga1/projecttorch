@@ -1,4 +1,4 @@
-// The look: StyleX themes and the `sx` helper, faces, the kit tool pages share, menus and the hill.
+// The look: StyleX themes and the `sx` helper, faces, the kit tool pages share and menus.
 // Write `<div {...sx(styles.box)}>`; bare elements are styled by the base layer (base.ts).
 import * as stylex from "@stylexjs/stylex"
 import { Fragment, type ReactNode } from "react"
@@ -65,6 +65,18 @@ export const fadeOverflow = (el: HTMLElement | null) => {
   return () => { ro.disconnect(); el.removeEventListener("scroll", check) }
 }
 
+/** How far along something is, as a thin bar: a Tile Gray track with a Kargul Orange fill (a native meter or progress
+ * won't take the colors). Sized by `width`. */
+const bar = stylex.create({
+  track: { display: "inline-block", height: 6, borderRadius: radius.pill, backgroundColor: color.tileHover, overflow: "hidden", verticalAlign: "middle", flexShrink: 0 },
+  fill: { display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
+})
+export const ProgressBar = ({ pct, width = 64 }: { pct: number; width?: number }) => (
+  <span role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} {...sx(bar.track)} style={{ width }}>
+    <span {...sx(bar.fill)} style={{ width: `${pct}%` }} />
+  </span>
+)
+
 export const Fmt = ({ text, ...rest }: { text: string | null | undefined } & React.HTMLAttributes<HTMLDivElement>) =>
   <div {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />
 
@@ -110,7 +122,7 @@ export const kit = stylex.create({
     minHeight: 0, paddingBlock: 4, paddingInline: 0, fontSize: text.sm, fontWeight: 500, color: color.muted,
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } }, "::after": { content: "none" },
   },
-  // A button that reads as a text link: for secondary actions that still have to post ("Take this list off the hill").
+  // A button that reads as a text link: for secondary actions that still have to post ("Stop watching", "Pin it").
   linkButton: {
     minHeight: 0, padding: 0, borderRadius: 0, fontSize: "inherit", fontWeight: "inherit", color: "inherit", textDecoration: "underline",
     textUnderlineOffset: "0.22em", textDecorationThickness: 1, textDecorationColor: { default: "color-mix(in srgb, currentColor 30%, transparent)", ":hover": "currentColor" },
@@ -178,24 +190,3 @@ export const menu = {
   Copy: ({ label, value }: { label: string; value: string }) =>
     <label {...sx(mn.row, mn.still)}>{label} <input readOnly value={value} onClick={(e) => e.currentTarget.select()} {...sx(mn.input)} /></label>,
 }
-
-// ---------- the hill ----------
-// Two cubic curves make the Hill Chart (viewBox 600 wide, base at y=210, top at y=30). Uphill is figuring it out,
-// downhill is making it happen. `at(v)` places a 0–100 position on the curve. Marketing and the app draw the same hill.
-type Pt = readonly [number, number]
-type Cubic = readonly [Pt, Pt, Pt, Pt]
-const UP: Cubic = [[0, 210], [150, 210], [200, 30], [300, 30]]
-const DOWN: Cubic = [[300, 30], [400, 30], [450, 210], [600, 210]]
-const lerp = (a: Pt, b: Pt, t: number): Pt => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
-/** The part of a cubic from its start to parameter t (de Casteljau). */
-const head = ([p0, p1, p2, p3]: Cubic, t: number): Cubic => {
-  const a = lerp(p0, p1, t), b = lerp(p1, p2, t), c = lerp(p2, p3, t), d = lerp(a, b, t), e = lerp(b, c, t)
-  return [p0, a, d, lerp(d, e, t)]
-}
-const curve = (cs: ReadonlyArray<Cubic>, [ox, oy]: Pt = [0, 0]) => {
-  const f = ([x, y]: Pt) => `${(x - ox).toFixed(1)},${(y - oy).toFixed(1)}`
-  return `M${f(cs[0]![0])}` + cs.map(([, a, b, c]) => ` C${f(a)} ${f(b)} ${f(c)}`).join("")
-}
-/** Where a 0–100 hill position sits on the curve. */
-const at = (v: number): Pt => { const x = Math.min(100, Math.max(0, v)); return x <= 50 ? head(UP, x / 50)[3] : head(DOWN, (x - 50) / 50)[3] }
-export const hill = { UP, DOWN, head, curve, at }

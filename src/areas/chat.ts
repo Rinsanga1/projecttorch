@@ -19,9 +19,9 @@ const convUrl = (p: Project) => (p.kind === "ping" ? `/chats/${p.id}` : `/projec
 // ---------- posting ----------
 
 /** Post a line: notify mentions (via createRecording), Campfire "everything" people or Ping participants, run chatbot commands. */
-export const postLine = (c: Ctx, p: Project, body: string, file?: File | null) =>
+export const postLine = (c: Ctx, p: Project, body: string, file?: File | null, tool?: string) =>
   Effect.gen(function* () {
-    let line = yield* createRecording(c, { project: p, type: "line", body, visible_to_clients: true, quiet: true })
+    let line = yield* createRecording(c, { project: p, type: "line", tool, body, visible_to_clients: true, quiet: true })
     if (file && file.size > 0) {
       const name = file.name.replace(/[^\w.-]+/g, "_").slice(-100) || "file"
       const path = `storage/lines/${line.id}-${name}`
@@ -83,8 +83,9 @@ const postLineHandler = (c: Ctx) =>
     const file = f && typeof f === "object" && "size" in f && (f as File).size > 0 ? (f as File) : null
     const body = str(fd, "body")
     if (!body && !file) return back(c, convUrl(p), "Type a message first.")
-    const line = yield* postLine(c, p, body, file)
-    return redirect(`${convUrl(p)}#line-${line.id}`)
+    const line = yield* postLine(c, p, body, file, str(fd, "tool"))
+    // Stay put: the conversation scrolls the new line into view itself (a redirect to its #line would scroll the page).
+    return back(c, `${convUrl(p)}${line.data.tool ? `?w=${line.data.tool}` : ""}#line-${line.id}`)
   })
 
 const saveLine = (c: Ctx) =>

@@ -68,19 +68,19 @@ export const routes = [
         prefs: JSON.stringify({ notify_email: true, google }),
       })} returning *`
       const ctx: Ctx = { ...c, me: me!, account: account! }
-      const project = (p: { name: string; description: string; is_hq?: boolean }) =>
+      const project = (p: { name: string; description: string; is_hq?: boolean; tools?: ReturnType<typeof defaultTools> }) =>
         sql<Project>`insert into projects ${sql.insert({
           account_id: account!.id, name: p.name, description: p.description, is_hq: p.is_hq ?? false, all_access: p.is_hq ?? false,
-          tools: JSON.stringify(defaultTools()), email_token: crypto.randomUUID().slice(0, 12), created_by: me!.id,
+          tools: JSON.stringify(p.tools ?? []), created_by: me!.id,
         })} returning *`.pipe(Effect.map((r) => r[0]!))
       yield* project({ name: `${v.company} HQ`, description: "Company-wide announcements and stuff everyone needs.", is_hq: true })
-      // A sample project to poke around in. Theirs to trash.
-      const sample = yield* project({ name: "Sample project (yours to trash)", description: "Poke around. Post, check things off, then trash it from the ••• menu." })
+      // A sample project to poke around in, with Posts and Tasks open (new projects start with no windows). Theirs to trash.
+      const sample = yield* project({ name: "Sample project (yours to trash)", description: "Poke around. Post, check things off, then trash it from the ••• menu.",
+        tools: defaultTools().filter((t) => t.type === "message_board" || t.type === "todos") })
       yield* sql`insert into project_people (project_id, person_id) values (${sample.id}, ${me!.id})`
       yield* createRecording(ctx, { project: sample, type: "message", title: "Welcome! Start here", body: "This is a post. Everyone on the project can read it and comment below.\n\nAdd a comment, then check off the tasks.", quiet: true })
-      const list = yield* createRecording(ctx, { project: sample, type: "todolist", title: "Things to try", quiet: true })
       for (const t of ["Add a comment to the welcome post", "Make your first real project", "Invite someone"])
-        yield* createRecording(ctx, { project: sample, type: "todo", parent_id: list.id, title: t, data: { assignee_ids: [me!.id] }, quiet: true })
+        yield* createRecording(ctx, { project: sample, type: "todo", title: t, data: { assignee_ids: [me!.id] }, quiet: true })
       yield* logEvent(ctx, { project_id: null, action: "created", summary: `started the ${v.company} account` })
       return signInAs("/welcome", me!.id)
     })),
@@ -92,7 +92,7 @@ export const routes = [
       const name = str(yield* c.form, "name")
       if (!name) return redirect("/welcome", "Your project needs a name.")
       const [p] = yield* sql<Project>`insert into projects ${sql.insert({
-        account_id: c.me.account_id, name, tools: JSON.stringify(defaultTools()), email_token: crypto.randomUUID().slice(0, 12), created_by: c.me.id,
+        account_id: c.me.account_id, name, created_by: c.me.id,
       })} returning *`
       yield* sql`insert into project_people (project_id, person_id) values (${p!.id}, ${c.me.id})`
       yield* logEvent(c, { project_id: p!.id, action: "created", summary: `started the project ${name}` })

@@ -3,7 +3,7 @@
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { post, redirect, back, invalid, str, ids, bool, isClient, NoAccess, type Ctx } from "../lib/web.ts"
-import { findProject, projectUrl, defaultTools, canCreateProjects, logEvent, sendEmail, type Project, type Recording } from "../lib/core.ts"
+import { findProject, projectUrl, canCreateProjects, logEvent, sendEmail, type Project, type Recording } from "../lib/core.ts"
 
 export const routes = [
   post("/projects/:id/pin", (c) =>
@@ -26,7 +26,7 @@ export const routes = [
       if (templateId) return redirect(`/templates/${templateId}/use?name=${encodeURIComponent(name)}`)
       const [p] = yield* sql<Project>`insert into projects ${sql.insert({
         account_id: c.me.account_id, name, description: str(fd, "description") || null, all_access: str(fd, "access") === "all",
-        tools: JSON.stringify(defaultTools()), email_token: crypto.randomUUID().slice(0, 12), created_by: c.me.id,
+        created_by: c.me.id,
       })} returning *`
       yield* sql`insert into project_people (project_id, person_id) values (${p!.id}, ${c.me.id})`
       yield* logEvent(c, { project_id: p!.id, action: "created", summary: `started the project ${name}` })
@@ -61,7 +61,7 @@ export const routes = [
       const sql = yield* SqlClient.SqlClient
       const name = str(yield* c.form, "name")
       if (!name) return redirect("/templates", "Your template needs a name.")
-      const [t] = yield* sql<Project>`insert into projects ${sql.insert({ account_id: c.me.account_id, kind: "template", name, tools: JSON.stringify(defaultTools()), created_by: c.me.id })} returning *`
+      const [t] = yield* sql<Project>`insert into projects ${sql.insert({ account_id: c.me.account_id, kind: "template", name, created_by: c.me.id })} returning *`
       yield* sql`insert into project_people (project_id, person_id) values (${t!.id}, ${c.me.id})`
       return redirect(`/projects/${t!.id}`)
     })),
@@ -87,9 +87,9 @@ export const copyProject = (c: Ctx, src: Project, over: { name: string; descript
     const sql = yield* SqlClient.SqlClient
     const [p] = yield* sql<Project>`insert into projects ${sql.insert({
       account_id: src.account_id, kind: over.kind, name: over.name, description: over.description, tools: JSON.stringify(src.tools),
-      email_token: crypto.randomUUID().slice(0, 12), created_by: c.me.id,
+      created_by: c.me.id,
     })} returning *`
-    const rows = yield* sql<Recording>`select * from recordings where project_id = ${src.id} and status = 'active' and type not in ('comment','line','answer') order by id`
+    const rows = yield* sql<Recording>`select * from recordings where project_id = ${src.id} and status = 'active' and type not in ('comment','line') order by id`
     const map = new Map<number, number>()
     for (const r of rows) {
       const [n] = yield* sql<{ id: number }>`insert into recordings ${sql.insert({
