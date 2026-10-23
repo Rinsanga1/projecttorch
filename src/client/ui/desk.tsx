@@ -215,7 +215,7 @@ const s = stylex.create({
 /** "Chat, Posts and Tasks" */
 const and = (xs: ReadonlyArray<string>) => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`
 
-export const Desk = ({ windows, master, onBring, since, note, addHref }: {
+export const Desk = ({ windows, master, onBring, since, note, addHref, project }: {
   windows: ReadonlyArray<DeskWindow>
   /** The window in front (from the address). */
   master: string
@@ -227,6 +227,8 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
   note?: string
   /** Where "+" goes to add or remove windows; none for people who can't. */
   addHref?: string
+  /** The project's name: full screen leads with it, since the page's head (and its title) is out of sight. */
+  project?: string
 }) => {
   const m = windows.find((w) => w.key === master)
   const [fullOn, setFull] = useState(false)
@@ -317,7 +319,9 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
 
   return (
     <section aria-label="Windows" {...sx(full && s.wrapFull)}>
-      {news && <p {...sx(s.row, full && s.rowFull)}>{news}</p>}
+      {full
+        ? <p {...sx(s.row, s.rowFull)}><span {...sx(s.lead)}>{project}</span>{news && <span {...sx(s.calm)}> · </span>}{news}</p>
+        : news && <p {...sx(s.row)}>{news}</p>}
       <div {...sx(s.desk, s.card, m && col && s.deskOpen, full && s.deskFull)}>
         {m && (
           <nav aria-label="Every window in this project" onPointerLeave={() => setHot(null)} {...sx(s.rail)}>
