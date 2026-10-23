@@ -47,3 +47,4 @@ Env: `DATABASE_URL`, `PORT`, `AREAS_ONLY=dev,items,home,…` (load a subset of a
 - Styling: `src/client/ui/tokens.stylex.ts` (colors, type, spacing), `ui/kit.tsx` (themes, `sx()`, shared styles),
   `ui/base.ts` (styles for plain semantic HTML). Write `<div {...sx(styles.box)}>`.
 - `scripts/`: `dev.ts` (API with --watch + Vite), `reset.ts`, `smoke.ts`.
+# Saintsflow
