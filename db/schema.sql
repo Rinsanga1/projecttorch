@@ -92,6 +92,7 @@ create table recordings (
   position    int not null default 0,
   visible_to_clients boolean not null default false,
   creator_id  int references people on delete set null,
+  via         text,                                        -- the agent that made it for creator_id (connected_apps.name)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -163,6 +164,7 @@ create table events (
   person_id   int references people on delete set null,
   action      text not null,   -- created completed uncompleted commented edited trashed restored archived moved copied uploaded
   summary     text not null,
+  via         text,            -- the agent that did it for person_id
   created_at  timestamptz not null default now()
 );
 create index on events (account_id, created_at desc);

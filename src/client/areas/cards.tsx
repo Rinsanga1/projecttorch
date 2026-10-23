@@ -10,7 +10,7 @@ import { db, temp } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, children, recordings, personById, topOf, useVisit, NoAccess, NotFound, type PersonWithCompany } from "../data.ts"
 import { isClient, urlFor, windowIdOf, windowUrl, type Project, type Recording, type Tool } from "../../shared/domain.ts"
 import { useWindow, WindowField } from "../ui/in-window.tsx"
-import { fmtDate, isoDate } from "../../shared/format.ts"
+import { ago, fmtDate, isoDate } from "../../shared/format.ts"
 import { ByLine, fadeOverflow, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, usePost, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
@@ -90,6 +90,10 @@ const ks = stylex.create({
   // At least as wide as its longest column name (the browser's own measure cuts the name short).
   columnPick: { color: color.ink, paddingLeft: 8, marginLeft: -8, minWidth: "max-content" },
   cardDo: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s4, marginTop: space.s5 },
+  // The sweep: a card waiting in Review, and its three answers.
+  sweep: { marginTop: space.s5, padding: space.s5, borderRadius: radius.xl, backgroundColor: color.tile },
+  sweepHead: { margin: 0 },
+  sweepDo: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s3, marginTop: space.s3 },
   steps: { marginTop: space.s7 },
   stepList: { margin: 0, marginBottom: space.s4 },
   step: { display: "flex", alignItems: "flex-start", gap: space.s3, paddingBlock: 8 },
@@ -106,22 +110,48 @@ const ks = stylex.create({
 })
 
 const COLORS = ["", "red", "orange", "yellow", "green", "blue", "purple", "gray"]
-const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, done: 3 }
+const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, review: 3, done: 4 }
 /** What an empty column says. */
 const EMPTY: Record<string, string> = {
-  not_now: "Cards nobody touches for 30 days end up here.", triage: "New cards start here.", custom: "No cards here.", done: "Done cards land here.",
+  not_now: "Cards nobody touches for 30 days end up here.", triage: "New cards start here.", custom: "No cards here.", review: "Finished work waits here for someone to look at it.", done: "Done cards land here.",
 }
 /** Cards in a column: Golden Tickets first, then the one that arrived last on top. */
 const cardOrder = (a: Recording, b: Recording) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position || b.id - a.id
 
-/** A board's active columns in display order: Not now, To do, your columns, Done. A project can have several boards. */
+/** A board's active columns in display order: Not now, To do, your columns, Review, Done. A project can have several boards. */
 const columnsOf = (p: Project, boardId: string) =>
   recordings((r) => r.project_id === p.id && r.type === "column" && r.status === "active" && windowIdOf(p, r) === boardId)
     .sort((a, b) => (KIND_ORDER[a.data.kind ?? "custom"]! - KIND_ORDER[b.data.kind ?? "custom"]!) || a.position - b.position || a.id - b.id)
 
-/** Every board starts with Not now, To do and Done; the server makes any that are missing. */
+/** Every board has Not now, To do, Review and Done; the server makes any that are missing. */
 const EnsureColumns = ({ p, boardId, cols }: { p: Project; boardId: string; cols: ReadonlyArray<Recording> }) =>
-  ["triage", "not_now", "done"].every((k) => cols.some((col) => col.data.kind === k)) ? null : <PostOnOpen action={`/projects/${p.id}/board/setup`} fields={{ tool: boardId }} />
+  ["triage", "not_now", "review", "done"].every((k) => cols.some((col) => col.data.kind === k)) ? null : <PostOnOpen action={`/projects/${p.id}/board/setup`} fields={{ tool: boardId }} />
+
+/** The sweep, on a card waiting in Review: Ship it, Send it back (with what should change), or Kill it. Posts to
+ * /cards/:cid/review, which also says when someone got there first. `then`: where to go after, when it isn't the board. */
+const Sweep = ({ p, r, then, tz }: { p: Project; r: Recording; then: string; tz: string }) => {
+  const action = `/projects/${p.id}/cards/${r.id}/review`
+  const rv = r.data.review as { at?: string; by?: number; via?: string | null } | undefined
+  const by = rv?.by ? personById(rv.by) : null
+  const fields = (verdict: string) => <><input type="hidden" name="verdict" value={verdict} />{then && <input type="hidden" name="then" value={then} />}</>
+  return (
+    <section aria-label="Review" {...sx(ks.sweep)}>
+      <p {...sx(ks.sweepHead)}><b>Ready for you.</b>{rv?.at && <> {by?.name ?? "Someone"}{rv.via ? ` via ${rv.via}` : ""} moved it here {ago(rv.at, tz)}.</>}</p>
+      <div {...sx(ks.sweepDo)}>
+        <Form action={action} style={{ display: "inline" }}>{fields("ship")}<button data-primary>Ship it</button></Form>
+        <Form action={action} style={{ display: "inline" }}>{fields("kill")}<button>Kill it</button></Form>
+      </div>
+      <details>
+        <summary>Send it back</summary>
+        <Form action={action}>
+          {fields("back")}
+          <p><label>What should change?<br /><textarea name="body" rows={3} cols={60} required /></label></p>
+          <p><button>Send back</button></p>
+        </Form>
+      </details>
+    </section>
+  )
+}
 
 /** The address of the board a column is on. */
 const boardOf = (p: Project, col: Recording) => windowUrl(p, { id: windowIdOf(p, col) ?? "cardtable", type: "cardtable" })
@@ -449,6 +479,7 @@ export const routes = [
     const author = personById(r.creator_id)
     const live = r.status === "active" && project.status === "active"
     const doneCol = cols.find((x) => x.data.kind === "done")
+    const from = new URLSearchParams(loc.search).get("from")
     return (
       <Page title={r.title} crumbs={crumbs(project)}>
         <EnsureColumns p={project} boardId={boardId} cols={cols} />
@@ -468,11 +499,12 @@ export const routes = [
             <span>{names(people, r.data.assignee_ids) || "Nobody's on it"}</span>
             {r.data.due_on && <span>due {fmtDate(r.data.due_on)}</span>}
           </p>
-          <ByLine who={author} when={r.created_at} tz={m.time_zone} />
+          <ByLine who={author} when={r.created_at} tz={m.time_zone} via={r.via} />
           {r.body && <Fmt text={r.body} {...sx(kit.prose)} />}
+          {live && col?.data.kind === "review" && <Sweep p={project} r={r} then={from === "home" ? "/" : ""} tz={m.time_zone} />}
           {live && (
             <p {...sx(ks.cardDo)}>
-              {col?.data.kind !== "done" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} style={{ display: "inline" }} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
+              {col?.data.kind !== "done" && col?.data.kind !== "review" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} style={{ display: "inline" }} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
               <a href={`/projects/${project.id}/cards/${r.id}/edit`}>Edit</a>
               <Form action={`/projects/${project.id}/cards/${r.id}/golden`} style={{ display: "inline" }} optimistic={() => flipLocal(r, (d) => ({ golden: !d.golden }))}>
                 <button data-quiet title="A Golden Ticket keeps a card at the top of its column" {...sx(kit.linkButton)}>{r.data.golden ? "Take the Golden Ticket away" : "Give it a Golden Ticket"}</button>

@@ -55,6 +55,8 @@ export type Recording = {
   position: number
   visible_to_clients: boolean
   creator_id: number | null
+  /** The agent that made it for the creator (its connection's name), or null when they made it themselves. */
+  via: string | null
   created_at: Date
   updated_at: Date
 }
@@ -136,10 +138,9 @@ export const clientFilter = (sql: SqlClient.SqlClient, me: Person, alias = "reco
 export const logEvent = (c: Ctx, e: { project_id: number | null; recording_id?: number | null; action: string; summary: string }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    // An agent's work reads "Ann added a task … (via Claude)" everywhere activity shows.
-    if (c.app) e = { ...e, summary: `${e.summary} (via ${c.app.name})` }
-    yield* sql`insert into events ${sql.insert({ account_id: c.me.account_id, project_id: e.project_id, recording_id: e.recording_id ?? null, person_id: c.me.id, action: e.action, summary: e.summary })}`
-    if (e.project_id) yield* fireWebhooks(e.project_id, e.action, { ...e, person: c.me.name })
+    const via = c.app?.name ?? null
+    yield* sql`insert into events ${sql.insert({ account_id: c.me.account_id, project_id: e.project_id, recording_id: e.recording_id ?? null, person_id: c.me.id, action: e.action, summary: e.summary, via })}`
+    if (e.project_id) yield* fireWebhooks(e.project_id, e.action, { ...e, person: c.me.name, via })
   })
 
 /** POST event JSON to project webhooks in the background, recording each delivery. */
@@ -188,6 +189,9 @@ export const sendEmail = (to: Person, e: { subject: string; body: string; kind: 
 export const notify = (c: Ctx, n: { personIds: ReadonlyArray<number>; recording?: Recording | null; project_id?: number | null; kind: string; summary: string; email?: boolean }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
+    // Agents don't ping: their work waits in activity (and Review) for whenever people look. Only what's addressed to
+    // someone gets through: an @mention, or a Ping.
+    if (c.app && n.kind !== "mention" && n.kind !== "ping") return
     const targets = [...new Set(n.personIds)].filter((id) => id !== c.me.id)
     if (!targets.length) return
     const people = yield* sql<Person>`select * from people where id in ${sql.in(targets)} and removed_at is null`
@@ -249,6 +253,7 @@ export const createRecording = (c: Ctx, n: NewRecording) =>
       status: n.status ?? "active",
       visible_to_clients: n.visible_to_clients ?? (isClient(c.me) ? true : n.project.clients_see_new),
       creator_id: c.me.id,
+      via: c.app?.name ?? null,
       position,
     })} returning *`
     yield* sql`insert into versions ${sql.insert({ recording_id: r!.id, title: r!.title, body: r!.body, data: JSON.stringify(r!.data), person_id: c.me.id })}`

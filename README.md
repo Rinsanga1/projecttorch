@@ -42,7 +42,7 @@ redirect URI `<app>/api/auth/google/callback`), `APP_URL` (the public address, b
   agent gets the `sf` API (`src/lib/agent-api.ts`) from `describe` and runs scripts with `execute`, in a QuickJS
   sandbox (`src/lib/sandbox.ts`) whose every call is one of the app's own `/api` routes with the agent's key. Agents
   connect over OAuth (register, approve on `/oauth/authorize`, swap the code for keys) or with a key made on
-  `/my/agents`. `loadMe` turns a key into the person; Read only keys can't post; activity says "(via Claude)".
+  `/my/agents`. `loadMe` turns a key into the person; Read only keys can't post; what an agent makes and does is marked `via` (bylines read "Maya · via Claude Code"); agents never notify, except @mentions and Pings; finished cards wait in each board's Review column, listed on Home as "Waiting for you".
   Claude Code: `claude mcp add --transport http saintsflow http://localhost:3000/mcp`.
 
 ## Layout

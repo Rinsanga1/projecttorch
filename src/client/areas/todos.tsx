@@ -376,7 +376,7 @@ export const routes = [
             <dt>When done, notify</dt><dd>{names(people, t.data.notify_ids) || "Nobody"}</dd>
             <dt>Due on</dt><dd>{dueText(t) || "No due date"}</dd>
             <dt>Notes</dt><dd>{t.body ? <Fmt text={t.body} {...sx(kit.prose)} /> : "None"}</dd>
-            <dt>Added by</dt><dd>{author?.name ?? "Someone"} on {fmtDateTime(t.created_at, m.time_zone)}</dd>
+            <dt>Added by</dt><dd>{author?.name ?? "Someone"}{t.via ? ` via ${t.via}` : ""} on {fmtDateTime(t.created_at, m.time_zone)}</dd>
           </dl>
           <p>{!readOnly && <a href={`/projects/${p.id}/tasks/${t.id}/edit`}>Edit</a>}</p>
         </article>

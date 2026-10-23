@@ -56,7 +56,7 @@ const Message = observer(({ r, project }: { r: Recording; project: Project }) =>
       <article>
         <Tags r={r} cat={catOf(categories(), r)} pinned="Pinned to the top" />
         <h1>{r.title}</h1>
-        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
         <Fmt text={r.body} {...sx(kit.prose)} />
       </article>
       <ItemFooter r={r} project={project} />

@@ -1,7 +1,7 @@
 // The `sf` API an agent's script gets in Code Mode (src/areas/agents.ts runs it in lib/sandbox.ts).
 // PRELUDE is the JS that runs inside the sandbox; TYPES is what the `describe` tool hands the agent. Keep them in step.
 // Every helper ends in `__call(method, path, fields)`: one of the app's own /api routes, with the agent's key, so access,
-// Read only, the activity log and "(via …)" all work exactly as they do for the routes.
+// Read only, the activity log and "via" all work exactly as they do for the routes.
 //
 // ponytail: PRELUDE and TYPES are written by hand side by side. Generate both from one list if they start to drift.
 
@@ -19,6 +19,7 @@ const P = "/projects/-"
 
 const sf = {
   call: (method, path, fields) => __call(String(method).toUpperCase(), path, fields),
+  routes: () => get("/agent/routes"),
   me: () => get("/agent/me"),
   people: () => get("/agent/people"),
   find: (q) => get("/agent/find", { q }),
@@ -56,6 +57,8 @@ const sf = {
     unarchive: (id) => post("/r/" + id + "/unarchive"),
     trash: (id) => post("/r/" + id + "/trash"),
     restore: (id) => post("/r/" + id + "/undo-trash"),
+    // A reminder for the person: a day ("2026-11-05", 9am) or a moment ("2026-11-05T14:30").
+    remind: (id, when) => post("/r/" + id + "/remind", { when: "custom", at: String(when).includes("T") ? when : when + "T09:00" }),
   },
 
   comments: { create: (itemId, body) => post("/r/" + itemId + "/comments", { body }) },
@@ -69,9 +72,12 @@ const sf = {
       const v = { title: r.title, body: r.body, clientsSee: r.visible_to_clients, ...ch }
       return post(P + "/posts/" + id + "/edit", { title: v.title, body: v.body, category_id: r.data.category_id ?? "", visible_to_clients: v.clientsSee ? "on" : "", notify: "nobody" })
     },
+    // The route toggles, so look first.
+    pin: async (id) => ((await sf.items.get(id)).data.pinned ? { ok: true, message: "Already pinned." } : post("/r/" + id + "/pin")),
+    unpin: async (id) => (!(await sf.items.get(id)).data.pinned ? { ok: true, message: "Not pinned." } : post("/r/" + id + "/pin")),
   },
 
-  tasks: {
+  milestones: {
     create: (projectId, o) => post("/projects/" + projectId + "/tasks", {
       title: o.title, body: o.body ?? "", tool: o.window ?? "", assignee_ids: o.assignee_ids ?? [], notify_ids: o.notify_ids ?? [], ...due(o),
     }),
@@ -103,7 +109,17 @@ const sf = {
       const card = r.created.find((x) => x.type === "card")
       return card && (o.body || o.assignee_ids || o.due_on) ? { ...(await sf.cards.update(card.id, o)), created: r.created } : r
     },
-    move: (cardId, columnId) => post(P + "/cards/" + cardId + "/move", { column_id: columnId }),
+    // To the top of the column, or just before/after another card in it.
+    move: async (cardId, columnId, o = {}) => {
+      const next = o.before ?? o.after
+      if (!next) return post(P + "/cards/" + cardId + "/move", { column_id: columnId })
+      const col = await sf.items.get(columnId)
+      const order = col.children.filter((x) => x.type === "card" && x.status === "active").map((x) => x.id).reverse().filter((id) => id !== cardId)
+      const at = order.indexOf(next)
+      if (at < 0) throw new Error("Card " + next + " isn't in that column.")
+      order.splice(o.before ? at : at + 1, 0, cardId)
+      return post(P + "/cards/" + cardId + "/move", { column_id: columnId, order: order.join(",") })
+    },
     update: async (id, ch) => {
       const c = await sf.items.get(id)
       const v = { title: c.title, body: c.body, assignee_ids: c.data.assignee_ids ?? [], due_on: c.data.due_on ?? "", clientsSee: c.visible_to_clients, ...ch }
@@ -118,7 +134,10 @@ const sf = {
     reopen: async (id) => (!(await sf.items.get(id)).data.completed_at ? { ok: true, message: "Already open." } : post(P + "/steps/" + id + "/toggle")),
   },
 
-  chat: { post: (projectId, body, o = {}) => post("/projects/" + projectId + "/chat/lines", { body, tool: o.window ?? "" }) },
+  chat: {
+    post: (projectId, body, o = {}) => post("/projects/" + projectId + "/chat/lines", { body, tool: o.window ?? "" }),
+    edit: (lineId, body) => post(P + "/chat/lines/" + lineId, { body }),   // your own lines only
+  },
 
   events: {
     create: (projectId, o) => post("/projects/" + projectId + "/events", {
@@ -135,6 +154,8 @@ const sf = {
 
   folders: { create: (projectId, o) => post("/projects/" + projectId + "/folders", { title: o.title, folder_id: o.folder_id ?? "", color: o.color ?? "", tool: o.window ?? "" }) },
 }
+// The old name, for scripts written before Milestones got its own.
+sf.tasks = sf.milestones
 globalThis.sf = sf
 `
 
@@ -157,16 +178,20 @@ type Change = { type: string; id: Id; title: string; url: Url; project_id?: Id; 
 type Notify = "nobody" | "everyone" | Id[]
 
 type Window = { id: string; type: WindowType; name: string; enabled: boolean }
+// To-dos are cards on the Board (sf.cards). Milestones (sf.milestones) are only for milestones: the big steps of a project.
 type ProjectSummary = { id: Id; name: string; description: string | null; status: string; is_hq: boolean; starts_on: Day | null; ends_on: Day | null; url: Url; windows: Window[] }
 type Person = { id: Id; name: string; email: string; role: "owner" | "admin" | "member" | "client"; title: string | null }
 type Task = { id: Id; title: string; done: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; starts_on: Day | null; window: string; url: Url; subtasks: Task[] }
 type Card = { id: Id; title: string; done: boolean; golden: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; steps: string; url: Url }
-type Column = { id: Id; title: string; kind: "not_now" | "triage" | "custom" | "done"; color: string; cards: Card[] }
+type Column = { id: Id; title: string; kind: "not_now" | "triage" | "custom" | "review" | "done"; color: string; cards: Card[] }
+// Every board has Not now, To do ("triage"), Review and Done, plus its own columns. Review is where finished work waits
+// for a person: when you finish a card, tick its steps, leave one comment, and move it to Review. People decide from there.
 type Project = ProjectSummary & {
+  pinned: { id: Id; title: string; body: string; author: string; url: Url }[]   // the house rules: read these first
   access: "all" | "invited"                 // "all": everyone in the account (except clients) can see it
   people: { id: Id; name: string; role: string }[]
   posts: { id: Id; title: string; excerpt: string; author: string; created_at: string; comments: number; window: string; url: Url }[]   // newest 25
-  tasks: Task[]                             // open ones in order, then the 20 most recently done
+  milestones: Task[]                        // open ones in order, then the 20 most recently done
   boards: { window: string; name: string; columns: Column[] }[]   // columns are empty until the board is opened (projects.openWindow)
   chat: { id: Id; author: string; body: string; created_at: string }[]   // last 20 lines, oldest first
   files: { id: Id; type: "folder" | "doc" | "upload" | "cloudfile"; title: string; folder_id: Id | null; url: Url }[]
@@ -201,13 +226,15 @@ declare const sf: {
     move(id: Id, o: { project_id: Id; parent_id?: Id; copy?: boolean }): Promise<Done>
     archive(id: Id): Promise<Done>; unarchive(id: Id): Promise<Done>
     trash(id: Id): Promise<Done>; restore(id: Id): Promise<Done>
+    remind(id: Id, when: Day | string): Promise<Done>               // remind the person: "2026-11-05" (9am) or "2026-11-05T14:30"
   }
   comments: { create(itemId: Id, body: string): Promise<Done> }      // @Name mentions notify that person
   posts: {
     create(projectId: Id, o: { title: string; body?: string; notify?: Notify; draft?: boolean; clientsSee?: boolean; window?: string }): Promise<Done>
     update(id: Id, ch: { title?: string; body?: string; clientsSee?: boolean }): Promise<Done>
+    pin(id: Id): Promise<Done>; unpin(id: Id): Promise<Done>         // pinned posts sit on top and are the house rules
   }
-  tasks: {                                                          // the Milestones window
+  milestones: {                                                     // the Milestones window: milestones only, not to-dos
     create(projectId: Id, o: { title: string; body?: string; assignee_ids?: Id[]; notify_ids?: Id[]; due_on?: Day; starts_on?: Day; window?: string }): Promise<Done>
     addSubtask(taskId: Id, o: { title: string; body?: string; assignee_ids?: Id[]; due_on?: Day }): Promise<Done>   // one level only
     update(id: Id, ch: { title?: string; body?: string; assignee_ids?: Id[]; notify_ids?: Id[]; due_on?: Day | null; starts_on?: Day | null }): Promise<Done>
@@ -219,23 +246,25 @@ declare const sf: {
     update(columnId: Id, ch: { name?: string; color?: string }): Promise<Done>
     moveAll(projectId: Id, fromColumnId: Id, toColumnId: Id): Promise<Done>
   }
-  cards: {
+  cards: {                                                          // to-dos: they live on the Board
     create(projectId: Id, o: { title: string; column_id: Id; body?: string; assignee_ids?: Id[]; due_on?: Day }): Promise<Done>
-    move(cardId: Id, columnId: Id): Promise<Done>                    // to the top of that column; the Done column marks it done
+    move(cardId: Id, columnId: Id, o?: { before?: Id; after?: Id }): Promise<Done>   // to the top, or next to a card; Done marks it done
     update(id: Id, ch: { title?: string; body?: string; assignee_ids?: Id[]; due_on?: Day | null; clientsSee?: boolean }): Promise<Done>
     done(id: Id): Promise<Done>
     addStep(cardId: Id, o: { title: string; assignee_id?: Id; due_on?: Day }): Promise<Done>
   }
   steps: { complete(id: Id): Promise<Done>; reopen(id: Id): Promise<Done> }
-  chat: { post(projectId: Id, body: string, o?: { window?: string }): Promise<Done> }
+  chat: { post(projectId: Id, body: string, o?: { window?: string }): Promise<Done>; edit(lineId: Id, body: string): Promise<Done> }
   events: {
     create(projectId: Id, o: { title: string; starts_on: Day; start_time?: string /* "14:30"; leave out for all day */; ends_on?: Day; end_time?: string; participant_ids?: Id[]; body?: string; clientsSee?: boolean; window?: string }): Promise<Done>
   }
   docs: { create(projectId: Id, o: { title: string; body?: string; folder_id?: Id; notify?: Notify; draft?: boolean; clientsSee?: boolean; window?: string }): Promise<Done> }
   folders: { create(projectId: Id, o: { title: string; folder_id?: Id; color?: string; window?: string }): Promise<Done> }
 
-  /** Any other route of the app, as a form post (or GET). Fields are what its form sends; arrays repeat the field. */
+  /** Any other route of the app, as a form post (or GET), e.g. sf.call("POST", "/projects/5/posts", { title: "Hi" }).
+   *  Fields are what its form sends; arrays repeat the field. Writes are POST, reads GET. */
   call(method: "GET" | "POST", path: string, fields?: Record<string, string | number | boolean | (string | number)[]>): Promise<any>
+  routes(): Promise<string[]>                                       // every route sf.call can reach, as "POST /projects/:id/posts"
 }
 
 // Examples
@@ -248,7 +277,8 @@ declare const sf: {
 //
 // const made = await sf.projects.create({ name: "Spring launch" })
 // const id = made.created.find(x => x.type === "project").id
-// await sf.projects.openWindow(id, "todos")
-// for (const title of ["Draft the brief", "Pick a date"]) await sf.tasks.create(id, { title })
+// await sf.projects.openWindow(id, "cardtable")
+// const todo = (await sf.projects.get(id)).boards[0].columns.find(c => c.kind === "triage")
+// for (const title of ["Draft the brief", "Pick a date"]) await sf.cards.create(id, { title, column_id: todo.id })
 // return id
 `

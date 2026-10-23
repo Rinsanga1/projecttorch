@@ -11,7 +11,7 @@ import { Icon } from "../ui/icons.tsx"
 import { InWindow, WindowId, WindowSince } from "../ui/in-window.tsx"
 import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, windowIdOf, windowOfPath, windowUrl, type Project, type Recording, type Tool, type ToolType } from "../../shared/domain.ts"
 import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
-import { ActivityList } from "../ui/activity.tsx"
+import { ActivityList, AgentsFilter, useJustAgents } from "../ui/activity.tsx"
 import { Face, Fmt, kit, menu, ProgressBar, sx } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, PostOnOpen, submitOnChange, usePost } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
@@ -503,8 +503,9 @@ export const routes = [
     const [q] = useSearchParams()
     const personId = Number(q.get("person")) || null
     const pageN = Math.max(1, Number(q.get("page")) || 1)
+    const agents = useJustAgents()
     const evs = [...db.events.values()]
-      .filter((e) => e.project_id === p.id && (!personId || e.person_id === personId))
+      .filter((e) => e.project_id === p.id && (!personId || e.person_id === personId) && (!agents || !!e.via))
       .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id)
       .slice((pageN - 1) * 50, pageN * 50 + 1)
       .map((e) => {
@@ -515,9 +516,10 @@ export const routes = [
       <Page title="Project activity" crumbs={projectCrumbs(p)}>
         <h1>Activity on {p.name}</h1>
         <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}><label>Show only what <select name="person" defaultValue={personId ?? ""} {...sx(kit.toolbarControl)}><option value="">everyone</option>
-          {projectPeople(p).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> did</label></GetForm>
-        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={me().time_zone} /> : <p {...sx(kit.empty)}>Nothing's happened yet. Activity shows up here as people post, comment, and check things off.</p>}
-        {evs.length > 50 && <p><a href={`?page=${pageN + 1}${personId ? `&person=${personId}` : ""}`}>Show more</a></p>}
+          {projectPeople(p).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> did</label>{agents && <input type="hidden" name="by" value="agents" />}</GetForm>
+        <AgentsFilter />
+        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={me().time_zone} /> : <p {...sx(kit.empty)}>{agents ? "No agent work here yet. What agents do for people on this project shows up here." : "Nothing's happened yet. Activity shows up here as people post, comment, and check things off."}</p>}
+        {evs.length > 50 && <p><a href={`?page=${pageN + 1}${personId ? `&person=${personId}` : ""}${agents ? "&by=agents" : ""}`}>Show more</a></p>}
       </Page>
     )
   }),

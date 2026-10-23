@@ -78,7 +78,7 @@ export const ProgressBar = ({ pct, width = 64 }: { pct: number; width?: number }
 )
 
 export const Fmt = ({ text, ...rest }: { text: string | null | undefined } & React.HTMLAttributes<HTMLDivElement>) =>
-  <div {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />
+  <div data-prose {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />
 
 // ---------- the kit tool pages share ----------
 // A page heading with its actions, tags, a byline, a readable body, record rows, a filter bar, a quiet link row.
@@ -142,11 +142,11 @@ export const PageHead = ({ title, actions = [] }: { title: ReactNode; actions?: 
   )
 }
 
-/** "Name · Oct 4 at 3:12pm" under a title, with the author's face. */
-export const ByLine = ({ who, when, tz = "UTC" }: { who: { id: number; name: string; avatar_url?: string | null } | null | undefined; when: string; tz?: string }) => (
+/** "Name · via Claude Code · Oct 4 at 3:12pm" under a title, with the author's face. `via`: the agent that wrote it. */
+export const ByLine = ({ who, when, tz = "UTC", via }: { who: { id: number; name: string; avatar_url?: string | null } | null | undefined; when: string; tz?: string; via?: string | null }) => (
   <p {...sx(kit.by)}>
     <Face p={who} px={24} />
-    <span>{who ? <a href={`/people/${who.id}`} {...sx(kit.byName)}>{who.name}</a> : "(someone)"} · {fmtDateTime(when, tz)}</span>
+    <span>{who ? <a href={`/people/${who.id}`} {...sx(kit.byName)}>{who.name}</a> : "(someone)"}{via ? ` · via ${via}` : ""} · {fmtDateTime(when, tz)}</span>
   </p>
 )
 

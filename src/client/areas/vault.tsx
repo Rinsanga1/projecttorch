@@ -240,7 +240,7 @@ const DocView = observer(({ r, p }: { r: Recording; p: Project }) => {
       <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
       <article>
         <h1>{r.title}</h1>
-        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
         {last && n > 1 && <p><small>Last edited by {last.name ?? "someone"} on {fmtDate(last.created_at, m.time_zone)}</small></p>}
         <Fmt text={r.body} />
       </article>
@@ -352,7 +352,7 @@ export const routes = [
         <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
         <article>
           <h1>📎 {r.title}</h1>
-          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
           {ct.startsWith("image/") ? <p><img src={raw} alt={r.title} /></p>
             : ct.startsWith("video/") ? <p><video src={raw} controls width={640} /></p>
             : ct === "application/pdf" ? <p><embed src={raw} type="application/pdf" width={640} height={480} /></p>
@@ -420,7 +420,7 @@ export const routes = [
         <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
         <article>
           <h1>🔗 {r.title}</h1>
-          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={me().time_zone} />
+          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={me().time_zone} via={r.via} />
           <p><a href={r.data.url} target="_blank" rel="noopener noreferrer">Open {r.data.url}</a></p>
         </article>
         {r.status === "active" && <p><a href={`/projects/${p.id}/cloudfiles/${r.id}/edit`}>Edit</a></p>}
