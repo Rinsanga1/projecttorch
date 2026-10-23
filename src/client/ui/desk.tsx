@@ -1,6 +1,6 @@
 // A project's windows. The big window is the one you're working in: its real pages, not a preview. To its left, a narrow
-// rail holds every window as an icon, in project order, with its news count; its top button opens the previews beside
-// the icons, and the big window makes room for them (nothing covers your work). The rail
+// rail holds every window as an icon, in project order, with its news count; its top button turns the icons into
+// previews, and the big window makes room for them (nothing covers your work). The rail
 // is the one way around on desktop; under 900px the dark taskbar at the bottom of the screen is, in thumb reach. Nothing
 // to close or drag: they're the project, not tabs. Which window is in front is the page's address (/projects/2/docs/5 is
 // Files, at that doc), so the desk only asks to switch. Full screen lifts the desk over the whole page. Above the desk,
@@ -58,7 +58,7 @@ const s = stylex.create({
     // Fills the screen under the project head.
     height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 262px))" },
   },
-  deskOpen: { gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "318px minmax(0, 1fr)" }, transitionDuration: { default: "280ms", [media.reduce]: "0ms" } },
+  deskOpen: { gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "300px minmax(0, 1fr)" }, transitionDuration: { default: "280ms", [media.reduce]: "0ms" } },
   deskFull: { flexGrow: 1, minHeight: 0, height: { default: "auto", [DESKTOP]: "auto" }, borderRadius: 0 },
 
   // A hairline outline keeps a window's edge against the desk (white on light gray alone disappears). It's a border,
@@ -101,9 +101,15 @@ const s = stylex.create({
   // a count; late work is outlined in orange.
   // It clips what doesn't fit yet, so the previews are uncovered as it widens. It reaches 4px above the big window so the
   // first icon's count isn't clipped.
-  rail: { display: { default: "none", [DESKTOP]: "flex" }, gap: 10, minHeight: 0, overflow: "clip", marginTop: -4, paddingTop: 4 },
-  icons: { display: "flex", flexDirection: "column", gap: 4, flexShrink: 0, width: 44, paddingRight: 4 },
-  railToggle: { color: color.muted, marginBottom: 6 },
+  rail: { display: { default: "none", [DESKTOP]: "flex" }, flexDirection: "column", minHeight: 0, overflow: "clip", marginTop: -4, paddingTop: 4 },
+  // One list, two looks: the icons and the previews share a spot and cross-fade, so a window keeps its place either way.
+  stack: { display: "grid", flexGrow: 1, minHeight: 0 },
+  icons: {
+    gridArea: "1 / 1", display: "flex", flexDirection: "column", gap: 4, width: 44, paddingRight: 4,
+    transitionProperty: "opacity", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
+  },
+  iconsHidden: { opacity: 0 },
+  railToggle: { color: color.muted, marginBottom: 6, flexShrink: 0 },
   railToggleOn: { color: color.ink, backgroundColor: { default: color.tileHover, ":hover": { default: null, [media.hover]: color.tileHover } } },
   railBtn: {
     position: "relative", width: 40, minHeight: 40, padding: 0, borderRadius: 12, color: color.ink,
@@ -119,10 +125,11 @@ const s = stylex.create({
   },
   // On a rail icon the count sits on its corner, ringed in the desk's gray so it reads apart from the icon.
   badge: { position: "absolute", top: -4, right: -4, boxShadow: `0 0 0 2px ${color.tile}` },
-  // The previews, beside the icons: every other window, the start of its body. They fade in as the rail opens (a beat
-  // behind it, so they arrive on a settled frame) and drift 8px into place; they leave faster than they came.
+  // The previews, in the icons' place and order: each window's title bar, then the start of its body. They fade in as the
+  // rail opens (a beat behind it, so they arrive on a settled frame) and drift 8px into place; they leave faster than
+  // they came. Their width is fixed, so the opening slide uncovers them rather than squeezing them.
   pane: {
-    display: "flex", flexDirection: "column", gap: 8, flexShrink: 0, width: 264, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", scrollbarWidth: "thin",
+    gridArea: "1 / 1", display: "flex", flexDirection: "column", gap: 8, width: 300, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", scrollbarWidth: "thin",
     opacity: 0, transform: { default: "translateX(-8px)", [media.reduce]: "none" },
     transitionProperty: "opacity, transform", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
   },
@@ -133,8 +140,16 @@ const s = stylex.create({
   },
   // An empty window takes only the room its sentence needs.
   colWinEmpty: { height: "auto" },
-  // The window whose icon is under the pointer.
-  colHot: { borderColor: color.control },
+  // The window in front keeps its place in the list as its title bar alone, outlined in orange like the big window.
+  colCur: { height: "auto", cursor: "default", borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.accent } } },
+  // The whole title bar is the button that brings a window forward.
+  colBring: {
+    display: "flex", alignItems: "center", justifyContent: "flex-start", gap: space.s2, width: "100%", minHeight: 40, paddingBlock: 4, paddingInline: 12, borderRadius: 0, background: "none",
+    color: "inherit", textAlign: "left", fontWeight: "inherit", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line,
+    transform: { default: null, ":active": "none" }, backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } },
+  },
+  headOnly: { borderBottomWidth: 0 },
+  colPlus: { alignSelf: "flex-start", marginTop: 2, fontSize: text.sm, color: color.muted },
   // A window with news says so in its preview's title bar, in place of its summary.
   newTag: {
     display: "inline-flex", alignItems: "center", height: 18, paddingInline: 7, borderRadius: radius.pill, flexShrink: 0,
@@ -250,13 +265,11 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
   const focusOut = (e: FocusEvent<HTMLElement>) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) leaveBar() }
 
   // The previews open from the rail's top button and stay how you left them (in this browser). A deliberate click, not a
-  // hover: the big window makes room for them, and work shouldn't shift because the pointer passed the edge. Hovering an
-  // icon outlines its preview and scrolls it into view.
+  // hover: the big window makes room for them, and work shouldn't shift because the pointer passed the edge.
   const [col, setCol] = useState(() => { try { return localStorage.getItem("saintsflow:previews") === "1" } catch { return false } })
   const toggleCol = () => { setCol(!col); try { localStorage.setItem("saintsflow:previews", col ? "0" : "1") } catch {} }
+  // The preview under the pointer: with the one you're leaving, it's what glides when you swap.
   const [hot, setHot] = useState<string | null>(null)
-  const inCol = useRef(new Map<string, HTMLElement>())
-  useEffect(() => { if (col && hot) inCol.current.get(hot)?.scrollIntoView({ block: "nearest" }) }, [col, hot])
 
   const vt = (k: string) => ({ viewTransitionName: `desk-${k}` })
   const say = (w: DeskWindow) => [w.name, newsOf(w) > 0 && `${newsOf(w)} new`, (w.late ?? 0) > 0 && `${w.late} late`].filter(Boolean).join(", ")
@@ -272,38 +285,42 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
       <div {...sx(s.desk, s.card, m && col && s.deskOpen, full && s.deskFull)}>
         {m && (
           <nav aria-label="Every window in this project" onPointerLeave={() => setHot(null)} {...sx(s.rail)}>
-            <div {...sx(s.icons)}>
-              <button type="button" onClick={toggleCol} aria-expanded={col} aria-label={col ? "Hide previews" : "Show previews"} title={col ? "Hide previews" : "Show previews"}
-                {...sx(s.railBtn, s.railToggle, col && s.railToggleOn)}><Icon name="panel" size={18} /></button>
-              {windows.map((w) => {
-                const cur = w.key === master, n = newsOf(w), lateHere = (w.late ?? 0) > 0 && !cur
-                return (
-                  <button key={w.key} type="button" aria-current={cur || undefined} aria-label={say(w)} title={col ? undefined : w.name}
-                    onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => setHot(w.key)}
-                    {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur)}>
-                    <Icon name={w.icon} size={18} />
-                    {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge)}>{n}</span>}
-                  </button>
-                )
-              })}
-              {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus)}><Icon name="plus" size={16} /></a>}
-            </div>
-            <div aria-hidden="true" inert={!col} {...sx(s.pane, col && s.paneOpen)}>
-              {windows.filter((w) => w.key !== master).map((w) => (
-                <section key={w.key} ref={(el) => { if (el) inCol.current.set(w.key, el); else inCol.current.delete(w.key) }}
-                  // Only the two windows trading places glide; the other previews hold still (and stay clipped).
-                  style={col && (w.key === hot || w.key === leaving.current) ? vt(w.key) : undefined}
-                  onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => setHot(w.key)}
-                  {...sx(s.win, s.colWin, w.empty && s.colWinEmpty, hot === w.key && s.colHot)}>
-                  <div {...sx(s.head)}>
-                    <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
-                    {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
-                  </div>
-                  {w.empty
-                    ? <div {...sx(s.body)}><p {...sx(s.blank)}>{w.summary}.</p></div>
-                    : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
-                </section>
-              ))}
+            <button type="button" onClick={toggleCol} aria-expanded={col} aria-label={col ? "Hide previews" : "Show previews"} title={col ? "Hide previews" : "Show previews"}
+              {...sx(s.railBtn, s.railToggle, col && s.railToggleOn)}><Icon name="panel" size={18} /></button>
+            <div {...sx(s.stack)}>
+              <div inert={col} {...sx(s.icons, col && s.iconsHidden)}>
+                {windows.map((w) => {
+                  const cur = w.key === master, n = newsOf(w), lateHere = (w.late ?? 0) > 0 && !cur
+                  return (
+                    <button key={w.key} type="button" aria-current={cur || undefined} aria-label={say(w)} title={w.name}
+                      onClick={(e) => bring(w.key, e.nativeEvent)} {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur)}>
+                      <Icon name={w.icon} size={18} />
+                      {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge)}>{n}</span>}
+                    </button>
+                  )
+                })}
+                {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus)}><Icon name="plus" size={16} /></a>}
+              </div>
+              <div inert={!col} {...sx(s.pane, col && s.paneOpen)}>
+                {windows.map((w) => w.key === master
+                  ? <section key={w.key} aria-current="true" {...sx(s.win, s.colWin, s.colCur)}>
+                      <div {...sx(s.head, s.headOnly)}><Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b><span {...sx(s.summary)}>Open now</span></div>
+                    </section>
+                  : <section key={w.key}
+                      // Only the two windows trading places glide; the other previews hold still (and stay clipped).
+                      style={col && (w.key === hot || w.key === leaving.current) ? vt(w.key) : undefined}
+                      onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => setHot(w.key)}
+                      {...sx(s.win, s.colWin, w.empty && s.colWinEmpty)}>
+                      <button type="button" aria-label={say(w)} onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} {...sx(s.colBring)}>
+                        <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
+                        {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
+                      </button>
+                      {w.empty
+                        ? <div {...sx(s.body)}><p {...sx(s.blank)}>{w.summary}.</p></div>
+                        : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
+                    </section>)}
+                {addHref && <a href={addHref} {...sx(s.colPlus)}>Add or remove windows</a>}
+              </div>
             </div>
           </nav>
         )}
