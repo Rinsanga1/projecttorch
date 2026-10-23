@@ -282,6 +282,9 @@ const s = stylex.create({
     backgroundColor: color.slab, color: color.slabInk, fontSize: "clamp(1.375rem, 1.1rem + 1vw, 1.875rem)", fontWeight: 700, lineHeight: 1.25, letterSpacing: "-0.025em",
   },
   postNext: { marginTop: space.s7 },
+  // Lists inside a post: real bullets at reading size, not the app's rows.
+  postList2: { marginTop: 0, marginBottom: space.s5, paddingLeft: "1.3em", listStyle: "disc" },
+  postLi: { paddingBlock: 4, borderTopWidth: 0, fontSize: { default: "1.0625rem", [DESKTOP]: "1.1875rem" }, lineHeight: 1.6 },
   postEnd: { marginTop: space.s8, paddingTop: space.s6, borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: color.line },
   footer: { overflow: "hidden", paddingTop: space.s6 },
   footerRow: {
@@ -794,37 +797,52 @@ const POSTS: ReadonlyArray<Post> = [
     ),
   },
   {
-    slug: "how-i-use-saintsflow",
-    title: "How I use Saintsflow with my agent",
-    dek: "Write the card, review what comes back, stop at five. A few habits, take what's useful.",
-    blurb: "Write the card, review what comes back, stop at five. A few habits for working with an agent, take what's useful.",
+    slug: "on-using-saintsflow",
+    title: "On using Saintsflow",
+    dek: "Write the card, review what comes back, stop at five. Mostly suggestions; take what's useful.",
+    blurb: "Write the card, review what comes back, stop at five. A written-down version of how Saintsflow gets used with an agent.",
     date: "October 24, 2026",
     body: () => (
       <>
-        <P>I hand a lot of work to my agent now. Drafts, research, fixes, cleanup. Most days it goes well, and when it doesn't, it's usually something I could have done differently. These are the habits that stuck. None of them are rules. Take what's useful.</P>
+        <P>This is sort of a written-down version of how Saintsflow gets used day to day, with an agent doing a good chunk of the work. It comes down to three things: write a card the agent can actually finish, review what comes back, and stop at five. None of it is a rule. It's what tends to work, at least for us.</P>
 
-        <H>Before: I write a card my agent can finish</H>
-        <P>When my agent hands back something that misses, it's usually the card's fault, not the agent's. I wrote "footer" and meant "fix the three broken links in the mobile footer and don't touch the desktop one". So I spend a minute on the card first.</P>
-        <P><b>I title it as the thing I want done.</b> Not "release notes", but "Write release notes for this week's changes, short enough to read in a minute". If the title alone says what to do, half the work is done.</P>
-        <P><b>I say what finished looks like,</b> in a sentence or two, and anything it shouldn't touch. Agents are eager; a fence helps.</P>
-        <P><b>I add the steps I'll check.</b> They're not instructions, they're how I'll judge the work: "every footer link opens the right page", "nothing changed on desktop". The agent ticks them before it moves the card to Review, and I look at the same ones when it gets there.</P>
-        <Pull>If I can't say how I'd check it, it isn't ready to hand off.</Pull>
-        <P>When I can't come up with the steps, either I don't know what I want yet, and the card stays in Triage, or it's something only I can judge, and it goes to Mine. And if checking the result would take more than a few minutes, the card is too big, so I split it.</P>
+        <H>Before: write a card the agent can finish</H>
+        <P>When an agent hands back something that misses, the card is usually the culprit, not the agent. "Footer" was written; "fix the three broken links in the mobile footer and leave the desktop one alone" was meant. The agent did its best with "footer". A minute on the card saves a round trip.</P>
+        <P>What a good card tends to have:</P>
+        <ul {...sx(s.postList2)}>
+          <li {...sx(s.postLi)}>a title that's the thing to do: "Write release notes for this week, short enough to read in a minute", not "release notes"</li>
+          <li {...sx(s.postLi)}>a sentence or two on what finished looks like, and anything it shouldn't touch (agents are eager; a fence helps)</li>
+          <li {...sx(s.postLi)}>a few steps that are how the work will be checked, not how to do it: "every footer link opens the right page", "nothing changed on desktop"</li>
+          <li {...sx(s.postLi)}>a size you could check in a few minutes; anything bigger gets split</li>
+        </ul>
+        <P>The steps are the useful part. The agent ticks them before it moves the card to Review, and you look at the same ones when it gets there, so you're both checking the same thing.</P>
+        <Pull>If you can't say how you'd check it, it isn't ready to hand off.</Pull>
+        <P>That's a signal, not a failure. Either the card isn't clear yet, so it stays in Triage, or it's something only you can judge, so it goes to Mine.</P>
 
-        <H>During: I review what comes back</H>
-        <P>Everything my agent finishes lands in Review, and on my Home under Waiting for you. I don't look every time something arrives. A couple of times a day, I go through the list, oldest first, and give each card one of three answers.</P>
-        <P><b>Ship it</b> when it's good enough. Not perfect, good enough to use. If I catch myself polishing what the agent made, the card was probably unclear.</P>
-        <P><b>Send it back</b> with a note about what should change, a sentence or two. If the note turns into a paragraph, the problem is the card, so I rewrite the card instead.</P>
-        <P><b>Kill it</b> without guilt. The agent made it in minutes. It goes to the trash, and I can bring it back if I was wrong.</P>
-        <Pull>If the agent keeps missing, I move the card to Mine and just do it myself.</Pull>
-        <P>Some things are mine to do: a tricky email to a client, a decision about what we're building. Sending it back again won't change that. And if I keep sending back the same kind of thing, I add a line to the project's house rules, the pinned post the agent reads first, so I never have to say it again.</P>
+        <H>During: review what comes back</H>
+        <P>Finished cards land in Review and show up on Home under Waiting for you. Looking every time something arrives is tempting, and it's also how a whole day disappears. A couple of passes a day works better: oldest first, one answer per card.</P>
+        <ul {...sx(s.postList2)}>
+          <li {...sx(s.postLi)}><b>Ship it</b> when it's good enough to use. Not perfect, good enough. Polishing what the agent made usually means the card was vague.</li>
+          <li {...sx(s.postLi)}><b>Send it back</b> with a note about what should change, a sentence or two. If the note turns into a paragraph, rewrite the card instead.</li>
+          <li {...sx(s.postLi)}><b>Kill it</b> without guilt. It took the agent minutes. It goes to the trash and can come back if you were wrong.</li>
+        </ul>
+        <Pull>If the agent keeps missing, move the card to Mine and just do it yourself.</Pull>
+        <P>Some work is yours: the tricky client email, the call on what to build next. Sending it back a third time won't change that. And if the same kind of note keeps coming up (too long, too formal, touched the wrong thing), it belongs in the project's house rules, the pinned post the agent reads before it starts. Say it once, there, and stop saying it on every card.</P>
 
-        <H>After: I stop at five, even though my agent doesn't</H>
-        <P>The best thing about an agent is that it keeps going. The worst thing is that it keeps going. If every card it finished buzzed my phone, I'd never stop working, I'd just be watching it work.</P>
-        <P>It doesn't buzz. In Saintsflow agents don't send notifications at all; their work waits in Review. People still can, so I set quiet hours, and outside them everything holds until I'm back.</P>
-        <P>Before I stop, I look at what's in Running: that's what I'm happy for my agent to work on overnight. Then I close the laptop, and I don't peek at Review in the evening. One peek turns into a send-back, and a send-back turns into an hour.</P>
-        <P>In the morning, Review first, so the agent has fresh work for the day. Then the best part of my morning goes to Mine, the work only I can do. That's the trade: the agent gets the busywork, I get my focus back.</P>
-        <P>We keep your flow state. Yes, still the pun.</P>
+        <H>After: stop at five, even though the agent doesn't</H>
+        <P>The best thing about an agent is that it keeps going. The worst thing about an agent is that it keeps going. If every finished card buzzed your phone, you'd never stop working; you'd just be watching it work.</P>
+        <P>It doesn't buzz. Agents in Saintsflow don't send notifications at all; their work waits in Review. People still can, which is what quiet hours are for: set the hours you work, and everything else holds until you're back.</P>
+        <P>The end of the day looks something like:</P>
+        <ul {...sx(s.postList2)}>
+          <li {...sx(s.postLi)}>a look at what's in Running, which is what the agent gets to work on overnight</li>
+          <li {...sx(s.postLi)}>anything that should wait for you moved out of it</li>
+          <li {...sx(s.postLi)}>laptop closed, and no peeking at Review in the evening (one peek is a send-back, and a send-back is an hour)</li>
+        </ul>
+        <P>Mornings start with Review, so the agent has fresh work for the day. Then the best hours go to Mine, the work only you can do. That's the trade, I think: the agent gets the busywork, you get your focus back.</P>
+
+        <H>So</H>
+        <P>Write cards that say how they'll be checked. Review a couple of times a day, ship what's good enough, send back with one clear note, and take the stubborn ones yourself. Close the laptop at five and let Review wait until morning.</P>
+        <P>Rinse and repeat.</P>
       </>
     ),
   },
