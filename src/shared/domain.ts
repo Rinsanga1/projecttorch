@@ -145,7 +145,8 @@ export type Chatbot = { id: number; account_id: number; name: string; command_ur
 export type Webhook = { id: number; project_id: number; url: string; types: string[]; created_at: Stamp }
 export type PublicLink = { token: string; recording_id: number; created_at: Stamp }
 export type Export = { id: number; account_id: number; person_id: number | null; status: "pending" | "ready"; file_path: string | null; created_at: Stamp }
-export type ConnectedApp = { id: number; person_id: number; name: string; created_at: Stamp }
+/** An agent or app working as this person: approved from the app (`client_id`), or a key made on /my/agents. */
+export type ConnectedApp = { id: number; person_id: number; name: string; client_id: string | null; scope: "full" | "read"; last_used_at: Stamp | null; created_at: Stamp }
 
 /** Every table the browser holds a copy of, with its row type. */
 export type Tables = {

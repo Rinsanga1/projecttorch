@@ -222,10 +222,44 @@ create table exports (
   created_at  timestamptz not null default now()
 );
 
+-- Agents (docs/user_agents/plan.md). An app that registered itself so people can connect it (OAuth dynamic client
+-- registration: Claude, ChatGPT, Cursor…). Not synced.
+create table oauth_clients (
+  id            text primary key,
+  name          text not null,
+  redirect_uris text[] not null,
+  created_at    timestamptz not null default now()
+);
+
+-- An app or agent that works as this person. Made by approving an app, or by hand on /my/agents (client_id null).
 create table connected_apps (
   id          serial primary key,
   person_id   int not null references people on delete cascade,
   name        text not null,
+  client_id   text references oauth_clients on delete cascade,
+  scope       text not null default 'full',                -- full | read
+  last_used_at timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+-- What an app gets back once someone approves it: spent once, within 10 minutes, with the PKCE verifier. Not synced.
+create table oauth_codes (
+  code_hash    text primary key,
+  client_id    text not null references oauth_clients on delete cascade,
+  person_id    int not null references people on delete cascade,
+  scope        text not null,
+  redirect_uri text not null,
+  challenge    text not null,
+  created_at   timestamptz not null default now()
+);
+
+-- A connection's keys, as sha256s: access (an hour; no expiry for keys made by hand) and refresh (swapped on use).
+-- Not synced. Disconnecting deletes the connection and these with it.
+create table agent_tokens (
+  token_hash  text primary key,
+  app_id      int not null references connected_apps on delete cascade,
+  kind        text not null,                               -- access | refresh
+  expires_at  timestamptz,
   created_at  timestamptz not null default now()
 );
 

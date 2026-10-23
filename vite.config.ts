@@ -11,7 +11,8 @@ const packageOf = (id: string) => id.split(/[\/]node_modules[\/]/).at(-1)!.split
 
 export default defineConfig({
   plugins: [stylex.vite({ useCSSLayers: true, devMode: "full" }), react()],
-  server: { port: 3000, strictPort: true, proxy: { "/api": { target: API, ws: true } } },
+  // /mcp and /.well-known are the MCP server and its OAuth metadata (src/areas/agents.ts): they live at the root.
+  server: { port: 3000, strictPort: true, proxy: { "/api": { target: API, ws: true }, "/mcp": { target: API }, "/.well-known": { target: API } } },
   build: {
     target: "esnext",
     outDir: "dist",

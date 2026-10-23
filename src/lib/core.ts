@@ -136,6 +136,8 @@ export const clientFilter = (sql: SqlClient.SqlClient, me: Person, alias = "reco
 export const logEvent = (c: Ctx, e: { project_id: number | null; recording_id?: number | null; action: string; summary: string }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
+    // An agent's work reads "Ann added a task … (via Claude)" everywhere activity shows.
+    if (c.app) e = { ...e, summary: `${e.summary} (via ${c.app.name})` }
     yield* sql`insert into events ${sql.insert({ account_id: c.me.account_id, project_id: e.project_id, recording_id: e.recording_id ?? null, person_id: c.me.id, action: e.action, summary: e.summary })}`
     if (e.project_id) yield* fireWebhooks(e.project_id, e.action, { ...e, person: c.me.name })
   })

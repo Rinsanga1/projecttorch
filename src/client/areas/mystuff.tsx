@@ -80,6 +80,7 @@ export const routes = [
           <li><a href="/my/out-of-office">Out of office</a></li>
           <li><a href="/my/appearance">Appearance</a></li>
           <li><a href="/my/security">Login & security</a></li>
+          <li><a href="/my/agents">Agents</a></li>
           <li><a href="/my/apps">Get the apps</a></li>
           {isAdmin(m) && <li><a href="/admin">Admin</a></li>}
           <li><a href="/help">Help</a></li>
