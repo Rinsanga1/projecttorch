@@ -1,12 +1,12 @@
-// A project's windows: master and stack. The big window (master) is the one you're working in: its real pages, not a
-// preview. Four others wait in a column beside it, sorted for you: late first, then the ones with news, then the rest in
-// project order, empty ones last. Nothing to close or drag: they're the project, not tabs. Which window is in front is
-// the page's address (/projects/2/docs/5 is Files, at that doc), so the desk only asks to switch. Full screen lifts the
-// desk over the whole page. Above the desk, one row names every window and carries the news: "Since Tuesday:" then each
-// window, with a count of what's new, the late one outlined. Under 900px that row is the dark taskbar at the bottom of
-// the screen instead, in thumb reach. Design and history: docs/project_ui_explore, docs/app_terms.
+// A project's windows. The big window is the one you're working in: its real pages, not a preview. Beside it, a narrow
+// rail holds every window as an icon, in project order, with its news count; hovering one pops its preview out. The rail
+// is the one way around on desktop; under 900px the dark taskbar at the bottom of the screen is, in thumb reach. Nothing
+// to close or drag: they're the project, not tabs. Which window is in front is the page's address (/projects/2/docs/5 is
+// Files, at that doc), so the desk only asks to switch. Full screen lifts the desk over the whole page. Above the desk,
+// one sentence says what's new ("Since Tuesday: 5 new in Chat and Posts."). Design and history: docs/project_ui_explore,
+// docs/app_terms.
 import * as stylex from "@stylexjs/stylex"
-import { useEffect, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react"
 import { flushSync } from "react-dom"
 import { fadeOverflow, sx } from "./kit.tsx"
 import { Icon, type IconName } from "./icons.tsx"
@@ -18,7 +18,7 @@ export type DeskWindow = {
   icon: IconName
   /** One line about what's new, for the title bar and the taskbar tip. */
   summary: string
-  /** The preview a stack window shows. */
+  /** The preview a rail icon pops out. */
   body: ReactNode
   /** What the big window shows, to work in (the tool's pages); the preview when there's none. */
   work?: ReactNode
@@ -26,7 +26,7 @@ export type DeskWindow = {
   place?: string
   /** Back a page inside the big window, when it has gone deeper than the tool's start. */
   back?: () => void
-  /** Nothing in the window yet: in the stack it says so in one sentence (its summary) and sorts last. */
+  /** Nothing in the window yet: its preview says so in one sentence (its summary). */
   empty?: boolean
   /** How many things others added since your last visit; shown until you open the window. */
   news?: number
@@ -39,6 +39,8 @@ const DESKTOP = "@media (min-width: 900px)"
 const SHEET = "@media (min-width: 768px)"
 /** Strong ease-out: starts fast, so the interface answers at once. */
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)"
+const popIn = stylex.keyframes({ from: { opacity: 0, transform: "scale(0.97)" } })
+const fadeIn = stylex.keyframes({ from: { opacity: 0 } })
 const s = stylex.create({
   // No corners of its own: it runs to the sheet's edges and the sheet clips it.
   // The bottom half of the page's card (the project head is the top): Tile Gray, with the sheet's bottom corners.
@@ -47,13 +49,12 @@ const s = stylex.create({
   wrapFull: { position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", backgroundColor: color.tile },
   desk: {
     display: "grid", gap: 10, padding: 10,
-    // The stack keeps its width; every extra pixel goes to the big window.
-    gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "minmax(0, 1fr) 300px" },
-    // Fills the screen under the project head, leaving room for the taskbar strip.
-    height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 272px))" },
+    // The rail keeps its 40px; every other pixel goes to the big window.
+    gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "minmax(0, 1fr) 40px" },
+    // Fills the screen under the project head.
+    height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 262px))" },
   },
-  deskFull: { gridTemplateColumns: "minmax(0, 1fr)", flexGrow: 1, minHeight: 0, height: { default: "auto", [DESKTOP]: "auto" }, borderRadius: 0 },
-  stack: { position: "relative", display: "flex", flexDirection: "column", gap: 10, minHeight: 0 },
+  deskFull: { flexGrow: 1, minHeight: 0, height: { default: "auto", [DESKTOP]: "auto" }, borderRadius: 0 },
 
   // A hairline outline keeps a window's edge against the desk (white on light gray alone disappears). It's a border,
   // not a shadow, so the view-transition picture carries it while windows glide.
@@ -64,11 +65,6 @@ const s = stylex.create({
   },
   // The big window carries the focus ring: it's where you are.
   master: { borderWidth: 2, borderColor: color.accent, minHeight: { default: 320, [DESKTOP]: 0 } },
-  waiting: {
-    flexGrow: { default: 0, [DESKTOP]: 1 }, flexShrink: 1, flexBasis: { default: "auto", [DESKTOP]: 0 }, maxHeight: { default: 220, [DESKTOP]: "none" },
-    cursor: "pointer", transitionProperty: "border-color", transitionDuration: motion.fast,
-    borderColor: { default: color.line, ":hover": { default: null, [media.hover]: color.control } },
-  },
 
   head: { display: "flex", alignItems: "center", gap: space.s2, minHeight: 40, paddingBlock: 4, paddingInline: "12px 6px", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line, flexShrink: 0 },
   // The back button is wider than the icon it replaces; it tucks into the padding so the name stays put.
@@ -77,18 +73,7 @@ const s = stylex.create({
   name: { fontSize: "0.875rem", fontWeight: 650, letterSpacing: "-0.015em", whiteSpace: "nowrap" },
   summary: { minWidth: 0, fontSize: text.xs, color: color.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   actions: { display: "flex", alignItems: "center", gap: 2, marginLeft: "auto", flexShrink: 0 },
-  // A stack window's title is one button that brings it forward.
-  bring: {
-    position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start", gap: space.s2, minWidth: 0, flexGrow: 1, minHeight: 0, padding: 0, background: "none", borderRadius: 0,
-    color: "inherit", textAlign: "left", fontWeight: "inherit", transform: { default: null, ":active": "none" },
-    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } },
-  },
-  // Floats over the end of the title (fading the summary under it), so it takes no room from the summary.
-  hint: {
-    position: "absolute", insetBlock: 0, right: 0, display: "flex", alignItems: "center", paddingLeft: 28, fontSize: 11, fontWeight: 500, color: color.muted, whiteSpace: "nowrap",
-    backgroundImage: `linear-gradient(to right, transparent, ${color.sheet} 24px)`, opacity: 0, transitionProperty: "opacity", transitionDuration: motion.fast,
-  },
-  hintShown: { opacity: 1 },
+  hint: { marginLeft: "auto", paddingLeft: space.s2, fontSize: 11, fontWeight: 500, color: color.muted, whiteSpace: "nowrap" },
   iconBtn: {
     width: 28, minHeight: 28, padding: 0, borderRadius: radius.sm, background: "none", color: color.muted,
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
@@ -98,38 +83,47 @@ const s = stylex.create({
   // In full screen the window fills the screen at every size, so it scrolls inside.
   bodyFull: { overflow: "auto" },
   peek: { overflow: "hidden", fontSize: text.sm, maskImage: "linear-gradient(#000 55%, transparent)", pointerEvents: "none" },
-  // A window with nothing in it yet says so in one plain sentence ("No files yet."), and sorts to the bottom of the stack.
+  // A window with nothing in it yet says so in one plain sentence ("No files yet.").
   blank: { margin: 0, color: color.muted, fontSize: text.sm },
-  // Sorted last and with nothing to show, an empty window takes only the room its sentence needs.
-  quiet: { flexGrow: 0, flexBasis: "auto" },
 
-  // The row of every window, under the project head: the head's white, the head's padding.
-  // On a phone it's the news line only: the windows with news or late work, one line that scrolls sideways (the bottom
-  // bar does the getting around there).
-  row: {
-    display: "flex", flexWrap: { default: "nowrap", [DESKTOP]: "wrap" }, alignItems: "center", gap: 4,
-    overflowX: { default: "auto", [DESKTOP]: "visible" }, scrollbarWidth: "none",
-    paddingInline: { default: 20, [DESKTOP]: 28 }, paddingBottom: 16, backgroundColor: color.sheet, fontSize: text.sm,
-  },
-  desktopOnly: { display: { default: "none", [DESKTOP]: "inline-flex" } },
+  // What's new, in one sentence under the project head: the head's white, the head's padding.
+  row: { paddingInline: { default: 20, [DESKTOP]: 28 }, paddingBottom: 16, margin: 0, maxWidth: "none", backgroundColor: color.sheet, fontSize: text.sm },
   rowFull: { paddingTop: 10, paddingInline: 10, paddingBottom: 6, backgroundColor: color.tile },
-  lead: { fontWeight: 650, marginRight: 4, whiteSpace: "nowrap" },
-  calm: { color: color.muted, marginRight: 4, whiteSpace: "nowrap" },
-  pill: {
-    display: "inline-flex", alignItems: "center", gap: 6, minHeight: 30, paddingBlock: 4, paddingInline: 11, borderRadius: radius.pill,
-    fontSize: text.sm, fontWeight: 600, color: color.ink, whiteSpace: "nowrap",
-    backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
+  lead: { fontWeight: 650 },
+  calm: { color: color.muted },
+  lateLine: { color: color.accentText, fontWeight: 650 },
+
+  // The rail: every window as an icon, on the desk beside the big one. The open one is Pill Black; news is Peach Wash with
+  // a count; late work is outlined in orange.
+  rail: { display: { default: "none", [DESKTOP]: "flex" }, flexDirection: "column", alignItems: "center", gap: 4 },
+  railItem: { position: "relative" },
+  railBtn: {
+    position: "relative", width: 40, minHeight: 40, padding: 0, borderRadius: 12, color: color.ink,
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tileHover } },
   },
-  pillNews: { backgroundColor: { default: color.accentSoft, ":hover": { default: null, [media.hover]: color.accentSoft } } },
-  pillLate: { color: color.accentText, backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } }, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
-  pillCur: { color: color.onPrimary, boxShadow: "none", backgroundColor: { default: color.primary, ":hover": { default: null, [media.hover]: color.primaryHover } } },
-  plus: { width: 30, paddingInline: 0, justifyContent: "center", color: color.muted },
+  railNews: { backgroundColor: { default: color.accentSoft, ":hover": { default: null, [media.hover]: color.accentSoft } } },
+  railLate: { color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
+  railCur: { color: color.onPrimary, boxShadow: "none", backgroundColor: { default: color.primary, ":hover": { default: null, [media.hover]: color.primaryHover } } },
+  railPlus: { color: color.muted, marginTop: 4 },
   num: {
     display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, paddingInline: 5, borderRadius: radius.pill,
     backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
   },
-  numOnCur: { backgroundColor: color.onPrimary, color: color.primary },
-  // A side window with news says so in its title bar, in place of its summary.
+  // On a rail icon the count sits on its corner, ringed in the desk's gray so it reads apart from the icon.
+  badge: { position: "absolute", top: -4, right: -4, boxShadow: `0 0 0 2px ${color.tile}` },
+  // The preview pops out to the left of its icon, over the big window's edge. A Tile Gray frame (the desk reaching out)
+  // holds the window, so it stands apart by layer, not shadow. Its right padding bridges the gap to the icon, so the
+  // pointer can cross into it. Icons in the bottom half pop upward, so the preview stays on the desk.
+  pop: {
+    position: "absolute", right: "100%", top: -6, zIndex: 10, paddingRight: 8, transformOrigin: "right top",
+    animationName: { default: popIn, [media.reduce]: fadeIn }, animationDuration: motion.fast, animationTimingFunction: EASE_OUT,
+  },
+  popUp: { top: "auto", bottom: -6, transformOrigin: "right bottom" },
+  // Moving along the rail, the next previews appear at once.
+  popStill: { animationName: "none" },
+  popFrame: { width: 340, padding: 6, borderRadius: radius.lg, backgroundColor: color.tile, borderWidth: 1.5, borderStyle: "solid", borderColor: color.control },
+  popWin: { maxHeight: 300, cursor: "pointer" },
+  // A window with news says so in its preview's title bar, in place of its summary.
   newTag: {
     display: "inline-flex", alignItems: "center", height: 18, paddingInline: 7, borderRadius: radius.pill, flexShrink: 0,
     backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
@@ -143,7 +137,7 @@ const s = stylex.create({
   // The taskbar, in its own strip under the card, on the page ground (in full screen, under the big window).
   // On a phone the bar stays at the bottom of the screen, in thumb reach, while the windows scroll past.
   strip: {
-    // On desktop the row above the desk does this job.
+    // On desktop the rail does this job.
     display: { default: "flex", [DESKTOP]: "none" }, justifyContent: "center", paddingTop: 12, zIndex: 5,
     position: { default: "sticky", [DESKTOP]: "static" }, bottom: 0, paddingBottom: { default: "max(8px, env(safe-area-inset-bottom))", [DESKTOP]: 0 },
   },
@@ -184,8 +178,8 @@ const s = stylex.create({
   tipFirst: { color: color.slabInk, fontWeight: 600 },
 })
 
-/** How many windows wait beside the big one. */
-const STACK = 4
+/** "Chat, Posts and Tasks" */
+const and = (xs: ReadonlyArray<string>) => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`
 
 export const Desk = ({ windows, master, onBring, since, note, addHref }: {
   windows: ReadonlyArray<DeskWindow>
@@ -207,10 +201,9 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
   const [read, setRead] = useState<ReadonlySet<string>>(() => new Set([master]))
   useEffect(() => setRead((r) => (r.has(master) ? r : new Set(r).add(master))), [master])
   const newsOf = (w: DeskWindow) => (read.has(w.key) ? 0 : w.news ?? 0)
-  const anyNews = windows.some((w) => newsOf(w) > 0)
-  // The stack sorts itself: late first, then news, then project order; empty windows last.
-  const rank = (w: DeskWindow) => ((w.late ?? 0) > 0 ? 0 : newsOf(w) > 0 ? 1 : w.empty ? 3 : 2)
-  const waiting = windows.filter((w) => w.key !== master).map((w, i) => ({ w, i })).sort((a, b) => rank(a.w) - rank(b.w) || a.i - b.i).slice(0, STACK).map((x) => x.w)
+  const withNews = windows.filter((w) => newsOf(w) > 0)
+  const newsTotal = withNews.reduce((n, w) => n + newsOf(w), 0)
+  const late = windows.filter((w) => (w.late ?? 0) > 0)
 
   // Full screen: the page under it holds still, and Escape comes back out (unless something inside used the key).
   useEffect(() => {
@@ -242,27 +235,31 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
   const focusIn = (e: FocusEvent<HTMLElement>, k: string) => { if (e.target.matches(":focus-visible")) { setWide("keyboard"); showTip(k) } }
   const focusOut = (e: FocusEvent<HTMLElement>) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) leaveBar() }
 
-  const [hovered, setHovered] = useState<string | null>(null)
+  // A rail icon pops its preview on hover (after a beat, so sweeping past doesn't flash them) or keyboard focus. Moving
+  // along the rail, the next one swaps in at once.
+  const [peek, setPeek] = useState<string | null>(null)
+  const [peekWarm, setPeekWarm] = useState(false)
+  const peekTimer = useRef<number>(undefined)
+  const showPeek = (k: string) => {
+    clearTimeout(peekTimer.current)
+    if (k === master) setPeek(null)
+    else if (peek) { setPeekWarm(true); setPeek(k) }
+    else peekTimer.current = window.setTimeout(() => setPeek(k), 120)
+  }
+  const hidePeek = () => { clearTimeout(peekTimer.current); setPeek(null); setPeekWarm(false) }
+  useEffect(() => () => clearTimeout(peekTimer.current), [])
 
   const vt = (k: string) => ({ viewTransitionName: `desk-${k}` })
+  const say = (w: DeskWindow) => [w.name, newsOf(w) > 0 && `${newsOf(w)} new`, (w.late ?? 0) > 0 && `${w.late} late`].filter(Boolean).join(", ")
+
+  const lateLine = late.length > 0 && <span {...sx(s.lateLine)}> {late.map((w) => `${w.late} late in ${w.name}`).join(", ")}.</span>
+  const news = note ? <span {...sx(s.calm)}>{note}</span>
+    : since ? <>{withNews.length ? <><span {...sx(s.lead)}>{since}:</span> {newsTotal} new in {and(withNews.map((w) => w.name))}.</> : <span {...sx(s.calm)}>All caught up.</span>}{lateLine}</>
+    : lateLine
 
   return (
     <section aria-label="Windows" {...sx(full && s.wrapFull)}>
-      <nav aria-label="Every window in this project" ref={fadeOverflow} {...sx(s.row, full && s.rowFull)}>
-        {note ? <span {...sx(s.calm)}>{note}</span> : since && (anyNews ? <span {...sx(s.lead)}>{since}:</span> : <span {...sx(s.calm)}>All caught up.</span>)}
-        {windows.map((w) => {
-          const cur = w.key === master, n = newsOf(w), late = w.late ?? 0
-          return (
-            <button key={w.key} type="button" onClick={(e) => bring(w.key, e.nativeEvent)} aria-current={cur || undefined}
-              aria-label={[w.name, n && `${n} new`, late && `${late} late`].filter(Boolean).join(", ")}
-              {...sx(s.pill, n > 0 && s.pillNews, late > 0 && !cur && s.pillLate, cur && s.pillCur, !n && !(late > 0 && !cur) && s.desktopOnly)}>
-              {w.name}
-              {n > 0 ? <span aria-hidden="true" {...sx(s.num, cur && s.numOnCur)}>{n}</span> : late > 0 && <span aria-hidden="true">{late} late</span>}
-            </button>
-          )
-        })}
-        {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.pill, s.plus, s.desktopOnly)}><Icon name="plus" size={16} /></a>}
-      </nav>
+      {news && <p {...sx(s.row, full && s.rowFull)}>{news}</p>}
       <div {...sx(s.desk, s.card, full && s.deskFull)}>
         {m ? (
           <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master)}>
@@ -274,24 +271,43 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
         ) : (
           <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p><p>Add one with + above.</p></div>
         )}
-        {m && !full && waiting.length > 0 && (
-          <div {...sx(s.stack)}>
-            {waiting.map((w) => (
-              <section key={w.key} aria-label={w.name} style={vt(w.key)} onClick={(e) => bring(w.key, e.nativeEvent)}
-                onPointerEnter={() => setHovered(w.key)} onPointerLeave={() => setHovered(null)} {...sx(s.win, s.waiting, w.empty && s.quiet)}>
-                <div {...sx(s.head)}>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} aria-label={`Bring ${w.name} forward`} {...sx(s.bring)}>
-                    <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
-                    {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
-                    <span aria-hidden="true" {...sx(s.hint, hovered === w.key && s.hintShown)}>Bring forward</span>
+        {m && (
+          <nav aria-label="Every window in this project" onPointerLeave={hidePeek}
+            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) hidePeek() }}
+            onKeyDown={(e) => { if (e.key === "Escape" && peek) { e.preventDefault(); hidePeek() } }} {...sx(s.rail)}>
+            {windows.map((w, i) => {
+              const cur = w.key === master, n = newsOf(w), lateHere = (w.late ?? 0) > 0 && !cur
+              return (
+                <div key={w.key} {...sx(s.railItem)}>
+                  <button type="button" aria-current={cur || undefined} aria-label={say(w)} title={peek ? undefined : w.name}
+                    onClick={(e) => { hidePeek(); bring(w.key, e.nativeEvent) }}
+                    onPointerEnter={(e) => { if (e.pointerType !== "touch") showPeek(w.key) }}
+                    onFocus={(e) => { if (e.target.matches(":focus-visible")) { setPeekWarm(true); setPeek(cur ? null : w.key) } }}
+                    {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur)}>
+                    <Icon name={w.icon} size={18} />
+                    {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge)}>{n}</span>}
                   </button>
+                  {peek === w.key && (
+                    <div aria-hidden="true" onClick={(e) => { hidePeek(); bring(w.key, e.nativeEvent) }} {...sx(s.pop, i >= windows.length / 2 && s.popUp, peekWarm && s.popStill)}>
+                      <div {...sx(s.popFrame)}>
+                        <section style={vt(w.key)} {...sx(s.win, s.popWin)}>
+                          <div {...sx(s.head)}>
+                            <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
+                            {n > 0 ? <span {...sx(s.newTag)}>{n} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
+                            <span {...sx(s.hint)}>Click to open</span>
+                          </div>
+                          {w.empty
+                            ? <div {...sx(s.body)}><p {...sx(s.blank)}>{w.summary}.</p></div>
+                            : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
+                        </section>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {w.empty
-                  ? <div {...sx(s.body)}><p {...sx(s.blank)}>{w.summary}.</p></div>
-                  : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
-              </section>
-            ))}
-          </div>
+              )
+            })}
+            {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus)}><Icon name="plus" size={16} /></a>}
+          </nav>
         )}
       </div>
       <div {...sx(s.strip, full && s.stripFull)}>
