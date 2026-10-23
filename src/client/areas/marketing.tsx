@@ -793,7 +793,98 @@ const POSTS: ReadonlyArray<Post> = [
       </>
     ),
   },
+  {
+    slug: "how-i-write-cards-my-agent-can-finish",
+    title: "How I write cards my agent can finish",
+    dek: "Most of what goes wrong with an agent goes wrong before it starts. Here's how I write the card.",
+    blurb: "Most of what goes wrong with an agent goes wrong before it starts. A few habits for writing the card.",
+    date: "October 24, 2026",
+    body: () => (
+      <>
+        <P>When my agent hands back something that misses, it's usually not the agent's fault. It's the card. I wrote "footer" and meant "fix the three broken links in the mobile footer and don't touch the desktop one". It did its best with "footer".</P>
+        <P>So these days I spend a minute on the card before I hand it off. Here's what I do. Take what's useful.</P>
+
+        <H>I write the title as the thing I want done</H>
+        <P>Not "footer", but "Fix the broken footer links on mobile". Not "release notes", but "Write release notes for this week's changes, short enough to read in a minute". If the title alone tells the agent what to do, half the work is done.</P>
+
+        <H>I say what finished looks like</H>
+        <P>One or two sentences in the card: what I expect to see when it's done. A short draft on the card. A list of links. A fix I can try on my phone. If there's something it shouldn't touch, I say that too. Agents are eager; a fence helps.</P>
+
+        <H>I add the steps I'll check</H>
+        <P>This is the habit that changed the most for me. I add a few steps to the card, and they're not instructions, they're how I'll check the work: "every footer link opens the right page", "nothing changed on desktop". The agent ticks them off before it moves the card to Review, and I look at the same ones when it gets there. We're checking the same thing.</P>
+        <Pull>If I can't say how I'd check it, it isn't ready to hand off.</Pull>
+        <P>When I can't come up with the steps, that tells me something. Either I don't know what I want yet, and the card stays in Triage until I do, or it's the kind of thing only I can judge, and it goes to Mine.</P>
+
+        <H>I keep cards small</H>
+        <P>If checking the result would take me more than a few minutes, the card is too big. I split it. Two small cards that each come back right beat one big card that comes back half right.</P>
+
+        <H>Before and after</H>
+        <P><b>Before:</b> "Landing page copy".</P>
+        <P><b>After:</b> "Rewrite the landing page hero in plain words". In the card: "Keep it under 30 words, don't change the button. Three versions on this card." Steps: "each version is under 30 words", "no jargon", "the button text is untouched".</P>
+        <P>That second card comes back ready to decide on. Which is the point: the agent does the making, and I get to do the deciding. More on that next.</P>
+      </>
+    ),
+  },
+  {
+    slug: "how-i-review-my-agents-work",
+    title: "How I review my agent's work",
+    dek: "Ship it, send it back, or kill it. How I go through what's waiting for me without it taking over my day.",
+    blurb: "Ship it, send it back, or kill it. How I go through what's waiting without it taking over my day.",
+    date: "October 24, 2026",
+    body: () => (
+      <>
+        <P>Everything my agent finishes lands in Review, and shows up on my Home under Waiting for you. I could look every time something arrives. I don't. A couple of times a day, usually before lunch and before I stop, I go through the list, oldest first, and give each card an answer.</P>
+        <P>There are only three answers. That's what keeps it quick.</P>
+
+        <H>Ship it when it's good enough</H>
+        <P>Not perfect. Good enough to use. I check the steps on the card, the ones I wrote before I handed it off, and if they hold, I ship it. If I catch myself polishing something the agent made, I stop and ask whether it was the card that was unclear.</P>
+
+        <H>Send it back with one clear note</H>
+        <P>When it's close, I send it back with a note about what should change, and it goes back to where it was. I try to keep that note to a sentence or two. If I find myself writing a whole paragraph, the problem usually isn't the work, it's the card, so I rewrite the card instead.</P>
+        <Pull>If the agent keeps missing, I move the card to Mine and just do it myself.</Pull>
+        <P>Some things are mine to do. A tricky email to a client. A decision about what we're building. If I've sent something back a couple of times and it still isn't right, that's a sign, not a failure. I drag it to Mine and get on with it.</P>
+
+        <H>Kill it without guilt</H>
+        <P>The agent made it in minutes. If it turns out we didn't need it, or I've changed my mind, I kill it. It goes to the trash, and I can bring it back if I was wrong. Nobody's feelings are hurt.</P>
+
+        <H>Then I fix the rules, not the cards</H>
+        <P>If I keep sending back the same kind of thing (too long, too formal, touched something it shouldn't), I don't keep writing the same note. I add a line to the project's house rules, the pinned post the agent reads before it starts. The next card comes back better, and I never have to say it again.</P>
+        <P>And then I close Review and get back to my own work. Which brings me to the last part: stopping.</P>
+      </>
+    ),
+  },
+  {
+    slug: "how-i-stop-at-five",
+    title: "How I stop at five when my agent doesn't",
+    dek: "My agent works all night. I don't. A few things that make that possible.",
+    blurb: "My agent works all night. I don't. A few things that make that possible.",
+    date: "October 24, 2026",
+    body: () => (
+      <>
+        <P>The best thing about an agent is that it keeps going. The worst thing about an agent is that it keeps going. If every card it finished buzzed my phone, I'd never stop working, I'd just be watching it work.</P>
+        <P>So here's how I keep my evenings mine.</P>
+
+        <H>My agent doesn't ping me</H>
+        <P>In Saintsflow agents don't send notifications, at all. When my agent finishes something at 11pm, it lands in Review and waits. Nothing buzzes. The only things that reach me are people: someone who mentions me, someone who messages me directly.</P>
+
+        <H>I set quiet hours</H>
+        <P>People can wait too. I set the hours I work, and outside them notifications hold until I'm back. It's a small switch that does a lot for my evenings.</P>
+
+        <H>I hand off before I stop</H>
+        <P>The last thing I do each day is look at what's in Running. Those are the cards I'm happy for my agent to work on overnight. If something should wait for me, I move it out. Then I close the laptop.</P>
+        <Pull>The cards will be there tomorrow. That's the whole point of putting them somewhere.</Pull>
+
+        <H>I don't check Review at night</H>
+        <P>This one takes some discipline. It's tempting to peek at what came back. I don't, because one peek turns into a send-back, and a send-back turns into an hour. Review is a morning thing.</P>
+
+        <H>Mornings start with Review, then Mine</H>
+        <P>When I sit down, I go through what's waiting first, ship, send back or kill, so the agent has fresh work for the day. Then I spend the best part of my morning on Mine: the work only I can do. That's the trade. The agent gets the busywork; I get my focus back.</P>
+        <P>We keep your flow state. Yes, still the pun.</P>
+      </>
+    ),
+  },
 ]
+
 
 const BlogIndex = () => (
   <Chrome>
@@ -834,7 +925,7 @@ const BlogPost = () => {
         <div {...sx(s.enter, s.delay(200))}>{post.body()}</div>
         <footer {...sx(s.postEnd)}>
           <p {...sx(s.ctas)}><Ctas second={["See how it works", "/marketing#agents"]} /></p>
-          {POSTS.filter((p) => p.slug !== post.slug).map((p) => (
+          {[POSTS[(POSTS.indexOf(post) + 1) % POSTS.length]!].filter((p) => p !== post).map((p) => (
             <a key={p.slug} href={`/blog/${p.slug}`} {...sx(s.postCard, s.postNext)}>
               <small {...sx(s.postDate)}>Read next</small>
               <span {...sx(s.postCardTitle)}>{p.title}</span>
