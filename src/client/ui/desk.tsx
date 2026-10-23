@@ -102,19 +102,27 @@ const s = stylex.create({
   // It clips what doesn't fit yet, so the previews are uncovered as it widens. It reaches 4px above the big window so the
   // first icon's count isn't clipped.
   rail: { display: { default: "none", [DESKTOP]: "flex" }, flexDirection: "column", minHeight: 0, overflow: "clip", marginTop: -4, paddingTop: 4 },
-  // One list, two looks: the icons and the previews share a spot and cross-fade, so a window keeps its place either way.
+  // One list, two looks: the icons and the previews share a spot, so a window keeps its place either way. Opening, each
+  // icon flies to its preview's title bar (and back when closing); see `fly` below.
   stack: { display: "grid", flexGrow: 1, minHeight: 0 },
-  icons: {
-    gridArea: "1 / 1", display: "flex", flexDirection: "column", gap: 4, width: 44, paddingRight: 4,
-    transitionProperty: "opacity", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
-  },
+  icons: { gridArea: "1 / 1", display: "flex", flexDirection: "column", gap: 4, width: 44, paddingRight: 4 },
+  // While the icons fly they sit above the previews, so the cards fading in don't cover them.
+  iconsFlying: { position: "relative", zIndex: 1, pointerEvents: "none" },
   iconsHidden: { opacity: 0 },
+  // The icon itself: the part that flies.
+  glyph: { display: "inline-flex" },
+  // A preview's own icon waits, hidden, until the flying one lands on it.
+  glyphWaiting: { visibility: "hidden" },
   railToggle: { color: color.muted, marginBottom: 6, flexShrink: 0 },
   railToggleOn: { color: color.ink, backgroundColor: { default: color.tileHover, ":hover": { default: null, [media.hover]: color.tileHover } } },
   railBtn: {
     position: "relative", width: 40, minHeight: 40, padding: 0, borderRadius: 12, color: color.ink,
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tileHover } },
+    transitionProperty: "background-color, color, box-shadow", transitionDuration: "160ms", transitionTimingFunction: EASE_OUT,
   },
+  // With the previews open, a button is only its icon (in flight): its fill, outline and count fade away.
+  railBare: { color: color.ink, boxShadow: "none", backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } } },
+  badgeGone: { opacity: 0 },
   railNews: { backgroundColor: { default: color.accentSoft, ":hover": { default: null, [media.hover]: color.accentSoft } } },
   railLate: { color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
   railCur: { color: color.onPrimary, boxShadow: "none", backgroundColor: { default: color.primary, ":hover": { default: null, [media.hover]: color.primaryHover } } },
@@ -124,16 +132,15 @@ const s = stylex.create({
     backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
   },
   // On a rail icon the count sits on its corner, ringed in the desk's gray so it reads apart from the icon.
-  badge: { position: "absolute", top: -4, right: -4, boxShadow: `0 0 0 2px ${color.tile}` },
+  badge: { position: "absolute", top: -4, right: -4, boxShadow: `0 0 0 2px ${color.tile}`, transitionProperty: "opacity", transitionDuration: "120ms" },
   // The previews, in the icons' place and order: each window's title bar, then the start of its body. They fade in as the
-  // rail opens (a beat behind it, so they arrive on a settled frame) and drift 8px into place; they leave faster than
-  // they came. Their width is fixed, so the opening slide uncovers them rather than squeezing them.
+  // rail opens (a beat behind it, so the icons lead) and leave faster than they came. They never move: their width is
+  // fixed, so the opening slide uncovers them rather than squeezing them, and the icons know where to land.
   pane: {
     gridArea: "1 / 1", display: "flex", flexDirection: "column", gap: 8, width: 300, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", scrollbarWidth: "thin",
-    opacity: 0, transform: { default: "translateX(-8px)", [media.reduce]: "none" },
-    transitionProperty: "opacity, transform", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
+    opacity: 0, transitionProperty: "opacity", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
   },
-  paneOpen: { opacity: 1, transform: "none", transitionDuration: "220ms", transitionDelay: "60ms" },
+  paneOpen: { opacity: 1, transitionDuration: "220ms", transitionDelay: "60ms" },
   colWin: {
     flexShrink: 0, height: 168, cursor: "pointer", transitionProperty: "border-color", transitionDuration: motion.fast,
     borderColor: { default: color.line, ":hover": { default: null, [media.hover]: color.control } },
@@ -267,7 +274,36 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
   // The previews open from the rail's top button and stay how you left them (in this browser). A deliberate click, not a
   // hover: the big window makes room for them, and work shouldn't shift because the pointer passed the edge.
   const [col, setCol] = useState(() => { try { return localStorage.getItem("saintsflow:previews") === "1" } catch { return false } })
-  const toggleCol = () => { setCol(!col); try { localStorage.setItem("saintsflow:previews", col ? "0" : "1") } catch {} }
+  // Opening, each icon flies from the rail to its preview's title bar, shrinking from 18px to 16px, on the same curve and
+  // time as the rail; closing, it flies back. That's what tells you which preview is which. The previews' own icons wait
+  // hidden until the flight lands, then take over (an opening flight holds its landing, so nothing flickers back).
+  // Toggling mid-flight turns the icons around from where they are.
+  const [flying, setFlying] = useState(false)
+  const railGlyph = useRef(new Map<string, HTMLElement>())
+  const paneGlyph = useRef(new Map<string, HTMLElement>())
+  const flights = useRef<Animation[]>([])
+  const fly = (opening: boolean) => {
+    flights.current.forEach((a) => a.pause())
+    const from = new Map([...railGlyph.current].map(([k, el]) => [k, getComputedStyle(el).transform]))
+    flights.current.forEach((a) => a.cancel())
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { flights.current = []; return }
+    flights.current = [...railGlyph.current].flatMap(([k, a]) => {
+      const b = paneGlyph.current.get(k)
+      if (!b) return []
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect()
+      const landed = `translate(${rb.left - ra.left}px, ${rb.top - ra.top}px) scale(${rb.width / ra.width})`
+      const now = from.get(k) && from.get(k) !== "none" ? from.get(k)! : opening ? "none" : landed
+      return [a.animate([{ transform: now }, { transform: opening ? landed : "none" }], { duration: opening ? 280 : 200, easing: EASE_DRAWER, fill: opening ? "forwards" : "none" })]
+    })
+    setFlying(true)
+    const these = flights.current
+    Promise.all(these.map((a) => a.finished)).then(() => { if (flights.current === these) setFlying(false) }, () => {})
+  }
+  const toggleCol = () => {
+    fly(!col)
+    setCol(!col)
+    try { localStorage.setItem("saintsflow:previews", col ? "0" : "1") } catch {}
+  }
   // The preview under the pointer: with the one you're leaving, it's what glides when you swap.
   const [hot, setHot] = useState<string | null>(null)
 
@@ -288,23 +324,23 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
             <button type="button" onClick={toggleCol} aria-expanded={col} aria-label={col ? "Hide previews" : "Show previews"} title={col ? "Hide previews" : "Show previews"}
               {...sx(s.railBtn, s.railToggle, col && s.railToggleOn)}><Icon name="panel" size={18} /></button>
             <div {...sx(s.stack)}>
-              <div inert={col} {...sx(s.icons, col && s.iconsHidden)}>
+              <div inert={col} {...sx(s.icons, flying && s.iconsFlying, col && !flying && s.iconsHidden)}>
                 {windows.map((w) => {
                   const cur = w.key === master, n = newsOf(w), lateHere = (w.late ?? 0) > 0 && !cur
                   return (
                     <button key={w.key} type="button" aria-current={cur || undefined} aria-label={say(w)} title={w.name}
-                      onClick={(e) => bring(w.key, e.nativeEvent)} {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur)}>
-                      <Icon name={w.icon} size={18} />
-                      {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge)}>{n}</span>}
+                      onClick={(e) => bring(w.key, e.nativeEvent)} {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur, col && s.railBare)}>
+                      <span ref={(el) => { if (el) railGlyph.current.set(w.key, el); else railGlyph.current.delete(w.key) }} {...sx(s.glyph)}><Icon name={w.icon} size={18} /></span>
+                      {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge, col && s.badgeGone)}>{n}</span>}
                     </button>
                   )
                 })}
-                {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus)}><Icon name="plus" size={16} /></a>}
+                {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus, col && s.badgeGone)}><Icon name="plus" size={16} /></a>}
               </div>
               <div inert={!col} {...sx(s.pane, col && s.paneOpen)}>
                 {windows.map((w) => w.key === master
                   ? <section key={w.key} aria-current="true" {...sx(s.win, s.colWin, s.colCur)}>
-                      <div {...sx(s.head, s.headOnly)}><Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b><span {...sx(s.summary)}>Open now</span></div>
+                      <div {...sx(s.head, s.headOnly)}><span ref={(el) => { if (el) paneGlyph.current.set(w.key, el); else paneGlyph.current.delete(w.key) }} {...sx(s.glyph, flying && s.glyphWaiting)}><Icon name={w.icon} size={16} /></span><b {...sx(s.name)}>{w.name}</b><span {...sx(s.summary)}>Open now</span></div>
                     </section>
                   : <section key={w.key}
                       // Only the two windows trading places glide; the other previews hold still (and stay clipped).
@@ -312,7 +348,7 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
                       onClick={(e) => bring(w.key, e.nativeEvent)} onPointerEnter={() => setHot(w.key)}
                       {...sx(s.win, s.colWin, w.empty && s.colWinEmpty)}>
                       <button type="button" aria-label={say(w)} onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} {...sx(s.colBring)}>
-                        <Icon name={w.icon} size={16} /><b {...sx(s.name)}>{w.name}</b>
+                        <span ref={(el) => { if (el) paneGlyph.current.set(w.key, el); else paneGlyph.current.delete(w.key) }} {...sx(s.glyph, flying && s.glyphWaiting)}><Icon name={w.icon} size={16} /></span><b {...sx(s.name)}>{w.name}</b>
                         {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : !w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
                       </button>
                       {w.empty
