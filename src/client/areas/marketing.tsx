@@ -1,9 +1,9 @@
-// The marketing pages (/marketing, and /startups). They stand alone, outside the app chrome: the kargul.studio look at
+// The marketing pages (/marketing, /startups, and the /blog). They stand alone, outside the app chrome: the kargul.studio look at
 // full strength (big Geist type, pill buttons, dark rounded slabs, line-art that drifts), showing a real project rather
 // than describing one. We're in beta: no pricing anywhere, and no proof we don't have (no logos, ratings or numbers).
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as PE, type ReactNode } from "react"
-import { Navigate } from "react-router"
+import { Navigate, useParams } from "react-router"
 import { meOrNull } from "../data.ts"
 import { sx } from "../ui/kit.tsx"
 import { page } from "../ui/page.tsx"
@@ -258,6 +258,31 @@ const s = stylex.create({
 
   close: { textAlign: "center", paddingBlock: { default: space.s8, [DESKTOP]: 140 } },
   closeTitle: { maxWidth: "16ch", marginInline: "auto" },
+
+  // The blog: a list of posts, and a post at reading width.
+  postList: { display: "grid", gap: space.s3, maxWidth: "48rem", marginInline: "auto", paddingBottom: { default: space.s8, [DESKTOP]: 120 } },
+  postCard: {
+    display: "grid", gap: space.s2, padding: { default: space.s5, [DESKTOP]: space.s7 }, borderRadius: { default: radius.xl, [DESKTOP]: 32 },
+    backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.tile } }, color: color.ink, textDecoration: "none",
+    transitionProperty: "background-color", transitionDuration: motion.fast,
+  },
+  postCardTitle: { fontSize: "clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem)", fontWeight: 750, lineHeight: 1.1, letterSpacing: "-0.035em", textWrap: "balance" },
+  postCardDek: { fontSize: text.md, lineHeight: 1.55, color: color.muted, textWrap: "pretty" },
+  postRead: { display: "inline-flex", alignItems: "center", gap: space.s2, marginTop: space.s2, fontSize: text.sm, fontWeight: 650 },
+  postDate: { fontSize: text.sm, color: color.muted },
+  post: { maxWidth: "42rem", marginInline: "auto", paddingInline: space.s4, paddingTop: { default: space.s7, [DESKTOP]: 96 }, paddingBottom: { default: space.s8, [DESKTOP]: 120 } },
+  postHead: { marginBottom: { default: space.s7, [DESKTOP]: space.s8 } },
+  postMeta: { margin: 0, marginBottom: space.s4, fontSize: text.sm, color: color.muted },
+  postTitle: { margin: 0, fontSize: "clamp(2.5rem, 1.4rem + 4vw, 4.25rem)", lineHeight: 1, fontWeight: 750, letterSpacing: "-0.04em", textWrap: "balance" },
+  postDek: { marginTop: space.s5, marginBottom: 0, fontSize: { default: text.md, [DESKTOP]: "1.25rem" }, lineHeight: 1.5, color: color.muted, textWrap: "pretty" },
+  postP: { marginTop: 0, marginBottom: space.s5, maxWidth: "none", fontSize: { default: "1.0625rem", [DESKTOP]: "1.1875rem" }, lineHeight: 1.7, textWrap: "pretty" },
+  postH2: { marginTop: { default: space.s7, [DESKTOP]: space.s8 }, marginBottom: space.s4, fontSize: "clamp(1.5rem, 1.15rem + 1.2vw, 2rem)", lineHeight: 1.15, fontWeight: 750, letterSpacing: "-0.03em" },
+  pull: {
+    marginBlock: { default: space.s6, [DESKTOP]: space.s7 }, marginInline: 0, padding: { default: space.s5, [DESKTOP]: space.s6 }, borderRadius: radius.xl,
+    backgroundColor: color.slab, color: color.slabInk, fontSize: "clamp(1.375rem, 1.1rem + 1vw, 1.875rem)", fontWeight: 700, lineHeight: 1.25, letterSpacing: "-0.025em",
+  },
+  postNext: { marginTop: space.s7 },
+  postEnd: { marginTop: space.s8, paddingTop: space.s6, borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: color.line },
   footer: { overflow: "hidden", paddingTop: space.s6 },
   footerRow: {
     display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: space.s4, paddingBlock: space.s5,
@@ -479,6 +504,7 @@ const Chrome = ({ children }: { children: ReactNode }) => {
               <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
               <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
               <a href="/startups" {...sx(s.navLink)}>For startups</a>
+              <a href="/blog" {...sx(s.navLink)}>Blog</a>
             </nav>
           </div>
           <div {...sx(s.headerEnd)}>
@@ -496,6 +522,7 @@ const Chrome = ({ children }: { children: ReactNode }) => {
             <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
             <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
             <a href="/startups" {...sx(s.navLink)}>For startups</a>
+              <a href="/blog" {...sx(s.navLink)}>Blog</a>
             {me ? <a href="/" {...sx(s.navLink)}>Go to Saintsflow</a> : <><a href="/signin" {...sx(s.navLink)}>Log in</a><a href="/signup" {...sx(s.navLink)}>Sign up</a></>}
           </p>
         </div>
@@ -709,8 +736,148 @@ const Startups = () => (
   </Chrome>
 )
 
+// ---------- /blog ----------
+// Posts are written here, as pages. Opinions, not announcements: no names, no numbers we can't stand behind.
+
+/** `eyebrow`: the small pill over the title. `blurb`: what the blog's list says about it. */
+type Post = { slug: string; eyebrow?: string; title: string; dek: string; blurb: string; date: string; body: () => ReactNode }
+
+const P = ({ children }: { children: ReactNode }) => <p {...sx(s.postP)}>{children}</p>
+const H = ({ children }: { children: ReactNode }) => <h2 {...sx(s.postH2)}>{children}</h2>
+const Pull = ({ children }: { children: ReactNode }) => <blockquote {...sx(s.pull)}>{children}</blockquote>
+
+const POSTS: ReadonlyArray<Post> = [
+  {
+    slug: "what-is-saintsflow",
+    eyebrow: "BYOA · Bring your own agent",
+    title: "What is Saintsflow?",
+    dek: "Project software for teams that work with agents. You bring the agent. We keep your flow state.",
+    blurb: "BYOA: bring your own agent. What Saintsflow is, and why we didn't build an AI.",
+    date: "October 23, 2026",
+    body: () => (
+      <>
+        <P>Saintsflow is project software for small teams and the AI agents that help them. Every project gets one home: posts, a board, files, chat and a calendar. The twist is BYOA, bring your own agent. We didn't build an AI. You connect the one you already use (Claude, ChatGPT, whatever lives in your editor), and it works in your projects as you, marks everything it does, hands finished work back for you to check, and never pings anyone.</P>
+        <P>That's the short version. Here's why we built it that way.</P>
+
+        <H>Where does the agent's work go?</H>
+        <P>A lot of the work on a project isn't done by people anymore. The first draft of the release notes. The research for the pitch. The triage of last week's bug reports. Your agent did those, somewhere between your morning coffee and your first meeting.</P>
+        <P>And then the work went… where, exactly? Into a chat window. Into a file on someone's laptop. Into a thread nobody will find in a month. The agent was fast. The handoff was a mess. Saintsflow is the place for that work to land.</P>
+
+        <H>Bring the one you have</H>
+        <P>You picked your agent. It knows how you write. It's where you already think out loud. So Saintsflow works with it, not instead of it. Paste one address into your agent, sign in, click Allow. From then on it works in your projects: the same projects you can see, and only what you're allowed to do.</P>
+        <Pull>That's BYOA: you bring the agent, we bring the place for its work.</Pull>
+
+        <H>Your agent doesn't need a seat</H>
+        <P>In Saintsflow your agent isn't another member to manage. It works as you, so there's nothing extra to set up: no second login, no new person to add to every project, no permissions to keep in step.</P>
+        <P>But "as you" can't mean "invisibly". So everything it touches says so: <b>Maya · via Claude Code</b>. On the post, on the card, on the comment, in the activity. One click shows you just the agent's work. Nobody has to wonder who wrote that.</P>
+
+        <H>Making things got cheap. Deciding didn't.</H>
+        <P>An agent can make ten drafts before lunch. Making things is the cheap part now. The part that's still yours is deciding: is this good? Is this done? Is this what we meant?</P>
+        <P>So every board in Saintsflow has a column called Review. When your agent finishes something, it ticks its steps, leaves one note about what it did, and puts the card there. It shows up on your Home under <b>Waiting for you</b>, oldest first. You give it one of three answers: <b>Ship it</b>, <b>Send it back</b> with what should change, or <b>Kill it</b>.</P>
+        <P>That's the whole ritual. Look twice a day, decide, and get back to the work only you can do.</P>
+
+        <H>The quiet part</H>
+        <P>Agents don't sleep. That's their whole appeal. It's also a problem, if every card they move turns into a notification on your phone at 11pm.</P>
+        <P>So agents in Saintsflow don't ping anyone. Their work goes into the project and waits. The only things that get through are people who actually need you: an @mention, a direct message. Everything else can wait for you to look.</P>
+        <Pull>We keep your flow state. Yes, that's the pun. We're keeping it.</Pull>
+
+        <H>A first project that's ready</H>
+        <P>When your agent starts a project, it comes ready to work in: a board with Triage, Running, Mine and Review, and a short set of house rules pinned to the top. The agent reads the rules before it does anything. You can change them, and you probably will. But nobody has to spend an afternoon setting up a workflow before the first piece of work can land.</P>
+
+        <H>What we're doing</H>
+        <P>One home per project. A name on everything. A place for the work to come back to you. And quiet, so you can stop thinking about work at the end of the day even though your agent doesn't stop. That's it, and we think that's plenty.</P>
+        <P>Saintsflow is in beta, and it's free while it is. Bring your agent. We'll keep the rest quiet.</P>
+      </>
+    ),
+  },
+  {
+    slug: "the-shape-was-right",
+    eyebrow: "BYOA · Bring your own agent",
+    title: "The shape was right. The worker changed.",
+    dek: "What a project needs hasn't changed much. Who does the work has.",
+    blurb: "What a project needs hasn't changed much. Who does the work has, so here's what we built for that.",
+    date: "October 23, 2026",
+    body: () => (
+      <>
+        <P>A project needs surprisingly little. A place to share news and talk it over. A list of what has to get done. Somewhere to keep the files. A way to ask a quick question. A sense of the dates that matter. And a feeling, without a meeting, of how far along it is.</P>
+        <P>That shape is old, and it's good. Saintsflow keeps it: one home per project, and only the windows that project needs.</P>
+
+        <H>Who does the work</H>
+        <P>The shape assumed one thing: a person behind every piece of work. Someone wrote the post, someone checked off the task, someone uploaded the file.</P>
+        <P>That's not true anymore. A lot of the work on a project now gets done by an agent: the first draft, the research, the release notes, the cleanup. Often overnight. So we asked what a project tool looks like when it's built for that from the start.</P>
+
+        <H>What changes when agents do the work</H>
+        <P><b>The agent needs a way in.</b> You connect the agent you already use with one address. It works in your projects as you: it sees what you can see, and does what you can do.</P>
+        <P><b>You need to see what it did.</b> Everything it touches is marked <b>Maya · via Claude Code</b>. One click filters activity down to just the agents.</P>
+        <P><b>The work needs a place to come back to.</b> Every board has a column called Review. When your agent finishes something, the card lands there, and on your Home under <b>Waiting for you</b>. You ship it, send it back with a note, or kill it. Making things got cheap; deciding is the job now.</P>
+        <P><b>You need it to be quiet.</b> Agents never send notifications. Their work waits for you to look. The only things that reach you are people who need you: a mention, a direct message.</P>
+        <P><b>It should be ready on day one.</b> When your agent starts a project, it comes with a board (Triage, Running, Mine, Review) and house rules pinned to the top, which the agent reads before it does anything.</P>
+
+        <H>What doesn't change</H>
+        <P>One page per project. Few features, on purpose. Quiet hours, so the day has an end. A tool you can stop thinking about at five o'clock, even though your agent doesn't stop.</P>
+        <Pull>Same calm. Built for agents.</Pull>
+        <P>Saintsflow is in beta, and free while it is. Bring your agent. We'll keep your flow state.</P>
+      </>
+    ),
+  },
+]
+
+const BlogIndex = () => (
+  <Chrome>
+    <title>Blog · Saintsflow</title>
+    <meta name="description" content="Notes on calm project software, working with agents, and keeping your flow state." />
+    <section {...sx(s.wrap, s.hero)}>
+      <h1 {...sx(s.h1, s.enter)}>Blog</h1>
+      <p {...sx(s.lede, s.enter, s.delay(80))}>Notes on calm project software, working with agents, and keeping your flow state.</p>
+    </section>
+    <section {...sx(s.wrap, s.postList)}>
+      {POSTS.map((p, i) => (
+        <a key={p.slug} href={`/blog/${p.slug}`} {...sx(s.postCard, s.enter, s.delay(160 + i * 60))}>
+          <small {...sx(s.postDate)}>{p.date}</small>
+          <span {...sx(s.postCardTitle)}>{p.title}</span>
+          <span {...sx(s.postCardDek)}>{p.blurb}</span>
+          <span {...sx(s.postRead)}>Read it <Arrow /></span>
+        </a>
+      ))}
+    </section>
+  </Chrome>
+)
+
+const BlogPost = () => {
+  const slug = useParams().slug
+  const post = POSTS.find((p) => p.slug === slug)
+  if (!post) return <Navigate to="/blog" replace />
+  return (
+    <Chrome>
+      <title>{`${post.title} · Saintsflow`}</title>
+      <meta name="description" content={post.dek} />
+      <article {...sx(s.post)}>
+        <header {...sx(s.postHead)}>
+          {post.eyebrow && <p {...sx(s.enter)}><span {...sx(s.news)}><span aria-hidden="true" {...sx(s.newsDot)} />{post.eyebrow}</span></p>}
+          <p {...sx(s.postMeta, s.enter)}><a href="/blog" {...sx(s.navLink)}>Blog</a> · {post.date}</p>
+          <h1 {...sx(s.postTitle, s.enter, s.delay(60))}>{post.title}</h1>
+          <p {...sx(s.postDek, s.enter, s.delay(120))}>{post.dek}</p>
+        </header>
+        <div {...sx(s.enter, s.delay(200))}>{post.body()}</div>
+        <footer {...sx(s.postEnd)}>
+          <p {...sx(s.ctas)}><Ctas second={["See how it works", "/marketing#agents"]} /></p>
+          {POSTS.filter((p) => p.slug !== post.slug).map((p) => (
+            <a key={p.slug} href={`/blog/${p.slug}`} {...sx(s.postCard, s.postNext)}>
+              <small {...sx(s.postDate)}>Read next</small>
+              <span {...sx(s.postCardTitle)}>{p.title}</span>
+              <span {...sx(s.postCardDek)}>{p.blurb}</span>
+            </a>
+          ))}
+        </footer>
+      </article>
+    </Chrome>
+  )
+}
+
 export const routes = [
   page("/marketing", Marketing, { pub: true, bare: true }),
   page("/marketting", () => <Navigate to="/marketing" replace />, { pub: true, bare: true }),
   page("/startups", Startups, { pub: true, bare: true }),
+  page("/blog", BlogIndex, { pub: true, bare: true }),
+  page("/blog/:slug", BlogPost, { pub: true, bare: true }),
 ]
