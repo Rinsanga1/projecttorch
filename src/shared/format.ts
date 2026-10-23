@@ -1,19 +1,53 @@
 // Text and date formatting, shared by the server and the React app. Dates arrive as Date (server) or ISO strings (synced rows).
+import { Marked } from "marked"
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }
 export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ESC[c]!)
 
-// Bodies are stored as plain text. Render: escape, link URLs, keep line breaks, bold @mentions.
-// Returns escaped HTML: in React, `dangerouslySetInnerHTML={{ __html: fmt(body) }}` (or use <Fmt> from client/ui).
-// ponytail: plain-text bodies, swap in Trix/Action Text-style rich text when formatting matters
-export const fmt = (text: string | null | undefined) =>
-  esc(text ?? "")
-    .replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`)
-    .replace(/(^|\s)@(\w+)/g, "$1<b>@$2</b>")
-    .replace(/\n/g, "<br>\n")
+// Bodies are Markdown: what agents write, and still readable as plain text in emails and previews. Plain text from
+// before renders as it did (line breaks kept, URLs linked). Raw HTML shows as text and never runs; links go only to
+// http(s), mailto or this app; images become links (no remote pixels); headings start at h2, under the page's h1.
+// Returns HTML: in React, `dangerouslySetInnerHTML={{ __html: fmt(body) }}` (or use <Fmt> from client/ui).
+const safeHref = (href: string) => /^(https?:|mailto:|\/(?![/\\])|#)/i.test(href)
+const md = new Marked({
+  gfm: true,
+  breaks: true,
+  renderer: {
+    html: ({ text }) => esc(text),
+    heading({ tokens, depth }) {
+      const h = Math.min(depth + 1, 6)
+      return `<h${h}>${this.parser.parseInline(tokens)}</h${h}>\n`
+    },
+    link({ href, title, tokens }) {
+      const text = this.parser.parseInline(tokens)
+      return safeHref(href) ? `<a href="${esc(href)}"${title ? ` title="${esc(title)}"` : ""}>${text}</a>` : text
+    },
+    image: ({ href, text }) => (safeHref(href) ? `<a href="${esc(href)}">${esc(text || href)}</a>` : esc(text)),
+    text(token) {
+      const out = "tokens" in token && token.tokens ? this.parser.parseInline(token.tokens) : "escaped" in token && token.escaped ? token.text : esc(token.text)
+      return out.replace(/(^|\s)@(\w+)/g, "$1<b>@$2</b>")
+    },
+  },
+})
+
+export const fmt = (text: string | null | undefined) => {
+  const html = (md.parse(text ?? "", { async: false }) as string).trim()
+  // One paragraph (a chat line, a short comment) stays bare, so it sits in its bubble or line as before.
+  const one = /^<p>([\s\S]*)<\/p>$/.exec(html)
+  return one && !one[1]!.includes("<p>") ? one[1]! : html
+}
+
+/** Markdown down to its words, for one-line previews. */
+const plain = (t: string) =>
+  t.replace(/```[\s\S]*?```/g, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s*\|?[\s:|-]+\|[\s:|-]*$/gm, " ")
+    .replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+\[[ x]\]\s+|[-*+]\s+|\d+[.)]\s+)/gim, "")
+    .replace(/(\*\*|__|~~|`)/g, "")
+    .replace(/\s*\|\s*/g, " · ")
 
 export const excerpt = (text: string | null | undefined, n = 140) => {
-  const t = (text ?? "").replace(/\s+/g, " ").trim()
+  const t = plain(text ?? "").replace(/\s+/g, " ").trim()
   return t.length > n ? t.slice(0, n - 1) + "…" : t
 }
 
