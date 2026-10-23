@@ -176,7 +176,8 @@ export const App = observer(() => {
   }, [loc.key])
 
   if (!state.ready) return null
-  if (!me && !handle.pub) return <Navigate to={loc.pathname === "/" ? "/signin" : `/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />
+  // Signed out, Home is the marketing page; anywhere else asks you to sign in and brings you back.
+  if (!me && !handle.pub) return <Navigate to={loc.pathname === "/" ? "/marketing" : `/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />
   if (account && (account.status === "on_hold" || account.status === "cancelled") && !handle.pub && !ON_HOLD_OK.test(loc.pathname))
     return <Navigate to="/lockout" replace />
   if (handle.bare) return <Outlet />

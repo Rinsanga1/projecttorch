@@ -124,7 +124,7 @@ export const withCookie = (r: Reply, name: string, value: string | null, opts?: 
 export const resync = (r: Reply): Reply => ({ ...r, resync: true })
 
 // ---------- who's acting ----------
-/** `bun run dev` sets DEV=1: the footer's "Acting as" switcher (`pid` cookie), the dev inbox and /dev routes. */
+/** `bun run dev` sets DEV=1: the `pid` cookie (act as anyone), the dev inbox and /dev routes. */
 export const DEV = process.env.DEV === "1"
 
 export const SESSION_DAYS = 30
@@ -152,7 +152,7 @@ const loadAgent = (authorization: string) =>
 
 /**
  * Who's acting: an agent's key (Authorization: Bearer), else the `sid` session cookie. In dev, a `pid` cookie wins
- * over the session, and with neither you're the first person, so the sample data opens without signing in.
+ * over the session (scripts/smoke.ts acts as everyone that way). With neither, nobody: sign in, in dev too.
  */
 export const loadMe = (cookies: Readonly<Record<string, string>>, authorization?: string) =>
   Effect.gen(function* () {
@@ -172,8 +172,6 @@ export const loadMe = (cookies: Readonly<Record<string, string>>, authorization?
         where s.token_hash = ${hashToken(cookies.sid)} and s.verified and s.last_seen_at > now() - make_interval(days => ${SESSION_DAYS})
           and p.id = s.person_id and p.removed_at is null and p.joined_at is not null
         returning p.*`
-    } else if (DEV) {
-      rows = yield* sql<Person>`select * from people where removed_at is null and joined_at is not null order by id limit 1`
     }
     const me = rows[0] ?? null
     if (!me) return { me: null, account: null, app: null }

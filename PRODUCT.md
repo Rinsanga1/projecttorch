@@ -46,7 +46,7 @@ Used all day in a desktop browser alongside email and chat; checked on phones. K
 
 ## Evidence on Hand
 
-Sample data only (Acme HQ, Website Redesign for Northwind, Marketing Plan). No customers, testimonials, metrics or pricing exist; never invent them.
+Sample data only (Acme HQ, Website Redesign for Northwind, Marketing Plan). No customers, testimonials, metrics or pricing exist; never invent them. Saintsflow is in beta and free while it is (sign-ups start active, no trial).
 
 ## Product Principles
 

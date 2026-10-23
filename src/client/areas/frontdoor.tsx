@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
-import { me, account, useApi } from "../data.ts"
+import { me, meOrNull, account, useApi } from "../data.ts"
 import { isAdmin } from "../../shared/domain.ts"
 import { fmtDate, ms, today } from "../../shared/format.ts"
 import { Errors, Form, usePost } from "../ui/forms.tsx"
@@ -12,6 +12,19 @@ import { Page, page } from "../ui/page.tsx"
 
 const LINK_MINUTES = 15
 const UNKNOWN_EMAIL = "We don't know that email address. Check for typos, or sign up."
+
+/** On Sign in or Sign up while already signed in: say so, and offer the way in (or out). */
+const AlreadyIn = ({ title }: { title: string }) => {
+  const m = meOrNull()!
+  return (
+    <Page title={title}>
+      <h1>You're already signed in</h1>
+      <p>You're signed in as <b>{m.name}</b> ({m.email}).</p>
+      <p><a href="/" data-button>Go to Saintsflow</a></p>
+      <Form action="/signout"><button>Sign out, then {title === "Sign up" ? "sign up" : "sign in"} as someone else</button></Form>
+    </Page>
+  )
+}
 
 /** The page to go back to after signing in (?next=, set when a signed-out page sent you here). */
 const useNext = () => useSearchParams()[0].get("next") ?? ""
@@ -82,6 +95,7 @@ export const routes = [
   // Back from Google with no account yet: ?google=1&name=&email=, and who they are rides in a signed cookie.
   page("/signup", () => {
     const [q] = useSearchParams()
+    if (meOrNull()) return <AlreadyIn title="Sign up" />
     const google = q.get("google") === "1"
     return (
       <Page title="Sign up">
@@ -124,6 +138,7 @@ export const routes = [
     const [q] = useSearchParams()
     const email = (q.get("email") ?? "").trim()
     const { data } = useApi<{ known: boolean }>(email ? `/signin?email=${encodeURIComponent(email)}` : null)
+    if (meOrNull()) return <AlreadyIn title="Sign in" />
     return (
       <Page title="Sign in">
         {!email ? <EmailStep email="" />

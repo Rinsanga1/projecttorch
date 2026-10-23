@@ -15,8 +15,9 @@ Needs Bun, Node (Vite runs on it in dev) and a local Postgres (user `postgres` /
 Production: `bun run build`, then `bun run start` serves the built app and the API on `PORT` (default 3000).
 
 Sign in with a password or Google (sessions in `sessions`, passwords and Google ids in `logins`). Everyone in the sample data
-has the password `saintsflow`. Under `bun run dev` (it sets `DEV=1`) you start signed in as the first person (a `pid` cookie
-picks someone else; `scripts/smoke.ts` uses it), and every email the app would send lands in `/inbox`; without `DEV=1` those are off.
+has the password `saintsflow`. Signed out, `/` is the marketing page (`/marketing`; `/startups` too). Under `bun run dev` (it sets
+`DEV=1`) a `pid` cookie acts as anyone (`scripts/smoke.ts` uses it), and every email the app would send lands in `/inbox`;
+without `DEV=1` those are off.
 
 Env: `DATABASE_URL`, `PORT`, `AREAS_ONLY=dev,items,home,…` (load a subset of areas), `FEED_SECRET`, `DEV=1`, `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (Google sign-in;
 redirect URI `<app>/api/auth/google/callback`), `APP_URL` (the public address, behind a proxy).
