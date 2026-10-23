@@ -282,9 +282,6 @@ const s = stylex.create({
     backgroundColor: color.slab, color: color.slabInk, fontSize: "clamp(1.375rem, 1.1rem + 1vw, 1.875rem)", fontWeight: 700, lineHeight: 1.25, letterSpacing: "-0.025em",
   },
   postNext: { marginTop: space.s7 },
-  // Lists inside a post: real bullets at reading size, not the app's rows.
-  postList2: { marginTop: 0, marginBottom: space.s5, paddingLeft: "1.3em", listStyle: "disc" },
-  postLi: { paddingBlock: 4, borderTopWidth: 0, fontSize: { default: "1.0625rem", [DESKTOP]: "1.1875rem" }, lineHeight: 1.6 },
   postEnd: { marginTop: space.s8, paddingTop: space.s6, borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: color.line },
   footer: { overflow: "hidden", paddingTop: space.s6 },
   footerRow: {
@@ -793,56 +790,6 @@ const POSTS: ReadonlyArray<Post> = [
         <P>We're not counting your agents as people. We're not renting you a coworker. We're not putting a chatbot in the corner of every screen. And we're not going to buzz your phone because something finished at 3am.</P>
         <P>We're building a calm place for a small team and the agents that help it. One home per project. A name on everything. A place for the work to come back to you. That's it, and we think that's plenty.</P>
         <P>Saintsflow is in beta, and it's free while it is. Bring your agent. We'll keep the rest quiet.</P>
-      </>
-    ),
-  },
-  {
-    slug: "on-using-saintsflow",
-    title: "On using Saintsflow",
-    dek: "Write the card, review what comes back, stop at five. Mostly suggestions; take what's useful.",
-    blurb: "Write the card, review what comes back, stop at five. A written-down version of how Saintsflow gets used with an agent.",
-    date: "October 24, 2026",
-    body: () => (
-      <>
-        <P>This is sort of a written-down version of how Saintsflow gets used day to day, with an agent doing a good chunk of the work. It comes down to three things: write a card the agent can actually finish, review what comes back, and stop at five. None of it is a rule. It's what tends to work, at least for us.</P>
-
-        <H>Before: write a card the agent can finish</H>
-        <P>When an agent hands back something that misses, the card is usually the culprit, not the agent. "Footer" was written; "fix the three broken links in the mobile footer and leave the desktop one alone" was meant. The agent did its best with "footer". A minute on the card saves a round trip.</P>
-        <P>What a good card tends to have:</P>
-        <ul {...sx(s.postList2)}>
-          <li {...sx(s.postLi)}>a title that's the thing to do: "Write release notes for this week, short enough to read in a minute", not "release notes"</li>
-          <li {...sx(s.postLi)}>a sentence or two on what finished looks like, and anything it shouldn't touch (agents are eager; a fence helps)</li>
-          <li {...sx(s.postLi)}>a few steps that are how the work will be checked, not how to do it: "every footer link opens the right page", "nothing changed on desktop"</li>
-          <li {...sx(s.postLi)}>a size you could check in a few minutes; anything bigger gets split</li>
-        </ul>
-        <P>The steps are the useful part. The agent ticks them before it moves the card to Review, and you look at the same ones when it gets there, so you're both checking the same thing.</P>
-        <Pull>If you can't say how you'd check it, it isn't ready to hand off.</Pull>
-        <P>That's a signal, not a failure. Either the card isn't clear yet, so it stays in Triage, or it's something only you can judge, so it goes to Mine.</P>
-
-        <H>During: review what comes back</H>
-        <P>Finished cards land in Review and show up on Home under Waiting for you. Looking every time something arrives is tempting, and it's also how a whole day disappears. A couple of passes a day works better: oldest first, one answer per card.</P>
-        <ul {...sx(s.postList2)}>
-          <li {...sx(s.postLi)}><b>Ship it</b> when it's good enough to use. Not perfect, good enough. Polishing what the agent made usually means the card was vague.</li>
-          <li {...sx(s.postLi)}><b>Send it back</b> with a note about what should change, a sentence or two. If the note turns into a paragraph, rewrite the card instead.</li>
-          <li {...sx(s.postLi)}><b>Kill it</b> without guilt. It took the agent minutes. It goes to the trash and can come back if you were wrong.</li>
-        </ul>
-        <Pull>If the agent keeps missing, move the card to Mine and just do it yourself.</Pull>
-        <P>Some work is yours: the tricky client email, the call on what to build next. Sending it back a third time won't change that. And if the same kind of note keeps coming up (too long, too formal, touched the wrong thing), it belongs in the project's house rules, the pinned post the agent reads before it starts. Say it once, there, and stop saying it on every card.</P>
-
-        <H>After: stop at five, even though the agent doesn't</H>
-        <P>The best thing about an agent is that it keeps going. The worst thing about an agent is that it keeps going. If every finished card buzzed your phone, you'd never stop working; you'd just be watching it work.</P>
-        <P>It doesn't buzz. Agents in Saintsflow don't send notifications at all; their work waits in Review. People still can, which is what quiet hours are for: set the hours you work, and everything else holds until you're back.</P>
-        <P>The end of the day looks something like:</P>
-        <ul {...sx(s.postList2)}>
-          <li {...sx(s.postLi)}>a look at what's in Running, which is what the agent gets to work on overnight</li>
-          <li {...sx(s.postLi)}>anything that should wait for you moved out of it</li>
-          <li {...sx(s.postLi)}>laptop closed, and no peeking at Review in the evening (one peek is a send-back, and a send-back is an hour)</li>
-        </ul>
-        <P>Mornings start with Review, so the agent has fresh work for the day. Then the best hours go to Mine, the work only you can do. That's the trade, I think: the agent gets the busywork, you get your focus back.</P>
-
-        <H>So</H>
-        <P>Write cards that say how they'll be checked. Review a couple of times a day, ship what's good enough, send back with one clear note, and take the stubborn ones yourself. Close the laptop at five and let Review wait until morning.</P>
-        <P>Rinse and repeat.</P>
       </>
     ),
   },
