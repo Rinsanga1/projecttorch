@@ -14,6 +14,8 @@ const useFollow = (opts: { replace?: boolean } = {}) => {
   const navigate = useNavigate()
   return (r: Reply) => {
     if (r.flash) flash(r.flash)
+    // Somewhere outside the app (an agent's own address, after approving it): a real page load.
+    if (r.redirect && /^[a-z][a-z0-9+.-]*:/i.test(r.redirect)) return void location.assign(r.redirect)
     if (r.redirect && (!r.back || r.redirect === "/signin" || r.redirect === "/lockout")) navigate(r.redirect, { replace: opts.replace })
   }
 }

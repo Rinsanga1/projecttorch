@@ -25,6 +25,7 @@ redirect URI `<app>/api/auth/google/callback`), `APP_URL` (the public address, b
 
     bun run typecheck
     bun run smoke        # with `bun run dev` running: opens every page as every person in a headless browser
+    bun run check:agents # with `bun run dev` running: connects an agent over OAuth and MCP, runs a script, checks limits
 
 ## How it fits together
 
@@ -36,6 +37,12 @@ redirect URI `<app>/api/auth/google/callback`), `APP_URL` (the public address, b
   serves the bootstrap, streams changes over a WebSocket, and decides per person which rows they may see.
 - **The copy** lives in MobX maps, saved to IndexedDB, so a reload paints instantly and reading works offline.
   Quick changes (toggles, reactions) apply optimistically and queue in IndexedDB while offline.
+- **Agents** (`src/areas/agents.ts`): someone's own AI agent works as them. `/mcp` is an MCP server in Code Mode: the
+  agent gets the `sf` API (`src/lib/agent-api.ts`) from `describe` and runs scripts with `execute`, in a QuickJS
+  sandbox (`src/lib/sandbox.ts`) whose every call is one of the app's own `/api` routes with the agent's key. Agents
+  connect over OAuth (register, approve on `/oauth/authorize`, swap the code for keys) or with a key made on
+  `/my/agents`. `loadMe` turns a key into the person; Read only keys can't post; activity says "(via Claude)".
+  Claude Code: `claude mcp add --transport http saintsflow http://localhost:3000/mcp`.
 
 ## Layout
 

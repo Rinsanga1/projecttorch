@@ -7,7 +7,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { get, post, pubGet, pubPost, redirect, invalid, json, withCookie, resync, navigate, hashToken, str, num, DEV, SESSION_DAYS, type Ctx, type PubCtx, type Person, type Account, type Reply } from "../lib/web.ts"
+import { get, post, pubGet, pubPost, redirect, invalid, json, withCookie, resync, navigate, hashToken, origin, str, num, DEV, SESSION_DAYS, type Ctx, type PubCtx, type Person, type Account, type Reply } from "../lib/web.ts"
 import { defaultTools, createRecording, logEvent, sendEmail, type Project } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
@@ -46,14 +46,17 @@ const signInAs = (c: PubCtx, to: string, personId: number, flash?: string) =>
     return resync(yield* startSession(redirect(to, flash), personId))
   })
 
-/** Where to land after signing in: two-step check, then the account chooser if there's more than one account. */
-const finishSignIn = (c: PubCtx, person: Person, accounts: number) =>
+/** A page in this app to go back to after signing in (`next`), or null for anything else. */
+const safeNext = (s: string | null | undefined) => (s && /^\/(?![/\\])/.test(s) ? s : null)
+
+/** Where to land after signing in: two-step check, then `next`, or the account chooser if there's more than one account. */
+const finishSignIn = (c: PubCtx, person: Person, accounts: number, next?: string | null) =>
   person.prefs.two_factor
     ? Effect.gen(function* () {
         yield* endSession(c)
-        return yield* startSession(redirect("/signin/verify"), person.id, false)
+        return yield* startSession(redirect(`/signin/verify${next ? `?next=${encodeURIComponent(next)}` : ""}`), person.id, false)
       })
-    : signInAs(c, accounts > 1 ? "/accounts" : "/", person.id)
+    : signInAs(c, next ?? (accounts > 1 ? "/accounts" : "/"), person.id)
 
 // ---------- logins ----------
 
@@ -94,10 +97,7 @@ const GOOGLE = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
   ? { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET }
   : null
 
-/** This app's address as the browser sees it. APP_URL wins (set it behind a proxy). */
-const origin = (c: PubCtx) =>
-  process.env.APP_URL ?? `${c.req.headers["x-forwarded-proto"] ?? "http"}://${c.req.headers["x-forwarded-host"] ?? c.req.headers.host}`
-const callbackUrl = (c: PubCtx) => `${origin(c)}/api/auth/google/callback`
+const callbackUrl = (c: PubCtx) => `${origin(c.req)}/api/auth/google/callback`
 
 const googleIdentity = async (code: string, redirectUri: string): Promise<GoogleId | null> => {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -150,7 +150,8 @@ export const routes = [
   /** What the signed-out pages can offer. */
   pubGet("/auth/options", () => Effect.succeed(json({ google: !!GOOGLE }))),
 
-  /** Off to Google. `then` is where it leads on the way back: signin, signup, or join:<invitation token>. */
+  /** Off to Google. `then` is where it leads on the way back: signin, signup, or join:<invitation token>; `next` is the
+   * page to land on after signing in. Both ride in the state cookie. */
   pubGet("/auth/google", (c) =>
     Effect.sync(() => {
       if (!GOOGLE) return navigate(redirect("/signin"))
@@ -159,16 +160,17 @@ export const routes = [
       const q = new URLSearchParams({
         client_id: GOOGLE.id, redirect_uri: callbackUrl(c), response_type: "code", scope: "openid email profile", state, prompt: "select_account",
       })
+      const carry = { then: /^(signup|join:.+)$/.test(then) ? then : "signin", next: safeNext(c.query.get("next")) }
       return navigate(withCookie(redirect(`https://accounts.google.com/o/oauth2/v2/auth?${q}`), "google_state",
-        `${state}.${/^(signup|join:.+)$/.test(then) ? then : "signin"}`, { httpOnly: true, maxAge: 600 }))
+        `${state}.${Buffer.from(JSON.stringify(carry)).toString("base64url")}`, { httpOnly: true, maxAge: 600 }))
     })),
 
   /** Google sends people back here: sign them in, or carry who they are to the sign-up or join form. */
   pubGet("/auth/google/callback", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const [state, ...rest] = (c.req.cookies.google_state ?? "").split(".")
-      const then = rest.join(".")
+      const [state, carried = ""] = (c.req.cookies.google_state ?? "").split(".")
+      const { then = "signin", next = null } = (() => { try { return JSON.parse(Buffer.from(carried, "base64url").toString()) } catch { return {} } })()
       const go = (r: Reply) => navigate(withCookie(r, "google_state", null))
       const code = c.query.get("code")
       // No code means they backed out on Google's side.
@@ -182,7 +184,7 @@ export const routes = [
       const [login] = yield* sql<Login>`select * from logins where google_sub = ${g.sub} or email = ${g.email} order by (google_sub = ${g.sub}) desc nulls last limit 1`
       if (login && !login.google_sub) yield* setGoogle(login.email, g.sub)
       const people = yield* peopleByEmail(login?.email ?? g.email)
-      if (people.length) return go(yield* finishSignIn(c, people[0]!, people.length))
+      if (people.length) return go(yield* finishSignIn(c, people[0]!, people.length, safeNext(next)))
       // New here: the sign-up form, with name and email from Google.
       return go(withGoogle(redirect(`/signup?${new URLSearchParams({ google: "1", name: g.name, email: g.email })}`), g))
     })),
@@ -262,7 +264,7 @@ export const routes = [
       if (!people.length) return invalid([UNKNOWN_EMAIL])
       if (!(yield* checkPassword(email, str(fd, "password"))))
         return invalid(["That email and password don't match. Try again, or we can email you a sign-in link."])
-      return yield* finishSignIn(c, people[0]!, people.length)
+      return yield* finishSignIn(c, people[0]!, people.length, safeNext(str(fd, "next")))
     })),
 
   pubPost("/signin/link", (c) =>
@@ -342,7 +344,7 @@ export const routes = [
       const [person] = yield* sql<Person>`select * from people where id = ${pending.person_id} and removed_at is null`
       if (!person) return redirect("/signin")
       yield* sql`update sessions set verified = true, last_seen_at = now() where token_hash = ${hashToken(sid)}`
-      return resync(redirect((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/"))
+      return resync(redirect(safeNext(str(fd, "next")) ?? ((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/")))
     })),
 
   // Accept an invitation

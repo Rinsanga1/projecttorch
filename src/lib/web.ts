@@ -65,9 +65,12 @@ export interface PubCtx {
   readonly query: URLSearchParams
   readonly me: Person | null
   readonly account: Account | null
+  /** The agent acting as `me`, when the request came with its key (Authorization: Bearer). */
+  readonly app?: AgentApp | null
   /** The parsed request body (urlencoded or multipart). Cached. */
   readonly form: Effect.Effect<FormData>
 }
+export type AgentApp = { id: number; name: string; scope: "full" | "read" }
 export interface Ctx extends PubCtx {
   readonly me: Person
   readonly account: Account
@@ -125,16 +128,41 @@ export const DEV = process.env.DEV === "1"
 export const SESSION_DAYS = 30
 export const hashToken = (token: string) => new Bun.CryptoHasher("sha256").update(token).digest("hex")
 
+/** This app's address as the browser sees it. APP_URL wins (set it behind a proxy). */
+export const origin = (req: HttpServerRequest.HttpServerRequest) =>
+  process.env.APP_URL ?? `${req.headers["x-forwarded-proto"] ?? "http"}://${req.headers["x-forwarded-host"] ?? req.headers.host}`
+
+/** An agent's key: who it works as, and the connection it came from. Unknown or expired keys are nobody. */
+const loadAgent = (authorization: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const [row] = yield* sql<Person & { app_id: number; app_name: string; app_scope: "full" | "read"; app_used: Date | null }>`
+      select p.*, a.id as app_id, a.name as app_name, a.scope as app_scope, a.last_used_at as app_used
+      from agent_tokens t join connected_apps a on a.id = t.app_id join people p on p.id = a.person_id
+      where t.token_hash = ${hashToken(authorization.replace(/^Bearer\s+/i, "").trim())} and t.kind = 'access'
+        and (t.expires_at is null or t.expires_at > now()) and p.removed_at is null and p.joined_at is not null`
+    if (!row) return { me: null, app: null }
+    const { app_id, app_name, app_scope, app_used, ...me } = row
+    // Once an hour is plenty for "last used", and spares the sync log a row per request.
+    if (!app_used || Date.now() - new Date(app_used).getTime() > 3600_000) yield* sql`update connected_apps set last_used_at = now() where id = ${app_id}`
+    return { me: me as Person, app: { id: app_id, name: app_name, scope: app_scope } as AgentApp }
+  })
+
 /**
- * Who's signed in: the `sid` session cookie. In dev, a `pid` cookie (the switcher) wins, and with neither you're the
- * first person, so the sample data opens without signing in.
+ * Who's acting: an agent's key (Authorization: Bearer), else the `sid` session cookie. In dev, a `pid` cookie wins
+ * over the session, and with neither you're the first person, so the sample data opens without signing in.
  */
-export const loadMe = (cookies: Readonly<Record<string, string>>) =>
+export const loadMe = (cookies: Readonly<Record<string, string>>, authorization?: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     let rows: ReadonlyArray<Person> = []
-    if (DEV && cookies.pid) {
-      if (cookies.pid === "out") return { me: null, account: null }  // signed out (POST /signout)
+    let app: AgentApp | null = null
+    if (authorization) {
+      const a = yield* loadAgent(authorization)
+      if (a.me) rows = [a.me]
+      app = a.app
+    } else if (DEV && cookies.pid) {
+      if (cookies.pid === "out") return { me: null, account: null, app: null }  // signed out (POST /signout)
       rows = yield* sql<Person>`select * from people where id = ${num(cookies.pid) ?? 0} and removed_at is null and joined_at is not null`
     } else if (cookies.sid) {
       rows = yield* sql<Person>`
@@ -146,9 +174,9 @@ export const loadMe = (cookies: Readonly<Record<string, string>>) =>
       rows = yield* sql<Person>`select * from people where removed_at is null and joined_at is not null order by id limit 1`
     }
     const me = rows[0] ?? null
-    if (!me) return { me: null, account: null }
+    if (!me) return { me: null, account: null, app: null }
     const [account] = yield* sql<Account>`select * from accounts where id = ${me.account_id}`
-    return { me, account: account ?? null }
+    return { me, account: account ?? null, app }
   })
 
 /** Paths that keep working while an account is on hold or cancelled. Matches client/app.tsx. */
@@ -182,19 +210,25 @@ export const navigate = (r: Reply) => setCookies(HttpServerResponse.redirect(r.r
 
 /** The dev inbox (it shows sign-in links) and /dev routes exist only under `bun run dev`. */
 const DEV_ONLY = /^\/(dev|inbox)(\/|$)/
+/** What an agent can't do even as you: hand out keys, approve apps, or sign in and out. */
+const NOT_FOR_AGENTS = /^\/(my\/agents|oauth|signin|signup|signout|accounts|auth)(\/|$)/
 
 const wrap = <C extends PubCtx>(needsPerson: boolean, h: Handler<C>) =>
   Effect.gen(function* () {
     const req = yield* HttpServerRequest.HttpServerRequest
     const params = yield* HttpRouter.params
     const url = new URL(req.url, "http://localhost")
-    const { me, account } = yield* loadMe(req.cookies)
+    const { me, account, app } = yield* loadMe(req.cookies, req.headers.authorization)
     let body: Promise<FormData> | null = null
     const form = Effect.promise(() => (body ??= ((req.source as Request).formData() as unknown as Promise<FormData>).catch(() => new FormData())))
-    const c: PubCtx = { req, url, params, query: url.searchParams, me, account, form }
+    const c: PubCtx = { req, url, params, query: url.searchParams, me, account, app, form }
     const path = url.pathname.replace(/^\/api/, "")
 
     if (!DEV && DEV_ONLY.test(path)) return respond(reply({ status: 404, data: { error: "NotFound" } }), null)
+    if (req.headers.authorization && !me) return respond(reply({ status: 401, errors: ["That key doesn't work. It may have expired, or been disconnected."] }), null)
+    if (app && NOT_FOR_AGENTS.test(path)) return respond(reply({ status: 403, errors: ["Agents can't do this. It needs you, signed in."] }), null)
+    if (app?.scope === "read" && req.method !== "GET")
+      return respond(reply({ status: 403, errors: ["This agent can only read. Reconnect it with full access to make changes."] }), null)
     if (needsPerson && !me) return respond(reply({ redirect: "/signin", status: 401 }), null)
     if (needsPerson && account && (account.status === "on_hold" || account.status === "cancelled") && !ON_HOLD_OK.test(path))
       return respond(reply({ redirect: "/lockout", status: 403 }), null)

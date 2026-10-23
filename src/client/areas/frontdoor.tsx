@@ -13,10 +13,18 @@ import { Page, page } from "../ui/page.tsx"
 const LINK_MINUTES = 15
 const UNKNOWN_EMAIL = "We don't know that email address. Check for typos, or sign up."
 
+/** The page to go back to after signing in (?next=, set when a signed-out page sent you here). */
+const useNext = () => useSearchParams()[0].get("next") ?? ""
+const NextField = () => {
+  const next = useNext()
+  return next ? <input type="hidden" name="next" value={next} /> : null
+}
+
 /** Off to Google and back (a full page load, not a route), when the server has Google set up. */
 const GoogleLink = ({ then, children }: { then: string; children: React.ReactNode }) => {
   const { data } = useApi<{ google: boolean }>("/auth/options")
-  return data?.google ? <p><a href={`/api/auth/google?then=${encodeURIComponent(then)}`}>{children}</a></p> : null
+  const next = useNext()
+  return data?.google ? <p><a href={`/api/auth/google?then=${encodeURIComponent(then)}${next ? `&next=${encodeURIComponent(next)}` : ""}`}>{children}</a></p> : null
 }
 
 const EmailStep = ({ email, errs = [] }: { email: string; errs?: string[] }) => (
@@ -24,6 +32,7 @@ const EmailStep = ({ email, errs = [] }: { email: string; errs?: string[] }) => 
     <h1>Sign in</h1>
     <Errors list={errs} />
     <GetForm method="get" action="/signin">
+      <NextField />
       <p><label>Email address<br /><input type="email" name="email" defaultValue={email} required autoFocus /></label></p>
       <button>Next</button>
     </GetForm>
@@ -36,6 +45,7 @@ const PasswordStep = ({ email }: { email: string }) => (
   <>
     <h1>Sign in</h1>
     <Form action="/signin">
+      <NextField />
       <input type="hidden" name="email" value={email} />
       <p>Signing in as <b>{email}</b> <a href="/signin">(not you?)</a></p>
       <p><label>Password<br /><input type="password" name="password" autoFocus /></label></p>
@@ -192,6 +202,7 @@ export const routes = [
       <Page title="Two-step verification">
         <h1>Two-step verification</h1>
         <Form action="/signin/verify" key={String(backup)}>
+          <NextField />
           {backup
             ? <><input type="hidden" name="backup" value="1" /><p><label>Enter one of your backup codes<br /><input name="code" required autoFocus autoComplete="off" /></label></p></>
             : <p><label>Enter the 6-digit code from your authenticator app<br /><input name="code" inputMode="numeric" pattern="[0-9 ]*" maxLength={7} required autoFocus autoComplete="one-time-code" /></label></p>}
