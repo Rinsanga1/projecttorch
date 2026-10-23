@@ -1,15 +1,9 @@
-// Dev-only helpers while there's no sign-in: switch who you're acting as.
+// Dev-only helpers (`bun run dev`). Acting as someone else is the `pid` cookie (see loadMe), which scripts/smoke.ts sets.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { pubGet, pubPost, back, json, num, str, withCookie, resync } from "../lib/web.ts"
+import { pubGet, json } from "../lib/web.ts"
 
 export const routes = [
-  pubPost("/dev/act-as", (c) =>
-    Effect.gen(function* () {
-      const id = num(str(yield* c.form, "person_id"))
-      return resync(withCookie(back(c, "/"), "pid", String(id ?? "")))
-    })),
-
   /** Everyone you can act as. Used by scripts/smoke.ts to crawl as everyone. */
   pubGet("/dev/people", () =>
     Effect.gen(function* () {

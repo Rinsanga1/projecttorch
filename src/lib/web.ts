@@ -98,8 +98,10 @@ export type Reply = {
   data?: unknown
   resync?: boolean
   status?: number
-  cookies?: ReadonlyArray<readonly [name: string, value: string | null]>
+  cookies?: ReadonlyArray<readonly [name: string, value: string | null, opts?: CookieOpts]>
 }
+/** `maxAge` in seconds. Without it, the cookie lasts until the browser closes. */
+export type CookieOpts = { httpOnly?: boolean; maxAge?: number }
 const reply = (r: Omit<Reply, "_reply">): Reply => ({ _reply: true, ...r })
 const toFlash = (f?: Flash | string) => (f === undefined ? undefined : typeof f === "string" ? { msg: f } : f)
 
@@ -112,21 +114,37 @@ export const invalid = (errors: ReadonlyArray<string>) => reply({ errors: [...er
 /** Data for a page that isn't in the synced copy (history, the dev inbox, a public link…). */
 export const json = (data: unknown) => reply({ data })
 /** Set (or with null, expire) a cookie on a reply. */
-export const withCookie = (r: Reply, name: string, value: string | null): Reply => ({ ...r, cookies: [...(r.cookies ?? []), [name, value]] })
+export const withCookie = (r: Reply, name: string, value: string | null, opts?: CookieOpts): Reply => ({ ...r, cookies: [...(r.cookies ?? []), [name, value, opts]] })
 /** Make the browser start over from a fresh bootstrap. */
 export const resync = (r: Reply): Reply => ({ ...r, resync: true })
 
 // ---------- who's acting ----------
-// ponytail: no auth. The `pid` cookie says who you are; the footer switcher sets it. Real sessions go here later.
+/** `bun run dev` sets DEV=1: the footer's "Acting as" switcher (`pid` cookie), the dev inbox and /dev routes. */
+export const DEV = process.env.DEV === "1"
+
+export const SESSION_DAYS = 30
+export const hashToken = (token: string) => new Bun.CryptoHasher("sha256").update(token).digest("hex")
+
+/**
+ * Who's signed in: the `sid` session cookie. In dev, a `pid` cookie (the switcher) wins, and with neither you're the
+ * first person, so the sample data opens without signing in.
+ */
 export const loadMe = (cookies: Readonly<Record<string, string>>) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    if (cookies.pid === "out") return { me: null, account: null }  // signed out (POST /signout)
-    const pid = Number(cookies.pid)
-    const rows = yield* sql<Person>`
-      select * from people
-      where removed_at is null and joined_at is not null ${Number.isInteger(pid) && pid > 0 ? sql`and id = ${pid}` : sql``}
-      order by id limit 1`
+    let rows: ReadonlyArray<Person> = []
+    if (DEV && cookies.pid) {
+      if (cookies.pid === "out") return { me: null, account: null }  // signed out (POST /signout)
+      rows = yield* sql<Person>`select * from people where id = ${num(cookies.pid) ?? 0} and removed_at is null and joined_at is not null`
+    } else if (cookies.sid) {
+      rows = yield* sql<Person>`
+        update sessions s set last_seen_at = now() from people p
+        where s.token_hash = ${hashToken(cookies.sid)} and s.verified and s.last_seen_at > now() - make_interval(days => ${SESSION_DAYS})
+          and p.id = s.person_id and p.removed_at is null and p.joined_at is not null
+        returning p.*`
+    } else if (DEV) {
+      rows = yield* sql<Person>`select * from people where removed_at is null and joined_at is not null order by id limit 1`
+    }
     const me = rows[0] ?? null
     if (!me) return { me: null, account: null }
     const [account] = yield* sql<Account>`select * from accounts where id = ${me.account_id}`
@@ -144,15 +162,26 @@ const ERRORS: Record<string, [status: number, msg: string]> = {
 
 type Handler<C> = (c: C) => Effect.Effect<HttpServerResponse.HttpServerResponse | Reply, unknown, SqlClient.SqlClient>
 
-const respond = (r: Reply, sync: unknown) => {
-  const { _reply, cookies, status, ...body } = r
-  let res = HttpServerResponse.jsonUnsafe({ ...body, sync }, { status: status ?? 200 })
-  for (const [name, value] of cookies ?? [])
+const setCookies = (res: HttpServerResponse.HttpServerResponse, cookies: Reply["cookies"]) => {
+  for (const [name, value, o] of cookies ?? [])
     res = value === null
       ? res.pipe(HttpServerResponse.expireCookieUnsafe(name, { path: "/" }))
-      : res.pipe(HttpServerResponse.setCookieUnsafe(name, value, { path: "/" }))
+      : res.pipe(HttpServerResponse.setCookieUnsafe(name, value, {
+          path: "/", sameSite: "lax", secure: !DEV, httpOnly: o?.httpOnly, maxAge: o?.maxAge === undefined ? undefined : `${o.maxAge} seconds`,
+        }))
   return res
 }
+
+const respond = (r: Reply, sync: unknown) => {
+  const { _reply, cookies, status, ...body } = r
+  return setCookies(HttpServerResponse.jsonUnsafe({ ...body, sync }, { status: status ?? 200 }), cookies)
+}
+
+/** A reply as a real 302, for GET routes the browser opens itself (Google sends people back to one). */
+export const navigate = (r: Reply) => setCookies(HttpServerResponse.redirect(r.redirect ?? "/"), r.cookies)
+
+/** The dev inbox (it shows sign-in links) and /dev routes exist only under `bun run dev`. */
+const DEV_ONLY = /^\/(dev|inbox)(\/|$)/
 
 const wrap = <C extends PubCtx>(needsPerson: boolean, h: Handler<C>) =>
   Effect.gen(function* () {
@@ -165,6 +194,7 @@ const wrap = <C extends PubCtx>(needsPerson: boolean, h: Handler<C>) =>
     const c: PubCtx = { req, url, params, query: url.searchParams, me, account, form }
     const path = url.pathname.replace(/^\/api/, "")
 
+    if (!DEV && DEV_ONLY.test(path)) return respond(reply({ status: 404, data: { error: "NotFound" } }), null)
     if (needsPerson && !me) return respond(reply({ redirect: "/signin", status: 401 }), null)
     if (needsPerson && account && (account.status === "on_hold" || account.status === "cancelled") && !ON_HOLD_OK.test(path))
       return respond(reply({ redirect: "/lockout", status: 403 }), null)
