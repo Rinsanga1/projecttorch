@@ -111,6 +111,7 @@ const HOUSE_RULES = `Rules for any agent working in this project. Read them befo
 - **Every card is a brief:** what done looks like, what not to touch, and how to check it. The card's steps are the check.
 - **When you finish:** tick the steps, leave one comment saying what you did, and move the card to **Review**.
 - **Stuck?** Leave one comment saying what's missing, and move it to Review anyway.
+- **Sent back?** Read the newest comment on the card and fix exactly that.
 - **Ask first** before you post to the Message Board, contact a client, or trash anything.
 - **Drafts go on the card**, not in new posts.`
 
