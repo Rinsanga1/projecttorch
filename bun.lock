@@ -10,9 +10,10 @@
         "@stylexjs/stylex": "0.19.1",
         "effect": "4.0.5",
         "idb": "8.0.4",
+        "marked": "18.1.0",
         "mobx": "7.1.0",
         "mobx-react-lite": "5.1.0",
-        "quickjs-emscripten": "^0.32.0",
+        "quickjs-emscripten": "0.32.0",
         "react": "19.3.1",
         "react-dom": "19.3.1",
         "react-router": "8.5.0",
@@ -265,6 +266,8 @@
     "loose-envify": ["loose-envify@1.4.0", "", { "dependencies": { "js-tokens": "^3.0.0 || ^4.0.0" }, "bin": { "loose-envify": "cli.js" } }, "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q=="],
 
     "lru-cache": ["lru-cache@5.1.1", "", { "dependencies": { "yallist": "^3.0.2" } }, "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w=="],
+
+    "marked": ["marked@18.1.0", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w=="],
 
     "mobx": ["mobx@7.1.0", "", {}, "sha512-5eGlbA7iJ7bUwtdLaUTu7g9DDQsTo3bhtVkWD/Rii24zhjhSPdTXJ5sjKVd9n7AaJ/h6xlmUvUsyO6B1zK9HVQ=="],
 
