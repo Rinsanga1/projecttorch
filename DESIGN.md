@@ -44,11 +44,6 @@ typography:
     fontWeight: 750
     lineHeight: 1.05
     letterSpacing: "-0.035em"
-  headline-cut:
-    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "clamp(1.375rem, 1rem + 1.2vw, 2rem)"
-    fontWeight: 700
-    letterSpacing: "-0.03em"
   wordmark-giant:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "clamp(3.5rem, 15.5vw, 14rem)"
@@ -309,7 +304,7 @@ The world is a neutral grayscale with one warm orange signal. Apart from that or
   - unread count badges in the nav;
   - the Today line and label on the Lineup, and today's date disc on the Schedule;
   - done checkboxes and progress fills (a task list's bar, the project's progress);
-  - the strike-through on "what we left out";
+  - the marketing news dot, and the card in the Agents drawing;
   - the text caret, and selection and focus rings (via `color-mix` at 28-38%).
 
   Text on it is **Burnt Ink** (`on-accent`), a near-black brown.
@@ -353,7 +348,6 @@ The orange is identical in both themes.
 ### Hierarchy
 - **Display** (750, clamp up to 5.25rem, 0.98): the marketing hero headline only, capped at 14ch and centered.
 - **Headline** (750, clamp up to 3.25rem, 1.05): marketing section headings.
-- **Headline, cut** (700, clamp 1.375 to 2rem, -0.03em): the struck-through feature names in the marketing "fewer features" list. It is set in Slab Muted with a 2px orange line-through, a fluid step between title and headline used only for that list.
 - **Wordmark, giant** (800, clamp 3.5 to 14rem, 0.8, -0.06em): the marketing footer wordmark, cropped by the page bottom. One per page, marketing only.
 - **Title, page** (700, 2rem, 1.15): the app `<h1>`, set through `pageHead()` with actions beside it, and the ceiling inside the app. The project page sets it smaller (1.625rem) so its windows get the screen.
 - **Title** (650, 1.25rem, 1.3): the app `<h2>`. Calendar captions use 700 at this size.
@@ -366,7 +360,7 @@ The orange is identical in both themes.
 - **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (HQ, All-access, Pinned, a category, Today).
 
 ### Named Rules
-**The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, headline-cut, giant wordmark) belong to marketing and signup.
+**The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, giant wordmark) belong to marketing and signup.
 
 **The Tight Heading Rule.** Every heading tracks negative (-0.01em at h3 up to -0.06em on the giant wordmark) and wraps with `text-wrap: balance`. Only uppercase labels and tags track positive.
 
@@ -555,7 +549,7 @@ The month calendar is a fixed-layout table inside a 1px Hairline frame with 16px
 Vault rows lead with a 40px Tile Gray square (12px radius) holding a 20-unit line icon drawn in currentColor at a 1.5px stroke with round caps and joins. Grid view shows 200px file cards with a 4:3 Sheet White thumbnail at 16px corners.
 
 ### Slabs
-Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "every project gets its own home" and "fewer features" sections. The app footer is the same material with only its top corners rounded. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
+Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "each project gets its own space", "bring your own agent" and startups sections. The app footer is the same material with only its top corners rounded. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
 
 ### Tasks on marketing
 The marketing "progress" section shows a project's tasks the way the app does: the percentage in 3rem 750, "done · 7 of 11", one 10px bar, then each task with its check and its subtasks' count. Once scrolled into view the bar fills from the left (transform: scaleX, 1.1s strong ease-out); under reduced motion or without JavaScript it's simply full.
@@ -575,7 +569,7 @@ The marketing footer ends with "Saintsflow" in the giant wordmark step, cropped 
 - **Do** define every new color in both `light` and `dark` in `tokens.stylex.ts`.
 - **Do** keep app type on the fixed rem steps and reserve `clamp()` steps for marketing.
 - **Do** gate every hover style behind `media.hover`, and let reduced motion remove movement while keeping color and fade transitions.
-- **Do** keep app motion to 150ms color shifts, the 0.97 press and the ease-out curve. Marketing may go further: a staggered blur-and-rise hero entrance, an example project that comes alive and can be played with (two to-dos tick themselves off and the Milestones bar slides with them, chat messages arrive with yours on the right, to-dos check off with a click, board cards drag between columns with a 3% lift, a -2° tilt and a shadow, then glide 320ms to their new place, or click one column on; a card let go outside the board glides home; touch scrolls the page, so there a tap moves the card; a keyboard move doesn't glide), the Milestones section's bar filling once it's on screen and following every check, scroll-linked reveals via `animation-timeline: view()` behind `@supports`, the cut features struck through as they scroll in, and the giant wordmark rising out of the page edge. Every element rests in its final state, so reduced motion and unsupported browsers see it all in place (reduced motion: the to-dos start ticked, the bar jumps, the cards don't glide).
+- **Do** keep app motion to 150ms color shifts, the 0.97 press and the ease-out curve. Marketing may go further: a staggered blur-and-rise hero entrance, an example project that comes alive and can be played with (two to-dos tick themselves off and the Milestones bar slides with them, chat messages arrive with yours on the right, to-dos check off with a click, board cards drag between columns with a 3% lift, a -2° tilt and a shadow, then glide 320ms to their new place, or click one column on; a card let go outside the board glides home; touch scrolls the page, so there a tap moves the card; a keyboard move doesn't glide), the Milestones section's bar filling once it's on screen and following every check, scroll-linked reveals via `animation-timeline: view()` behind `@supports`, and the giant wordmark rising out of the page edge. Every element rests in its final state, so reduced motion and unsupported browsers see it all in place (reduced motion: the to-dos start ticked, the bar jumps, the cards don't glide).
 
 ### Don't:
 - **Don't** use Kargul Orange for buttons, headings, backgrounds or decoration; it is for unread, today, done, progress and focus.
