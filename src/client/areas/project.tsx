@@ -361,7 +361,7 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
           </div>
         </div>
       </div>
-      <Desk windows={windows} master={front ?? ""} onBring={bring} since={oldest ? sinceLabel(oldest) : projectSince ? sinceLabel(projectSince) : undefined}
+      <Desk windows={windows} project={p.name} master={front ?? ""} onBring={bring} since={oldest ? sinceLabel(oldest) : projectSince ? sinceLabel(projectSince) : undefined}
         note={windows.every((w) => w.empty) ? "A fresh start. Invite the people on it, then post what this project is about." : undefined}
         addHref={!isClient(m) && p.status === "active" ? `/projects/${p.id}/tools` : undefined} />
     </Page>
