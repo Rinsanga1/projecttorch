@@ -1,7 +1,7 @@
 // Line icons for the project's tools and the window controls: a 20-unit grid, 1.5px stroke, round caps, currentColor.
 import type { ToolType } from "../../shared/domain.ts"
 
-const PATHS: Record<ToolType | "links" | "full" | "shrink" | "close" | "back" | "plus", string> = {
+const PATHS: Record<ToolType | "links" | "full" | "shrink" | "close" | "back" | "plus" | "panel", string> = {
   message_board: "M4 4.5h12v8.5H9l-4 3v-3H4z",
   todos: "M4 10.5 7.5 14 16 5.5",
   vault: "M5 2.75h6.5L15 6.25v11H5zM11.25 2.75v3.5H15",
@@ -17,6 +17,7 @@ const PATHS: Record<ToolType | "links" | "full" | "shrink" | "close" | "back" | 
   back: "M12 4.5 6.5 10l5.5 5.5",
   shrink: "M8 4v4H4M12 4v4h4M8 16v-4H4M12 16v-4h4",
   plus: "M10 4.5v11M4.5 10h11",
+  panel: "M5.5 4h9A1.5 1.5 0 0 1 16 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 14.5v-9A1.5 1.5 0 0 1 5.5 4ZM8.5 4v12",
 }
 
 export type IconName = keyof typeof PATHS
