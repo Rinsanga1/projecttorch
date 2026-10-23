@@ -1,4 +1,4 @@
-// A project's windows. The big window is the one you're working in: its real pages, not a preview. Beside it, a narrow
+// A project's windows. The big window is the one you're working in: its real pages, not a preview. To its left, a narrow
 // rail holds every window as an icon, in project order, with its news count; hovering it slides out a column of previews. The rail
 // is the one way around on desktop; under 900px the dark taskbar at the bottom of the screen is, in thumb reach. Nothing
 // to close or drag: they're the project, not tabs. Which window is in front is the page's address (/projects/2/docs/5 is
@@ -39,7 +39,7 @@ const DESKTOP = "@media (min-width: 900px)"
 const SHEET = "@media (min-width: 768px)"
 /** Strong ease-out: starts fast, so the interface answers at once. */
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)"
-const slideIn = stylex.keyframes({ from: { opacity: 0, transform: "translateX(12px)" } })
+const slideIn = stylex.keyframes({ from: { opacity: 0, transform: "translateX(-12px)" } })
 const fadeIn = stylex.keyframes({ from: { opacity: 0 } })
 const s = stylex.create({
   // No corners of its own: it runs to the sheet's edges and the sheet clips it.
@@ -49,8 +49,8 @@ const s = stylex.create({
   wrapFull: { position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", backgroundColor: color.tile },
   desk: {
     display: "grid", gap: 10, padding: 10,
-    // The rail keeps its 40px; every other pixel goes to the big window.
-    gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "minmax(0, 1fr) 40px" },
+    // The rail keeps its 40px on the left; every other pixel goes to the big window.
+    gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "40px minmax(0, 1fr)" },
     // Fills the screen under the project head.
     height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 262px))" },
   },
@@ -109,11 +109,11 @@ const s = stylex.create({
   },
   // On a rail icon the count sits on its corner, ringed in the desk's gray so it reads apart from the icon.
   badge: { position: "absolute", top: -4, right: -4, boxShadow: `0 0 0 2px ${color.tile}` },
-  // Hovering the rail slides the column of windows out to its left, over the big window's edge, the full height of the
-  // desk. A Tile Gray frame (the desk reaching out) holds them, so it stands apart by layer, not shadow. Its right padding
+  // Hovering the rail slides the column of windows out to its right, over the big window's edge, the full height of the
+  // desk. A Tile Gray frame (the desk reaching out) holds them, so it stands apart by layer, not shadow. Its left padding
   // bridges the gap to the rail, so the pointer can cross into it. It scrolls when the windows don't fit.
   col: {
-    position: "absolute", top: 0, bottom: 0, right: "100%", zIndex: 10, width: 318, paddingRight: 8,
+    position: "absolute", top: 0, bottom: 0, left: "100%", zIndex: 10, width: 318, paddingLeft: 8,
     animationName: { default: slideIn, [media.reduce]: fadeIn }, animationDuration: "180ms", animationTimingFunction: EASE_OUT,
   },
   colFrame: {
@@ -279,16 +279,6 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
     <section aria-label="Windows" {...sx(full && s.wrapFull)}>
       {news && <p {...sx(s.row, full && s.rowFull)}>{news}</p>}
       <div {...sx(s.desk, s.card, full && s.deskFull)}>
-        {m ? (
-          <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master)}>
-            <WindowHead w={m}>
-              <button type="button" onClick={(e) => toggleFull(e.nativeEvent)} aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen (Esc)" : "Full screen"} {...sx(s.iconBtn)}><Icon name={full ? "shrink" : "full"} size={16} /></button>
-            </WindowHead>
-            <div key={m.place} data-window-body {...sx(s.body, full && s.bodyFull)}>{m.work ?? m.body}</div>
-          </section>
-        ) : (
-          <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p><p>Add one with + above.</p></div>
-        )}
         {m && (
           <nav ref={railRef} aria-label="Every window in this project"
             onPointerEnter={(e) => { if (e.pointerType !== "touch") openCol() }}
@@ -331,6 +321,16 @@ export const Desk = ({ windows, master, onBring, since, note, addHref }: {
             )}
             {addHref && <a href={addHref} aria-label="Add or remove windows" title="Add or remove windows" data-button {...sx(s.railBtn, s.railPlus)}><Icon name="plus" size={16} /></a>}
           </nav>
+        )}
+        {m ? (
+          <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master)}>
+            <WindowHead w={m}>
+              <button type="button" onClick={(e) => toggleFull(e.nativeEvent)} aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen (Esc)" : "Full screen"} {...sx(s.iconBtn)}><Icon name={full ? "shrink" : "full"} size={16} /></button>
+            </WindowHead>
+            <div key={m.place} data-window-body {...sx(s.body, full && s.bodyFull)}>{m.work ?? m.body}</div>
+          </section>
+        ) : (
+          <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p><p>Add one with + above.</p></div>
         )}
       </div>
       <div {...sx(s.strip, full && s.stripFull)}>
