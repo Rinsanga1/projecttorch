@@ -10,7 +10,7 @@ import { db, temp } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, children, recordings, personById, topOf, useVisit, NoAccess, NotFound, type PersonWithCompany } from "../data.ts"
 import { isClient, urlFor, windowIdOf, windowUrl, type Project, type Recording, type Tool } from "../../shared/domain.ts"
 import { useWindow, WindowField } from "../ui/in-window.tsx"
-import { ago, fmtDate, isoDate } from "../../shared/format.ts"
+import { ago, fmtDate, isoDate, plural } from "../../shared/format.ts"
 import { ByLine, fadeOverflow, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, usePost, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
@@ -24,8 +24,9 @@ export const DOT: Record<string, string> = { red: "#e5484d", orange: "#f99c00", 
 const ks = stylex.create({
   board: {
     // Columns share the width when they fit (a window with two or three columns has no empty gap); past that the
-    // board scrolls sideways, its end fading while there are more columns to see.
-    display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(min(240px, 82vw), 1fr)", gap: space.s3, alignItems: "start",
+    // board scrolls sideways, its end fading while there are more columns to see. Not now and Done fold into narrow
+    // strips, so the columns where work happens fit a window.
+    display: "flex", gap: 10, alignItems: "flex-start",
     overflowX: "auto", overscrollBehaviorX: "contain", scrollSnapType: "x proximity", marginBottom: space.s5,
     // No scrollbar: the faded end says there are more columns, and you get there by dragging the background, Shift+wheel
     // or a trackpad swipe.
@@ -40,18 +41,33 @@ const ks = stylex.create({
   colDropAfter: { boxShadow: `inset -3px 0 0 ${color.accent}` },
   // The last thing on the board, after Done: a dashed tile that adds a column (its own one-line field once opened).
   addCol: {
-    alignSelf: "start", display: "flex", alignItems: "center", justifyContent: "center", gap: space.s2, minHeight: 52, width: "100%",
+    flexShrink: 0, alignSelf: "start", display: "flex", flexDirection: "column", alignItems: "center", gap: space.s2, width: 48, minHeight: 180, paddingBlock: 14, paddingInline: 0,
     borderRadius: radius.xl, borderWidth: 1.5, borderStyle: "dashed", fontSize: text.sm, fontWeight: 600,
     borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.ink } },
     color: { default: color.muted, ":hover": { default: null, [media.hover]: color.ink } },
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
-    transitionProperty: "border-color, color, background-color", transitionDuration: "150ms", transitionTimingFunction: "ease",
+    transitionProperty: "border-color, color, background-color, transform", transitionDuration: "150ms", transitionTimingFunction: "ease",
   },
-  addColForm: { alignSelf: "start", display: "flex", gap: 6, padding: space.s3, borderRadius: radius.xl, backgroundColor: color.tile, margin: 0 },
+  addColForm: { flexShrink: 0, flexBasis: 200, alignSelf: "start", display: "flex", gap: 6, padding: space.s3, borderRadius: radius.xl, backgroundColor: color.tile, margin: 0 },
   column: {
+    flexGrow: 1, flexShrink: 0, flexBasis: 176, minWidth: 0,
     scrollSnapAlign: "start", backgroundColor: color.tile, borderRadius: radius.xl, padding: space.s3, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: space.s2,
     transitionProperty: "box-shadow, background-color", transitionDuration: "120ms", transitionTimingFunction: "ease",
   },
+  // Not now and Done, folded: a narrow strip with the count and the name running down it. Click to open; a card dragged
+  // onto it still lands there.
+  spine: {
+    flexShrink: 0, width: 48, scrollSnapAlign: "start", borderRadius: radius.xl, backgroundColor: color.tile,
+    transitionProperty: "box-shadow, background-color", transitionDuration: "120ms", transitionTimingFunction: "ease",
+  },
+  spineBtn: {
+    display: "flex", flexDirection: "column", alignItems: "center", gap: space.s2, width: "100%", minHeight: 180, paddingBlock: 14, paddingInline: 0,
+    borderRadius: "inherit", color: color.ink, fontSize: text.base, fontWeight: 650,
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tileHover } },
+  },
+  vertical: { writingMode: "vertical-rl", whiteSpace: "nowrap" },
+  spineCount: { marginLeft: 0 },
+  fold: { padding: 0, minHeight: 0, background: "none", color: "inherit", font: "inherit", textAlign: "left", transform: "none" },
   // The column a dragged card would land in.
   columnOver: { backgroundColor: color.tileHover, boxShadow: `inset 0 0 0 2px ${color.accent}` },
   colHead: { display: "flex", alignItems: "center", gap: space.s2, paddingInline: 6, paddingTop: 4, margin: 0, fontSize: text.base },
@@ -101,7 +117,7 @@ const ks = stylex.create({
     width: 22, height: 22, minHeight: 22, padding: 0, flexShrink: 0, borderRadius: 7, color: color.onAccent,
     borderWidth: 1.5, borderStyle: "solid", borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.focus } },
     backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.accentSoft } },
-    transitionProperty: "background-color, border-color", transitionDuration: motion.fast,
+    transitionProperty: "background-color, border-color, transform", transitionDuration: motion.fast,
   },
   checkDone: { backgroundColor: color.accent, borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.focus } } },
   stepDone: { color: color.muted, textDecoration: "line-through", textDecorationColor: color.accent, textDecorationThickness: 2 },
@@ -260,7 +276,7 @@ const AddColumn = ({ p, w }: { p: Project; w: Tool }) => {
           onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false) } }} />
         <button data-quiet {...sx(ks.small, ks.onTile)}>Add</button>
       </Form>
-    : <button type="button" data-quiet onClick={() => setOpen(true)} {...sx(ks.addCol)}>+ Add a column</button>
+    : <button type="button" data-quiet onClick={() => setOpen(true)} {...sx(ks.addCol)}><span aria-hidden="true">+</span><span {...sx(ks.vertical)}>Add a column</span></button>
 }
 
 /** Add a card to Triage: one line, Enter, and it's ready for the next. Escape closes it. */
@@ -287,6 +303,10 @@ export const routes = [
     const cards = recordings((r) => r.project_id === p.id && r.type === "card" && r.status === "active" && onBoard.has(r.parent_id!)).sort(cardOrder)
     const active = p.status === "active"
     const [adding, setAdding] = useState(false)
+    // Not now and Done start folded; opening one lasts for this visit.
+    const [unfolded, setUnfolded] = useState<ReadonlySet<number>>(new Set())
+    const folds = (col: Recording) => col.data.kind === "not_now" || col.data.kind === "done"
+    const fold = (id: number, open: boolean) => setUnfolded((u) => { const n = new Set(u); if (open) n.add(id); else n.delete(id); return n })
 
     // Dragging a card: an orange line shows where it will land (between two cards, in its own column or another), the
     // column under it lights up when it's another, and dropping puts it there at once.
@@ -395,12 +415,23 @@ export const routes = [
         <div ref={fadeOverflow} data-board {...boardDrop} {...panning} onPointerCancel={panning.onPointerUp} {...sx(ks.board)}>
           {cols.map((col) => {
             const inCol = cards.filter((k) => k.parent_id === col.id)
+            if (folds(col) && !unfolded.has(col.id))
+              return (
+                <section key={col.id} id={`column-${col.id}`} aria-label={col.title} {...dropZone(col)}
+                  {...sx(ks.spine, over?.col === col.id && dragged?.parent_id !== col.id && ks.columnOver)}>
+                  <button type="button" data-quiet aria-expanded={false} aria-label={`${col.title}, ${plural(inCol.length, "card")}. Open`} onClick={() => fold(col.id, true)} {...sx(ks.spineBtn)}>
+                    <span {...sx(ks.count, ks.spineCount)}>{inCol.length}</span><span {...sx(ks.vertical)}>{col.title}</span>
+                  </button>
+                </section>
+              )
             return (
               <section key={col.id} id={`column-${col.id}`} aria-label={col.title} data-your-column={col.data.kind === "custom" || undefined} {...dropZone(col)}
                 {...sx(ks.column, over?.col === col.id && dragged?.parent_id !== col.id && ks.columnOver, draggedCol?.id === col.id && ks.colDragging,
                   edgeBefore === col.id && ks.colDropBefore, edgeAfter === col.id && ks.colDropAfter)}>
                 <h2 {...colDrag(col)} title={canOrder && col.data.kind === "custom" ? "Drag to move this column" : undefined} {...sx(ks.colHead, canOrder && col.data.kind === "custom" && ks.colGrab)}>
-                  {col.data.color && <span title={col.data.color} {...sx(ks.dotBox, ks.dot(DOT[col.data.color] ?? DOT.gray!))} />}{col.title}<span {...sx(ks.count)}>{inCol.length}</span>
+                  {col.data.color && <span title={col.data.color} {...sx(ks.dotBox, ks.dot(DOT[col.data.color] ?? DOT.gray!))} />}
+                  {folds(col) ? <button type="button" data-quiet aria-expanded title="Fold" onClick={() => fold(col.id, false)} {...sx(ks.fold)}>{col.title}</button> : col.title}
+                  <span {...sx(ks.count)}>{inCol.length}</span>
                   {!isClient(m) && <a href={`/projects/${p.id}/columns/${col.id}`} aria-label={`${col.title} column options`} title="Column options" {...sx(ks.colMore)}>•••</a>}
                 </h2>
                 {col.data.watcher_ids?.length > 0 && <p {...sx(ks.colMeta)}><span>Watching: {names(people, col.data.watcher_ids)}</span></p>}
@@ -453,7 +484,7 @@ export const routes = [
         </Form>
         <Form action={`/projects/${p.id}/columns/${col.id}/watch`}>
           <p>{watching ? "You're watching this column. You get notified when cards land in it." : "Watch this column to get notified when cards land in it."}</p>
-          <button>{watching ? "Stop watching this column" : "Watch this column"}</button>
+          <button data-quiet>{watching ? "Stop watching this column" : "Watch this column"}</button>
         </Form>
         <Form action={`/projects/${p.id}/columns/${col.id}/move-all`}>
           <p><label>Move all cards to… <ColumnSelect cols={others} current={null} /></label> <button>Move all cards</button></p>

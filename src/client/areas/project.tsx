@@ -35,17 +35,17 @@ const pm = stylex.create({
 
 const PITCH: Record<ToolType, string> = {
   message_board: "Share news and ideas with the team. Talk them over in one place.",
-  todos: "Make a list of what needs doing. Split a big task into subtasks. The bar fills up as things get done.",
+  todos: "List the goals this project has to reach. Split a goal into subgoals. The bar fills as they get done.",
   vault: "Keep docs, files, and images here. Sort them into folders.",
   campfire: "Chat with the team about anything.",
-  schedule: "Add events and dates. Tasks and cards with due dates show up here too.",
-  cardtable: "Move cards from column to column as work gets done. Add your first card to New, or set up columns first.",
+  schedule: "Add events and dates. Goals and cards with due dates show up here too.",
+  cardtable: "Move cards from column to column as work gets done. New cards start in Triage.",
 }
 
 /** What each kind of window is for, in a few words, for the + menu. */
 const MENU_PITCH: Record<ToolType, string> = {
   message_board: "Announcements and write-ups",
-  todos: "The tasks that finish the project, with one progress bar",
+  todos: "The goals the project has to reach, under one bar",
   vault: "Docs, files and folders",
   campfire: "Quick back-and-forth",
   schedule: "Events and deadlines",
@@ -238,7 +238,7 @@ const summary = (p: Project, t: Tool): string => {
     case "todos": {
       const pr = progressOf(p, t.id)
       const late = lateTasks(p.id, t.id)
-      return pr.total ? `${pr.pct}% done${late ? ` · ${late} late` : ""}` : "No tasks yet"
+      return pr.total ? `${pr.pct}% done${late ? ` · ${late} late` : ""}` : "No goals yet"
     }
     case "vault": {
       const n = activeIn(p, t, ["doc", "upload", "cloudfile"]).length

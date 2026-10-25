@@ -89,6 +89,30 @@ type Invite =
   | { state: "open"; account: string; inviter: string | null; name: string; email: string; time_zone: string; google: string | null }
   | { state: "used"; account: string | null; email: string }
   | { state: "gone" }
+  | { state: "team"; account: string; already_in: boolean; email: string; name: string; google: string | null }
+
+/** The team link's sign-up: a name tag, after Campfire. */
+const JoinTeam = ({ code, t }: { code: string; t: Extract<Invite, { state: "team" }> }) => {
+  if (t.already_in) return <Page title={`Join ${t.account}`}><h1>You're already in {t.account}</h1><p><a href="/" data-button>Go to {t.account}</a></p></Page>
+  return (
+    <Page title={`Join ${t.account}`}>
+      <h1>Join {t.account}</h1>
+      <p>Someone at {t.account} shared this link so you can join them on Saintsflow.</p>
+      <Form action={`/join/${code}`}>
+        <p><label>Your name<br /><input name="name" defaultValue={t.name} required autoFocus /></label></p>
+        {t.google
+          ? <p><input type="hidden" name="google" value="1" />Joining with Google as <b>{t.google}</b></p>
+          : <>
+            <p><label>Email address<br /><input type="email" name="email" defaultValue={t.email} required /></label></p>
+            <p><label>Password (8 characters or more, or your Saintsflow password if you have one)<br /><input type="password" name="password" required minLength={8} /></label></p>
+          </>}
+        <input type="hidden" name="time_zone" value={browserTz() ?? ""} />
+        <p><button>Join {t.account}</button></p>
+      </Form>
+      {!t.google && <GoogleLink then={`join:${code}`}>Join with Google</GoogleLink>}
+    </Page>
+  )
+}
 
 export const routes = [
   // Sign up
@@ -107,8 +131,8 @@ export const routes = [
             ? <p><input type="hidden" name="google" value="1" />Signing up with Google as <b>{q.get("email")}</b> <a href="/signup">(use a password instead)</a></p>
             : <p><label>Email address<br /><input type="email" name="email" required /></label></p>}
           <p><label>Company or team name<br /><input name="company" required /></label></p>
-          {!google && <p><label>Password<br /><input type="password" name="password" /></label></p>}
-          <p><button>Start my free trial</button></p>
+          {!google && <p><label>Password (8 characters or more)<br /><input type="password" name="password" required minLength={8} /></label></p>}
+          <p><button>Make my account</button></p>
         </Form>
         {!google && <GoogleLink then="signup">Sign up with Google</GoogleLink>}
         <p><a href="/signin">Already have an account? Sign in</a></p>
@@ -118,8 +142,6 @@ export const routes = [
 
   // First run
   page("/welcome", () => {
-    const m = me()
-    const sample = [...db.projects.values()].find((p) => p.name.startsWith("Sample project") && p.status === "active" && db.project_people.has(`${p.id}:${m.id}`))
     return (
       <Page title="Welcome">
         <h1>Welcome! Let's get your first project going.</h1>
@@ -127,7 +149,7 @@ export const routes = [
           <p><label>What are you working on?<br /><input name="name" required autoFocus placeholder="e.g. Website redesign" /></label></p>
           <button>Make this project</button>
         </Form>
-        {sample && <p>Or look around <a href={`/projects/${sample.id}`}>a sample project</a> first. It's yours to trash.</p>}
+        <p>Or start from <a href="/templates">a template</a>, a project that comes ready.</p>
         <p><a href="/">Skip, take me Home</a></p>
       </Page>
     )
@@ -233,6 +255,7 @@ export const routes = [
     const token = useParams().token!
     const { data: inv } = useApi<Invite>(`/join/${token}`)
     if (!inv) return <Page title="Invitation">{null}</Page>
+    if (inv.state === "team") return <JoinTeam code={token} t={inv} />
     if (inv.state === "used")
       return <Page title="Invitation"><h1>This invitation was already used</h1><p><a href={`/signin?email=${encodeURIComponent(inv.email)}`}>Sign in to get to {inv.account ?? "your account"}</a></p></Page>
     if (inv.state === "gone")
@@ -246,7 +269,7 @@ export const routes = [
           <p>Email: {inv.email}</p>
           {inv.google
             ? <p><input type="hidden" name="google" value="1" />Joining with Google as <b>{inv.google}</b></p>
-            : <p><label>Password<br /><input type="password" name="password" /></label></p>}
+            : <p><label>Password (8 characters or more)<br /><input type="password" name="password" required minLength={8} /></label></p>}
           <p><label>Time zone (guessed from your browser)<br /><input name="time_zone" id="tz" defaultValue={browserTz() ?? inv.time_zone} /></label></p>
           <p><button>Join {inv.account}</button></p>
         </Form>

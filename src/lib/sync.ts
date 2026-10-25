@@ -7,7 +7,7 @@
 import { Effect, Layer, Schedule } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { SqlClient } from "effect/sql"
-import { CLIENT_INHERITS, KEYS, TABLES, canSeeProject, isAdmin, isClient, type Table } from "../shared/domain.ts"
+import { CLIENT_INHERITS, KEYS, TABLES, canSeeProject, isAdmin, isClient, mayInvite, type Account, type Table } from "../shared/domain.ts"
 import { loadMe, type Person } from "./web.ts"
 
 type Me = Pick<Person, "id" | "account_id" | "role">
@@ -50,7 +50,7 @@ export const shape = (tbl: Table, row: Row, me: Me, s: Scope): Row | null => {
   const inAccount = row.account_id === me.account_id
   if (PERSONAL[tbl]) return row.person_id === me.id ? row : null
   switch (tbl) {
-    case "accounts": return row.id === me.account_id ? row : null
+    case "accounts": return row.id === me.account_id ? (mayInvite(me, row as Account) ? row : { ...row, join_code: null }) : null
     case "companies": case "categories": case "markers": return inAccount ? row : null
     case "chatbots": return inAccount ? (isClient(me) ? { ...row, token: null } : row) : null
     case "people": {

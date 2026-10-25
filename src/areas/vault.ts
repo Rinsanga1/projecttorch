@@ -219,6 +219,7 @@ export const routes = [
   post("/projects/:id/uploads/:uid/versions", (c) =>
     Effect.gen(function* () {
       const { r } = yield* findRecording(c, c.params.uid, "upload")
+      if (isClient(c.me) && r.creator_id !== c.me.id) return yield* new NoAccess()
       if (r.status !== "active") return redirect(urlFor(r))
       const file = (yield* c.form).get("file")
       if (!file || typeof file === "string" || file.size === 0) return redirect(urlFor(r), "Choose a file to upload as the new version.")
@@ -266,6 +267,7 @@ export const routes = [
   post("/projects/:id/cloudfiles/:cid/edit", (c) =>
     Effect.gen(function* () {
       const { r } = yield* findRecording(c, c.params.cid, "cloudfile")
+      if (isClient(c.me) && r.creator_id !== c.me.id) return yield* new NoAccess()
       const fd = yield* c.form
       const url = str(fd, "url")
       const ch = { title: str(fd, "title") || url, data: { url } }

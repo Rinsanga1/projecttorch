@@ -1,4 +1,4 @@
-// People & clients: invite people, pending invitations, client access for a project.
+// People & clients: invite people, pending invitations, the team link, client access for a project.
 // The pages (the directory, profiles, the invite form, the client preview) are client/areas/people.tsx; these are their posts.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
@@ -94,6 +94,16 @@ export const routes = [
       const sql = yield* SqlClient.SqlClient
       yield* sql`delete from people where id = ${p.id} and joined_at is null`
       return redirect("/people/pending", `Cancelled the invitation for ${p.email}.`)
+    })),
+
+  // The team link: a new code, and the old link stops working.
+  post("/people/join-link", (c) =>
+    Effect.gen(function* () {
+      if (!isAdmin(c.me)) return yield* new NoAccess()
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`update accounts set join_code = default where id = ${c.me.account_id}`
+      yield* logEvent(c, { project_id: null, action: "reset", summary: "made a new team link" })
+      return redirect("/people", "Made a new team link. The old one no longer works.")
     })),
 
   // Client access for a project

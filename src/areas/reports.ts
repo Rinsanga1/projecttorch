@@ -18,7 +18,7 @@ export const seed = (s: Seed) =>
     const { maya, ann, bob, dan } = s.people
     const day = (n: number) => isoDate(new Date(Date.now() + n * 86_400_000))
     yield* createRecording(s.as(maya), { project: s.projects.website, type: "todo", title: "Approve final homepage copy",
-      data: { assignee_ids: [dan.id], due_on: day(-3) }, visible_to_clients: true, notifyIds: [dan.id], notifyKind: "assigned", verb: "assigned a task" })
+      data: { assignee_ids: [dan.id], due_on: day(-3) }, visible_to_clients: true, notifyIds: [dan.id], notifyKind: "assigned", verb: "assigned a goal" })
     yield* createRecording(s.as(maya), { project: s.projects.website, type: "todo", title: "Set up redirects from the old site",
       data: { assignee_ids: [bob.id], due_on: day(4) }, visible_to_clients: true })
     const done = yield* createRecording(s.as(ann), { project: s.projects.website, type: "todo", title: "Pick the typeface",

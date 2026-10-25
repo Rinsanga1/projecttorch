@@ -86,7 +86,8 @@ const itemsBetween = (rows: Rows, from: string, to: string): Item[] => [
 
 // The month as a ruled grid (still a real table), today on an orange disc, items as small pills in their day.
 const ss = stylex.create({
-  cal: { tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0, marginBottom: space.s3, borderRadius: radius.lg, overflow: "hidden",
+  // Stays a table on phones too (the base layer turns narrow tables into blocks): it scrolls sideways in ss.scroll instead.
+  cal: { display: "table", width: "100%", minWidth: 560, tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0, marginBottom: space.s3, borderRadius: radius.lg, overflow: "hidden",
     borderWidth: 1, borderStyle: "solid", borderColor: color.line },
   caption: { fontSize: text.lg, fontWeight: 700, letterSpacing: "-0.02em", paddingBottom: space.s3 },
   th: { paddingBlock: space.s2, paddingInline: space.s2, backgroundColor: color.tile, borderBottomWidth: 1, borderBottomColor: color.line, textAlign: "left" },
@@ -261,7 +262,7 @@ export const routes = [
           <a key="feed" href={`/projects/${p.id}/calendar/feed`} data-button>Add to your calendar app</a>,
         ]} />
         {!rows.events.length && !rows.dues.length
-          ? <p {...sx(kit.empty)}>Add events and big dates. Tasks and cards with due dates show up here on their own.</p>
+          ? <p {...sx(kit.empty)}>Add events and big dates. Goals and cards with due dates show up here on their own.</p>
           : (
             // In a project window, what's coming up comes first; the month fills a window, so it follows.
             inWindow ? (

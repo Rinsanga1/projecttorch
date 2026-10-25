@@ -34,10 +34,10 @@ export const windowNews = (projectId: number, meId: number, seen: (key: string) 
 }
 
 // ---------- progress ----------
-// Progress is never set by hand: it's the share of the work that's done. The work is every task, except that a task
-// with subtasks counts as its subtasks (it's done when they all are), so splitting a task up doesn't skew the bar.
+// Progress is never set by hand: it's the share of the work that's done. The work is every Compass goal, except that a
+// goal with subgoals counts as its subgoals (it's done when they all are), so splitting a goal up doesn't skew the bar.
 
-/** A Tasks window's tasks (or every shown one's, for the project), its subtasks by task, and how far along it is. */
+/** A Compass window's goals (`tasks`; or every shown one's, for the project), their subgoals (`subtasks`) by goal, and how far along it is. */
 export const progressOf = (p: Project, windowId?: string) => {
   const shown = new Set(p.tools.filter((t) => t.enabled && t.type === "todos").map((t) => t.id))
   const all = recordings((r) => r.project_id === p.id && r.type === "todo" && r.status === "active")

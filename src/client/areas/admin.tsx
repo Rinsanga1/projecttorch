@@ -235,7 +235,7 @@ export const routes = [
           <p><label>Card number (only the last 4 digits are kept)<br /><input name="card" inputMode="numeric" autoComplete="cc-number" size={22} required /></label></p>
           <button>Update card</button>
         </Form>
-        <Form action="/admin/billing/decline"><p><button>Simulate a declined card</button> <small>(for trying the on-hold flow)</small></p></Form>
+        <Form action="/admin/billing/decline"><p><button data-quiet>Simulate a declined card</button> <small>(for trying the on-hold flow)</small></p></Form>
         <h2>Billing contact</h2>
         <Form action="/admin/billing/contact" key={a.billing_email ?? ""}>
           <p><label>Receipts go to <input type="email" name="billing_email" defaultValue={a.billing_email ?? ""} required /></label> <button>Save</button></p>

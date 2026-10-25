@@ -1,7 +1,7 @@
-// Tasks: add a task (one line is enough), add a subtask to it, complete, reorder, edit. A task with subtasks is done when
-// they all are: completing it completes them, and completing or reopening a subtask settles the task. One level only.
-// The window's bar is the share of the work done (client/news.ts progressOf). Records are `todo`, a subtask's parent
-// is its task. The pages are client/areas/todos.tsx; these are their posts.
+// Compass: add a goal (one line is enough), add a subgoal to it, complete, reorder, edit. A goal with subgoals is done when
+// they all are: completing it completes them, and completing or reopening a subgoal settles the goal. One level only.
+// The window's bar is the share of the work done (client/news.ts progressOf). Records are `todo` and URLs say `tasks`
+// (old names); a subgoal's parent is its goal. To-dos and tasks people mean are Board cards (cards.ts), not these. The pages are client/areas/todos.tsx; these are their posts.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { post, redirect, back, invalid, str, ids, num, isClient, NoAccess, NotFound, type Ctx } from "../lib/web.ts"
@@ -18,7 +18,7 @@ const readTodo = (fd: FormData, pool: ReadonlyArray<number>) => {
   const due_on = due === "day" ? str(fd, "due_day") || null : due === "range" ? str(fd, "range_end") || null : null
   const starts_on = due === "range" ? str(fd, "range_start") || null : null
   const errs = [
-    ...(str(fd, "title") ? [] : ["Type the task first."]),
+    ...(str(fd, "title") ? [] : ["Type the goal first."]),
     ...(due === "day" && !due_on ? ["Pick the day it's due."] : []),
     ...(due === "range" && (!starts_on || !due_on) ? ["Pick both the start and end day."] : []),
     ...(starts_on && due_on && due_on < starts_on ? ["The end date has to come after the start date."] : []),
@@ -40,7 +40,7 @@ const tellAssignees = (c: Ctx, t: Recording, personIds: ReadonlyArray<number>) =
   Effect.gen(function* () {
     if (!personIds.length) return
     yield* subscribe(t.id, personIds)
-    yield* notify(c, { personIds, recording: t, kind: "assigned", summary: `${c.me.name} assigned you a task: ${t.title}` })
+    yield* notify(c, { personIds, recording: t, kind: "assigned", summary: `${c.me.name} assigned you a goal: ${t.title}` })
   })
 
 const DONE = (c: Ctx) => ({ completed_at: new Date().toISOString(), completer_id: c.me.id })
@@ -71,7 +71,7 @@ export const routes = [
       const people = yield* projectPeople(p)
       const t = readTodo(fd, people.map((x) => x.id))
       if (t.errs.length) return invalid(t.errs)
-      const todo = yield* createRecording(c, { project: p, type: "todo", tool: str(fd, "tool"), title: t.title, body: t.body, data: { ...t.data, completed_at: null }, verb: "added a task" })
+      const todo = yield* createRecording(c, { project: p, type: "todo", tool: str(fd, "tool"), title: t.title, body: t.body, data: { ...t.data, completed_at: null }, verb: "added a goal" })
       yield* subscribe(todo.id, t.data.notify_ids)
       yield* tellAssignees(c, todo, t.data.assignee_ids)
       return back(c, windowUrl(p, { id: str(fd, "tool") || "todos", type: "todos" }))
@@ -149,9 +149,9 @@ export const seed = (s: Seed) =>
     const web = s.projects.website
     const todo = (as: Person, project: Project, title: string, data: Record<string, any> = {}, body = "", parent?: Recording, visible = true) =>
       Effect.gen(function* () {
-        const t = yield* createRecording(s.as(as), { project, type: "todo", parent_id: parent?.id ?? null, title, body, data: { assignee_ids: [], notify_ids: [], completed_at: null, ...data }, visible_to_clients: parent?.visible_to_clients ?? visible, verb: "added a task" })
+        const t = yield* createRecording(s.as(as), { project, type: "todo", parent_id: parent?.id ?? null, title, body, data: { assignee_ids: [], notify_ids: [], completed_at: null, ...data }, visible_to_clients: parent?.visible_to_clients ?? visible, verb: "added a goal" })
         yield* subscribe(t.id, [...(data.assignee_ids ?? []), ...(data.notify_ids ?? [])])
-        for (const id of data.assignee_ids ?? []) if (id !== as.id) yield* notify(s.as(as), { personIds: [id], recording: t, kind: "assigned", summary: `${as.name} assigned you a task: ${title}`, email: false })
+        for (const id of data.assignee_ids ?? []) if (id !== as.id) yield* notify(s.as(as), { personIds: [id], recording: t, kind: "assigned", summary: `${as.name} assigned you a goal: ${title}`, email: false })
         return t
       })
     const complete = (t: Recording, by: Person, daysAgo: number) =>

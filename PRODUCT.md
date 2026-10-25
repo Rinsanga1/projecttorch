@@ -21,7 +21,7 @@ Roles in the app: owner, admin, member, client. Clients see a reduced view of a 
 
 ## Product Purpose
 
-Every project gets one home: Message Board, Milestones (tasks and subtasks under one progress bar), Docs & Files, Campfire chat, Schedule, Board (after Fizzy). Progress counts itself from the tasks done. Success is a team that knows where things stand without a status meeting and can stop working at the end of the day.
+Every project gets one home: Message Board, Compass (the project's goals and their subgoals under one progress bar), Docs & Files, Campfire chat, Schedule, Board (after Fizzy). Progress counts itself from the goals done. To-dos and tasks are cards on the Board. Success is a team that knows where things stand without a status meeting and can stop working at the end of the day.
 
 ## Positioning
 

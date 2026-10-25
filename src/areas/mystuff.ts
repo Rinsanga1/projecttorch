@@ -5,6 +5,7 @@ import { SqlClient } from "effect/sql"
 import { post, redirect, invalid, json, str } from "../lib/web.ts"
 import { findRecording, updateRecording, logEvent, notify, titleOf, urlFor } from "../lib/core.ts"
 import { savePrefs } from "./hey.ts"
+import { checkPassword, loginFor, setPassword } from "./frontdoor.ts"
 import type { Seed } from "../seed.ts"
 
 /** Mirrored in client/areas/mystuff.tsx (the profile's time zone list). */
@@ -75,19 +76,24 @@ export const routes = [
       const [taken] = yield* sql`select 1 from people where account_id = ${c.me.account_id} and lower(email) = lower(${email}) and id <> ${c.me.id}`
       if (taken) return invalid(["Someone else here already uses that email."])
       yield* sql`update people set email = ${email} where id = ${c.me.id}`
+      // Logins are by email: the new address keeps the old one's password and Google sign-in (other accounts may still use the old).
+      yield* sql`insert into logins (email, password_hash, google_sub) select lower(${email}), password_hash, google_sub from logins
+        where email = lower(${c.me.email}) on conflict (email) do nothing`
       return redirect("/my/security", "Email changed.")
     })),
 
   post("/my/security/password", (c) =>
     Effect.gen(function* () {
       const fd = yield* c.form
-      // ponytail: no auth yet, so nothing is checked or stored. Only the shape of the form is validated.
+      // Someone with no password yet (they signed up with Google) sets one without a current password.
+      const has = !!(yield* loginFor(c.me.email))?.password_hash
       const errs = [
-        ...(str(fd, "current") ? [] : ["Your current password isn't right."]),
+        ...(!has || (yield* checkPassword(c.me.email, str(fd, "current"))) ? [] : ["Your current password isn't right."]),
         ...(str(fd, "new").length >= 8 ? [] : ["Pick a longer password: at least 8 characters."]),
         ...(str(fd, "new") === str(fd, "confirm") ? [] : ["The new passwords don't match."]),
       ]
       if (errs.length) return invalid(errs)
+      yield* setPassword(c.me.email, str(fd, "new"))
       return redirect("/my/security", "Password changed.")
     })),
 

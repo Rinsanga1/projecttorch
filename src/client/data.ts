@@ -3,7 +3,7 @@
 // person may see (the server decides), so these don't re-check access, except where the old pages did (trash, drafts).
 import { useEffect, useState } from "react"
 import { db, state, submit } from "./store.ts"
-import { CLIENT_INHERITS, canSeeProject, isAdmin, isClient, windowIdOf, type Account, type Person, type Project, type Recording } from "../shared/domain.ts"
+import { CLIENT_INHERITS, canSeeProject, isAdmin, isClient, mayInvite, windowIdOf, type Account, type Person, type Project, type Recording } from "../shared/domain.ts"
 
 // ---------- errors (rendered by the route's error page, see ui/page.tsx) ----------
 export class NotFound extends Error { readonly _tag = "NotFound" }
@@ -78,7 +78,7 @@ export const findProject = (id: number | string | undefined, opts: { allowTrashe
 }
 
 export const canCreateProjects = () => !isClient(me()) && (account().settings.who_can_create_projects !== "admins" || isAdmin(me()))
-export const canInvite = () => !isClient(me()) && (account().settings.who_can_invite !== "admins" || isAdmin(me()))
+export const canInvite = () => mayInvite(me(), account())
 
 // ---------- recordings ----------
 const recs = () => [...db.recordings.values()]

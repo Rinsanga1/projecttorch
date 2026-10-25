@@ -91,11 +91,11 @@ const work = await execute(key, `
   await sf.projects.setPeople(id, [(await sf.me()).id, ann.id])
   await sf.projects.openWindow(id, "todos")
   await sf.projects.openWindow(id, "cardtable")
-  const t = await sf.milestones.create(id, { title: "Write the brief", due_on: "2026-11-01" })
+  const t = await sf.goals.create(id, { title: "Write the brief", due_on: "2026-11-01" })
   const taskId = t.created.find((x) => x.type === "todo").id
-  await sf.milestones.addSubtask(taskId, { title: "Outline" })
-  await sf.milestones.complete(taskId)
-  await sf.tasks.complete(taskId)   // the old name still works, and twice is still done (the helper looks first)
+  await sf.goals.addSubgoal(taskId, { title: "Outline" })
+  await sf.goals.complete(taskId)
+  await sf.milestones.complete(taskId)   // the old name still works, and twice is still done (the helper looks first)
   const board = (await sf.projects.get(id)).boards[0]
   const col = (kind) => board.columns.find((c) => c.kind === kind)
   const a = await sf.cards.create(id, { title: "Ship it", column_id: col("triage").id, body: "## From the agent check\\n\\n- **one**" })
@@ -122,14 +122,14 @@ const work = await execute(key, `
     id, ids: [ida, idb, idc], postId, order, routeError, started: made.message,
     windows: p.windows.filter((w) => w.enabled).map((w) => w.type),
     routes: (await sf.routes()).includes("POST /projects/:id/posts"),
-    milestones: p.milestones.map((x) => [x.title, x.done, x.subtasks.map((s) => s.done)]),
+    goals: p.goals.map((x) => [x.title, x.done, x.subgoals.map((s) => s.done)]),
     columns: p.boards[0].columns.map((c) => [c.kind, c.cards.map((k) => k.title), c.title, c.color, c.note]),
     pinned: p.pinned.map((x) => x.title), chat: p.chat.map((x) => x.body),
   }
 `)
 const r = work.out?.result
 ok(!work.isError, `the script ran${work.isError ? `: ${JSON.stringify(work.out)}` : ""}`)
-ok(JSON.stringify(r?.milestones) === JSON.stringify([["Write the brief", true, [true]]]), "milestone and its subtask done (sf.milestones, and sf.tasks still works)")
+ok(JSON.stringify(r?.goals) === JSON.stringify([["Write the brief", true, [true]]]), "goal and its subgoal done (sf.goals, and sf.milestones still works)")
 ok(/Started from “Work with an agent”/.test(r?.started ?? ""), "an agent's new project starts from the agents' template")
 ok(r?.columns?.map((c: any) => c[2]).join() === "Not now,Triage,Running,Mine,Review,Done", "its board: Not now, Triage, Running, Mine, Review, Done")
 ok(r?.columns?.find((c: any) => c[2] === "Mine")?.[3] === "blue" && r?.columns?.find((c: any) => c[2] === "Review")?.[3] === "orange" && r?.columns?.find((c: any) => c[2] === "Running")?.[4] === "What your agent is working on.", "Mine blue, Review orange, Running says what it's for")

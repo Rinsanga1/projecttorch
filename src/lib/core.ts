@@ -2,7 +2,7 @@
 //
 // recordings.data by type (all optional):
 //   message:   category_id, pinned
-//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a task, or a subtask of one)
+//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a Compass goal, or a subgoal of one)
 //   folder:    color
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
@@ -15,7 +15,7 @@
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { fmtDate, esc } from "../shared/format.ts"
-import { CLIENT_INHERITS, TYPE_NAMES, TYPE_TOOL, titleOf, urlFor, mentionedIds, canSeeProject, type Tool } from "../shared/domain.ts"
+import { CLIENT_INHERITS, TYPE_NAMES, TYPE_TOOL, titleOf, urlFor, mentionedIds, canSeeProject, mayInvite, type Tool } from "../shared/domain.ts"
 import { NotFound, NoAccess, Deleted, isAdmin, isClient, isQuiet, type Ctx, type Person } from "./web.ts"
 
 export {
@@ -369,5 +369,4 @@ export const canCreateProjects = (c: Ctx) =>
   !isClient(c.me) && (c.account.settings.who_can_create_projects !== "admins" || isAdmin(c.me))
 
 /** Can this person invite people? */
-export const canInvite = (c: Ctx) =>
-  !isClient(c.me) && (c.account.settings.who_can_invite !== "admins" || isAdmin(c.me))
+export const canInvite = (c: Ctx) => mayInvite(c.me, c.account)

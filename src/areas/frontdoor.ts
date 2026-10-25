@@ -8,7 +8,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { get, post, pubGet, pubPost, redirect, invalid, json, withCookie, resync, navigate, hashToken, origin, str, num, DEV, SESSION_DAYS, type Ctx, type PubCtx, type Person, type Account, type Reply } from "../lib/web.ts"
-import { defaultTools, createRecording, logEvent, sendEmail, type Project } from "../lib/core.ts"
+import { logEvent, sendEmail, type Project } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
@@ -60,13 +60,13 @@ const finishSignIn = (c: PubCtx, person: Person, accounts: number, next?: string
 
 // ---------- logins ----------
 
-const loginFor = (email: string) =>
+export const loginFor = (email: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return (yield* sql<Login>`select * from logins where email = lower(${email})`)[0] ?? null
   })
 
-const setPassword = (email: string, password: string) =>
+export const setPassword = (email: string, password: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const hash = yield* Effect.promise(() => Bun.password.hash(password))
@@ -75,7 +75,7 @@ const setPassword = (email: string, password: string) =>
   })
 
 // ponytail: no attempt limit; argon2 is slow enough to start. Lock out after N misses if anyone hammers it.
-const checkPassword = (email: string, password: string) =>
+export const checkPassword = (email: string, password: string) =>
   Effect.gen(function* () {
     const login = yield* loginFor(email)
     if (!login?.password_hash || !password) return false
@@ -218,20 +218,8 @@ export const routes = [
       })} returning *`
       if (google) yield* setGoogle(v.email, google.sub)
       else yield* setPassword(v.email, str(fd, "password"))
+      // No HQ and no sample project: a new account starts empty, and ready-made projects come from Templates.
       const ctx: Ctx = { ...c, me: me!, account: account! }
-      const project = (p: { name: string; description: string; is_hq?: boolean; tools?: ReturnType<typeof defaultTools> }) =>
-        sql<Project>`insert into projects ${sql.insert({
-          account_id: account!.id, name: p.name, description: p.description, is_hq: p.is_hq ?? false, all_access: p.is_hq ?? false,
-          tools: JSON.stringify(p.tools ?? []), created_by: me!.id,
-        })} returning *`.pipe(Effect.map((r) => r[0]!))
-      yield* project({ name: `${v.company} HQ`, description: "Company-wide announcements and stuff everyone needs.", is_hq: true })
-      // A sample project to poke around in, with Posts and Tasks open (new projects start with no windows). Theirs to trash.
-      const sample = yield* project({ name: "Sample project (yours to trash)", description: "Poke around. Post, check things off, then trash it from the ••• menu.",
-        tools: defaultTools().filter((t) => t.type === "message_board" || t.type === "todos") })
-      yield* sql`insert into project_people (project_id, person_id) values (${sample.id}, ${me!.id})`
-      yield* createRecording(ctx, { project: sample, type: "message", title: "Welcome! Start here", body: "This is a post. Everyone on the project can read it and comment below.\n\nAdd a comment, then check off the tasks.", quiet: true })
-      for (const t of ["Add a comment to the welcome post", "Make your first real project", "Invite someone"])
-        yield* createRecording(ctx, { project: sample, type: "todo", title: t, data: { assignee_ids: [me!.id] }, quiet: true })
       yield* logEvent(ctx, { project_id: null, action: "created", summary: `started the ${v.company} account` })
       return withCookie(yield* signInAs(c, "/welcome", me!.id), "google", null)
     })),
@@ -247,7 +235,7 @@ export const routes = [
       })} returning *`
       yield* sql`insert into project_people (project_id, person_id) values (${p!.id}, ${c.me.id})`
       yield* logEvent(c, { project_id: p!.id, action: "created", summary: `started the project ${name}` })
-      return redirect(`/projects/${p!.id}/people/setup`)
+      return redirect(`/projects/${p!.id}`)
     })),
 
   // Sign in: email first, then a password, an emailed link, or Google.
@@ -353,6 +341,11 @@ export const routes = [
   pubGet("/join/:token", (c) =>
     Effect.gen(function* () {
       const inv = yield* invitation(c.params.token)
+      const team = inv.state === "gone" ? yield* teamAccount(c.params.token) : null
+      if (team) {
+        const g = openGoogle(c)
+        return json({ state: "team", account: team.name, already_in: c.me?.account_id === team.id, email: g?.email ?? c.me?.email ?? "", name: g?.name ?? "", google: g?.email ?? null })
+      }
       return json(inv.state === "open"
         ? { state: "open", account: inv.account.name, inviter: inv.inviter, name: inv.person.name, email: inv.person.email, time_zone: inv.person.time_zone, google: openGoogle(c)?.email ?? null }
         : inv.state === "used" ? { state: "used", account: inv.account?.name ?? null, email: inv.email } : { state: "gone" })
@@ -362,6 +355,8 @@ export const routes = [
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const inv = yield* invitation(c.params.token)
+      const team = inv.state === "gone" ? yield* teamAccount(c.params.token) : null
+      if (team) return yield* joinTeam(c, team)
       if (inv.state !== "open") return invalid([inv.state === "used" ? "This invitation was already used." : "This invitation was cancelled."])
       const fd = yield* c.form
       const name = str(fd, "name")
@@ -381,9 +376,7 @@ export const routes = [
         if (!(yield* checkPassword(email, password)))
           return invalid(["You already have a Saintsflow login with this email. Use that password, or join with Google."])
       } else yield* setPassword(email, password)
-      const tz = str(fd, "time_zone")
-      const validTz = (() => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return !!tz } catch { return false } })()
-      yield* sql`update people set name = ${name}, time_zone = ${validTz ? tz : inv.person.time_zone}, joined_at = now(), invite_token = null,
+      yield* sql`update people set name = ${name}, time_zone = ${validTz(str(fd, "time_zone")) ?? inv.person.time_zone}, joined_at = now(), invite_token = null,
         prefs = prefs || ${JSON.stringify({ used_invite_token: c.params.token, google: !!google })}::jsonb where id = ${inv.person.id}`
       const [first] = yield* sql<{ project_id: number }>`select pp.project_id from project_people pp join projects p on p.id = pp.project_id
         where pp.person_id = ${inv.person.id} and p.status = 'active' order by pp.added_at limit 1`
@@ -458,6 +451,50 @@ const invitation = (token: string | undefined) =>
       return { state: "used", account: account ?? null, email: used.email } as Invitation
     }
     return { state: "gone" } as Invitation
+  })
+
+const validTz = (tz: string) => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz || null } catch { return null } }
+
+/** The account whose team link this is, while it's open for business. */
+const teamAccount = (code: string | undefined) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    return (yield* sql<Account>`select * from accounts where join_code = ${code ?? ""} and status in ('active', 'trial')`)[0] ?? null
+  })
+
+/** Join through the team link: anyone with it becomes a member, after Campfire. Clients only come in by invitation. */
+const joinTeam = (c: PubCtx, account: Account) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const fd = yield* c.form
+    const google = fd.get("google") === "1" ? openGoogle(c) : null
+    if (fd.get("google") === "1" && !google) return invalid([GOOGLE_EXPIRED])
+    const v = { name: str(fd, "name"), email: google?.email ?? str(fd, "email").toLowerCase(), password: str(fd, "password") }
+    const errs = [
+      ...(v.name ? [] : ["Tell us your name."]),
+      ...(EMAIL.test(v.email) ? [] : ["That doesn't look like an email address."]),
+      ...(google || v.password.length >= 8 ? [] : ["Pick a longer password. At least 8 characters."]),
+    ]
+    if (errs.length) return invalid(errs)
+    const [existing] = yield* sql<Person>`select * from people where account_id = ${account.id} and lower(email) = ${v.email}`
+    // Someone who was removed stays out until a person invites them back.
+    if (existing?.removed_at) return invalid([`${v.email} can't join ${account.name} with this link. Ask someone there to invite you.`])
+    if (existing?.joined_at) return invalid([`${v.email} is already in ${account.name}. Sign in instead.`])
+    // The link proves nothing about the address, so a pending invitation (its role, its projects) is only taken up from its email.
+    if (existing) return invalid([`There's an invitation waiting for ${v.email}. Use the link in that email to join.`])
+    if (google) yield* setGoogle(v.email, google.sub)
+    else if (yield* loginFor(v.email)) {
+      if (!(yield* checkPassword(v.email, v.password)))
+        return invalid(["You already have a Saintsflow login with this email. Use that password, or join with Google."])
+    } else yield* setPassword(v.email, v.password)
+    const tz = validTz(str(fd, "time_zone")) ?? "UTC"
+    const [company] = yield* sql<{ id: number }>`select id from companies where account_id = ${account.id} and name = ${account.name} limit 1`
+    const [me] = yield* sql<Person>`insert into people ${sql.insert({
+      account_id: account.id, company_id: company?.id ?? null, name: v.name, email: v.email, role: "member", time_zone: tz, joined_at: new Date(),
+      prefs: JSON.stringify({ notify_email: true, google: !!google }),
+    })} returning *`
+    yield* logEvent({ ...c, me: me!, account }, { project_id: null, action: "joined", summary: "joined with the team link" })
+    return withCookie(yield* signInAs(c, "/", me!.id, `Welcome to ${account.name}!`), "google", null)
   })
 
 export const seed = (s: Seed) =>
