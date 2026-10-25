@@ -1,7 +1,8 @@
 // People & clients: the directory, someone's profile, invite people, pending invitations,
 // client access for a project, and what a client sees. Posts: src/areas/people.ts.
 import * as stylex from "@stylexjs/stylex"
-import { Fragment } from "react"
+import { Fragment, useState } from "react"
+import { observer } from "mobx-react-lite"
 import { useParams, useSearchParams, Form as GetForm } from "react-router"
 import { db } from "../store.ts"
 import {
@@ -40,6 +41,24 @@ const canSeePerson = (m: Person, p: Person) => {
   return [...db.project_people.values()].some((pp) => pp.person_id === p.id && mine.has(pp.project_id))
 }
 
+/** The team link, after Campfire: anyone with it joins as a member. Clients still come in by invitation. */
+export const TeamLink = observer(() => {
+  const a = account()
+  const [copied, setCopied] = useState(false)
+  if (!a.join_code || !canInvite()) return null
+  const url = `${location.origin}/join/${a.join_code}`
+  return (
+    <section aria-labelledby="team-link">
+      <h2 id="team-link">Invite your team with a link</h2>
+      <p>Anyone with this link can join {a.name} and see every all-access project. Clients still need an invitation.</p>
+      <p><input readOnly size={60} value={url} aria-labelledby="team-link" onClick={(e) => e.currentTarget.select()} />{" "}
+        <button type="button" onClick={() => navigator.clipboard?.writeText(url).then(() => setCopied(true), () => {})}>{copied ? "Copied" : "Copy"}</button>{" "}
+        {"share" in navigator && <button type="button" onClick={() => navigator.share({ title: `Join ${a.name} on Saintsflow`, url }).catch(() => {})}>Share</button>}</p>
+      {isAdmin(me()) && <Form action="/people/join-link"><p><button data-quiet>Make a new link</button> The old one stops working.</p></Form>}
+    </section>
+  )
+})
+
 const localTime = (tz: string) => new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz })
 
 export const routes = [
@@ -64,6 +83,7 @@ export const routes = [
             </Fragment>
           ))
           : <p>{q ? `Nobody matches “${q}”.` : "Nobody's here yet."}</p>}
+        <TeamLink />
       </Page>
     )
   }),
@@ -81,6 +101,7 @@ export const routes = [
     return (
       <Page title="Invite people" crumbs={[["Everyone", "/people"]]}>
         <h1>Invite people</h1>
+        {!client && <><TeamLink /><h2>Or invite someone by email</h2></>}
         <Form action="/people/invite" key={q.toString()}>
           <fieldset><legend>Who</legend>
             <label><input type="radio" name="who" value="staff" defaultChecked={!client} /> Someone at {a.name}</label><br />

@@ -86,7 +86,8 @@ const itemsBetween = (rows: Rows, from: string, to: string): Item[] => [
 
 // The month as a ruled grid (still a real table), today on an orange disc, items as small pills in their day.
 const ss = stylex.create({
-  cal: { tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0, marginBottom: space.s3, borderRadius: radius.lg, overflow: "hidden",
+  // Stays a table on phones too (the base layer turns narrow tables into blocks): it scrolls sideways in ss.scroll instead.
+  cal: { display: "table", width: "100%", minWidth: 560, tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0, marginBottom: space.s3, borderRadius: radius.lg, overflow: "hidden",
     borderWidth: 1, borderStyle: "solid", borderColor: color.line },
   caption: { fontSize: text.lg, fontWeight: 700, letterSpacing: "-0.02em", paddingBottom: space.s3 },
   th: { paddingBlock: space.s2, paddingInline: space.s2, backgroundColor: color.tile, borderBottomWidth: 1, borderBottomColor: color.line, textAlign: "left" },
@@ -261,7 +262,7 @@ export const routes = [
           <a key="feed" href={`/projects/${p.id}/calendar/feed`} data-button>Add to your calendar app</a>,
         ]} />
         {!rows.events.length && !rows.dues.length
-          ? <p {...sx(kit.empty)}>Add events and big dates. Tasks and cards with due dates show up here on their own.</p>
+          ? <p {...sx(kit.empty)}>Add events and big dates. Goals and cards with due dates show up here on their own.</p>
           : (
             // In a project window, what's coming up comes first; the month fills a window, so it follows.
             inWindow ? (
@@ -311,7 +312,7 @@ export const routes = [
           {r.data.repeat && r.data.repeat !== "never" && <p>Repeats: {REPEATS[r.data.repeat as Repeat]}</p>}
           <p>Who's involved: {involved.length ? involved.map((x, i) => <span key={x.id}>{i ? ", " : ""}<a href={`/people/${x.id}`}>{x.name}</a></span>) : "nobody in particular"}</p>
           {r.body && <Fmt text={r.body} />}
-          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
           {r.status === "active" && (r.creator_id === m.id || !isClient(m)) && <p><a href={`/projects/${project.id}/events/${r.id}/edit`}>Edit</a></p>}
         </article>
         <ItemFooter r={r} project={project} />

@@ -13,7 +13,7 @@ export type Area = {
 
 export const ALL = [
   "dev", "items", "marketing", "frontdoor", "outside", "home", "project", "messages", "todos", "vault", "chat",
-  "schedule", "cards", "hey", "mystuff", "lineup", "reports", "find", "people", "admin",
+  "schedule", "cards", "hey", "mystuff", "lineup", "reports", "find", "people", "admin", "agents",
 ]
 
 const names = process.env.AREAS_ONLY ? process.env.AREAS_ONLY.split(",").map((s) => s.trim()) : ALL

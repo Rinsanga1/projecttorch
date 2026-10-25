@@ -22,7 +22,7 @@ const MessageForm = ({ p, w, cats, people, m }: { p: Project; w: Tool; cats: Cat
       {!m.id && <WindowField w={w} />}
       <p><label>Pick a category (optional)<br /><select name="category_id" defaultValue={String(m.data?.category_id ?? "")}><option value="">None</option>
         {cats.map((k) => <option key={k.id} value={k.id}>{k.emoji} {k.name}</option>)}
-      </select></label> <small><a href="/categories">Edit categories</a></small></p>
+      </select></label>{!isClient(me()) && <> <small><a href="/categories">Edit categories</a></small></>}</p>
       <TextField label="Title" name="title" value={m.title ?? ""} required placeholder="Type a title…" />
       <TextArea label="Post" name="body" value={m.body ?? ""} placeholder="Write away…" />
       {fresh && <NotifyPicker people={people} me={me()} />}
@@ -56,7 +56,7 @@ const Message = observer(({ r, project }: { r: Recording; project: Project }) =>
       <article>
         <Tags r={r} cat={catOf(categories(), r)} pinned="Pinned to the top" />
         <h1>{r.title}</h1>
-        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
         <Fmt text={r.body} {...sx(kit.prose)} />
       </article>
       <ItemFooter r={r} project={project} />
@@ -109,7 +109,7 @@ export const routes = [
         )}
         <p {...sx(kit.links)}>
           {drafts > 0 && <a href="/my/drafts">Your drafts ({drafts})</a>}
-          <a href="/categories">Edit categories</a>
+          {!isClient(me()) && <a href="/categories">Edit categories</a>}
           <a href={`/projects/${p.id}/trash`}>Archived posts</a>
         </p>
       </Page>

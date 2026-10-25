@@ -38,7 +38,7 @@ const WcwForm = ({ w, tz }: { w: NonNullable<Prefs["wcw"]>; tz: string }) => (
   <Form action="/my/quiet-hours">
     <p><label><input type="checkbox" name="on" defaultChecked={!!w.on} /> Only notify me during work hours</label></p>
     <fieldset><legend>Work days</legend>
-      {DAYS.map((d, i) => <span key={d}><label><input type="checkbox" name="days" value={i} defaultChecked={(w.days ?? [1, 2, 3, 4, 5]).includes(i)} /> {d}</label> </span>)}
+      {DAYS.map((d, i) => <label key={d}><input type="checkbox" name="days" value={i} defaultChecked={(w.days ?? [1, 2, 3, 4, 5]).includes(i)} /> {d}</label>)}
     </fieldset>
     <p><label>From <input type="time" name="start" defaultValue={w.start ?? "09:00"} /></label>{" "}
        <label>until <input type="time" name="end" defaultValue={w.end ?? "17:00"} /></label>{" "}
@@ -114,7 +114,7 @@ export const routes = [
           <p><label><input type="checkbox" name="notify_push" defaultChecked={p.notify_push !== false} /> Phone notifications from the app</label></p>
           <button>Save changes</button>
         </Form>
-        <p><small>ponytail: desktop and phone notifications are recorded but not sent yet; email goes to the <a href="/inbox">dev inbox</a>.</small></p>
+        <p><small>Desktop and phone notifications are coming soon. Your choice is saved for when they arrive.</small></p>
         <ul>
           <li><a href="/my/quiet-hours">Quiet hours</a>{p.wcw?.on ? ` (on: ${p.wcw.start ?? "09:00"}–${p.wcw.end ?? "17:00"})` : ""}</li>
           <li><a href="/my/out-of-office">Out of office</a>{isOutOfOffice(m) ? ` (on until ${fmtDate(p.ooo!.until)})` : ""}</li>
@@ -162,7 +162,7 @@ export const routes = [
     return (
       <Page title="Out of office" crumbs={MY}>
         <h1>Out of office</h1>
-        <p>Say you're away and when you're back. People see it on your profile, in private chats, and when they give you a task.</p>
+        <p>Say you're away and when you're back. People see it on your profile, in private chats, and when they assign you something.</p>
         {on && (
           <>
             <p><b>You're out of office {o!.from && o!.from > today ? `from ${fmtDate(o!.from)} ` : ""}until {fmtDate(o!.until)}.</b>{o!.message && <> “{o!.message}”</>}</p>

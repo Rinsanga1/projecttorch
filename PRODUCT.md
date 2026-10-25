@@ -21,7 +21,7 @@ Roles in the app: owner, admin, member, client. Clients see a reduced view of a 
 
 ## Product Purpose
 
-Every project gets one home: Message Board, Milestones (tasks and subtasks under one progress bar), Docs & Files, Campfire chat, Schedule, Board (after Fizzy). Progress counts itself from the tasks done. Success is a team that knows where things stand without a status meeting and can stop working at the end of the day.
+Every project gets one home: Message Board, Compass (the project's goals and their subgoals under one progress bar), Docs & Files, Campfire chat, Schedule, Board (after Fizzy). Progress counts itself from the goals done. To-dos and tasks are cards on the Board. Success is a team that knows where things stand without a status meeting and can stop working at the end of the day.
 
 ## Positioning
 
@@ -29,7 +29,7 @@ Calm, opinionated project software that leaves features out on purpose (no Gantt
 
 ## Operating Context
 
-Used all day in a desktop browser alongside email and chat; checked on phones. Keyboard shortcuts exist (Ctrl/⌘+J jump, ? for shortcuts). Every email the app would send lands in `/inbox` during development. No sign-in yet: the footer "Acting as" picker switches who you are.
+Used all day in a desktop browser alongside email and chat; checked on phones. Keyboard shortcuts exist (Ctrl/⌘+J jump, ? for shortcuts). Every email the app would send lands in `/inbox` during development. Sign in with a password or Google.
 
 ## Capabilities and Constraints
 
@@ -46,7 +46,7 @@ Used all day in a desktop browser alongside email and chat; checked on phones. K
 
 ## Evidence on Hand
 
-Sample data only (Acme HQ, Website Redesign for Northwind, Marketing Plan). No customers, testimonials, metrics or pricing exist; never invent them.
+Sample data only (Acme HQ, Website Redesign for Northwind, Marketing Plan). No customers, testimonials, metrics or pricing exist; never invent them. Saintsflow is in beta and free while it is (sign-ups start active, no trial).
 
 ## Product Principles
 

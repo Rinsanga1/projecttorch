@@ -44,11 +44,6 @@ typography:
     fontWeight: 750
     lineHeight: 1.05
     letterSpacing: "-0.035em"
-  headline-cut:
-    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "clamp(1.375rem, 1rem + 1.2vw, 2rem)"
-    fontWeight: 700
-    letterSpacing: "-0.03em"
   wordmark-giant:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "clamp(3.5rem, 15.5vw, 14rem)"
@@ -283,7 +278,7 @@ components:
 
 Saintsflow borrows kargul.studio's world and puts a Basecamp-style app on it. Picture a light-gray table (the ground) with white sheets of paper lying on it. Softer gray tiles are grouped on each sheet, and near-black pills, discs and slabs are the only heavy objects. Everything is rounded, flat, and set in one typeface, Geist. Depth comes from the order of the layers, never from shadows.
 
-The same world has two volumes. In the app (Operate) it is calm and dense: fixed rem type steps topping out at 2rem, small pill controls, and plain semantic HTML styled by a classless base layer. Every tool page uses the same kit: a heading with its actions on the right, hairline-ruled record rows led by a face, tiles for anything grouped, and a tile for an empty state. On marketing (Persuade) it plays at full strength: clamp-scaled 750-weight headlines, 54px pill CTAs, 40px-round dark slabs running nearly the width of the page, a framed example project, and a giant cropped wordmark at the foot of the page.
+The same world has two volumes. In the app (Operate) it is calm and dense: fixed rem type steps topping out at 2rem, small pill controls, and plain semantic HTML styled by a classless base layer. Every tool page uses the same kit: a heading with its actions on the right, hairline-ruled record rows led by a face, tiles for anything grouped, and a tile for an empty state. On marketing (Persuade) it plays at full strength: clamp-scaled 750-weight headlines, 54px pill CTAs, 40px-round dark slabs running nearly the width of the page, a framed example project, and a giant cropped wordmark at the foot of the page. After kargul.studio, it also has a news pill above the headline with a Kargul Orange dot that rings, and line art on a slab (the Agents section's isometric board plates, one drifting, a card landing in Review); every motion rests in its final state, so reduced motion shows the still drawing.
 
 One orange does all the signaling. It marks what needs your attention or what has finished: unread counts, today, done checks, progress, focus. That is how the product's first principle (calm over urgent) shows up visually. The dark theme mirrors the light one layer for layer. The primary pill and the face discs flip to near-white, so they stay the heaviest objects on the page.
 
@@ -309,7 +304,7 @@ The world is a neutral grayscale with one warm orange signal. Apart from that or
   - unread count badges in the nav;
   - the Today line and label on the Lineup, and today's date disc on the Schedule;
   - done checkboxes and progress fills (a task list's bar, the project's progress);
-  - the strike-through on "what we left out";
+  - the marketing news dot, and the card in the Agents drawing;
   - the text caret, and selection and focus rings (via `color-mix` at 28-38%).
 
   Text on it is **Burnt Ink** (`on-accent`), a near-black brown.
@@ -353,7 +348,6 @@ The orange is identical in both themes.
 ### Hierarchy
 - **Display** (750, clamp up to 5.25rem, 0.98): the marketing hero headline only, capped at 14ch and centered.
 - **Headline** (750, clamp up to 3.25rem, 1.05): marketing section headings.
-- **Headline, cut** (700, clamp 1.375 to 2rem, -0.03em): the struck-through feature names in the marketing "fewer features" list. It is set in Slab Muted with a 2px orange line-through, a fluid step between title and headline used only for that list.
 - **Wordmark, giant** (800, clamp 3.5 to 14rem, 0.8, -0.06em): the marketing footer wordmark, cropped by the page bottom. One per page, marketing only.
 - **Title, page** (700, 2rem, 1.15): the app `<h1>`, set through `pageHead()` with actions beside it, and the ceiling inside the app. The project page sets it smaller (1.625rem) so its windows get the screen.
 - **Title** (650, 1.25rem, 1.3): the app `<h2>`. Calendar captions use 700 at this size.
@@ -366,7 +360,7 @@ The orange is identical in both themes.
 - **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (HQ, All-access, Pinned, a category, Today).
 
 ### Named Rules
-**The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, headline-cut, giant wordmark) belong to marketing and signup.
+**The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, giant wordmark) belong to marketing and signup.
 
 **The Tight Heading Rule.** Every heading tracks negative (-0.01em at h3 up to -0.06em on the giant wordmark) and wraps with `text-wrap: balance`. Only uppercase labels and tags track positive.
 
@@ -383,7 +377,7 @@ Each tool page follows one order: heading with actions (wraps under the title on
 
 Filter toolbars sit above lists with 32px controls. Spacing follows a 4px base (4, 8, 12, 16, 24, 32, 48, 64). Section breaks inside a page are 32px, and a discussion section opens 48px down with a hairline above it.
 
-Marketing uses a 1224px column with the same gutters. It switches to its multi-column grids at 900px: the tool grid goes 1/2/4 columns, split sections 5fr/7fr, and the example project 1/2/3 columns (its Board tile spans two, packed dense so there's no hole), and the Milestones section's three tasks sit side by side. Sections are spaced 64px on phones up to 120-140px on desktop, and slabs run nearly full width with 40px corners.
+Marketing uses a 1224px column with the same gutters. It switches to its multi-column grids at 900px: the tool grid goes 1/2/4 columns, split sections 5fr/7fr, and the example project 1/2/3 columns (its Board tile spans two, packed dense so there's no hole), and the Compass section's three tasks sit side by side. Sections are spaced 64px on phones up to 120-140px on desktop, and slabs run nearly full width with 40px corners.
 
 Tables become horizontally scrollable blocks under 640px. Pages work without JavaScript.
 
@@ -407,7 +401,7 @@ Controls are full pills (999px): buttons, link-buttons, nav links, count badges,
 Containers are generously rounded rectangles:
 - 24px for the sheet on desktop and every tile, card, panel, composer, empty state and board column (the sheet drops to 16px on phones);
 - 16px for anything nested one level inside a tile (board cards, file thumbnails), for the month calendar, and for fieldsets;
-- 32px for the marketing demo and Milestones frames on desktop;
+- 32px for the marketing demo and Compass frames on desktop;
 - 40px for slabs and the top corners of the app footer.
 
 Smaller radii are functional, a fixed inline step set:
@@ -489,7 +483,7 @@ Every record page (a post, doc, file, task, card, event, list) ends the same sho
 The to-do check is a 22px rounded square: 7px radius, 1.5px Control Gray stroke, Sheet White fill. On fine pointers, hover fills it with Peach Wash and turns the stroke Amber Focus. When done, it fills Kargul Orange with a drawn Burnt Ink tick (SVG, 1.8px stroke, round caps). A 28px / 9px-radius variant is used on a to-do's own page, and the marketing demo uses a 16px / 5px-radius version (22px for a task heading) that draws its tick and strikes its title when checked.
 
 ### List Progress
-The Milestones window (tasks under one bar) is one bar and one list, like Basecamp's to-dos. On top, the share of the work done (1.5rem 700, tabular), "done · 2 of 8" and any late count (Accent Text 600) in muted text, then a 6px pill bar. Then the open tasks in order, hairline-split: a check button, the title, a muted "1/3" when it has subtasks, and a muted line of who, when (late in Accent Text 600), comments and 📝 for notes. A task's subtasks sit indented under it (34px) with smaller 18px checks. A task with subtasks is done when they all are: ticking it ticks them, ticking the last one ticks it, reopening one reopens it. Progress counts the work: a task, or in its place its subtasks, so splitting a task never skews the bar. Adding is one line, "Add a task…" and a quiet Add: Enter adds it at once and the field is ready for the next. "+ Subtask" is a quiet row action (on hover) that opens the same one line under the task; Escape closes it. Dates and people are set on the task's page. Tasks reorder by dragging (an orange 2px line shows where it lands) or Alt+↑/↓. Done tasks fold under "Show N done tasks". The project head, Home's cards and the Overview show the same share with the shared `ProgressBar` (Tile Pressed track, Kargul Orange fill).
+The Compass window holds the project's goals and their subgoals (to-dos and tasks are Board cards, never Compass items). It is one bar and one list. On top, the share of the work done (1.5rem 700, tabular), "done · 2 of 8" and any late count (Accent Text 600) in muted text, then a 6px pill bar. Then the open goals in order, hairline-split: a check button, the title, a muted "1/3" when it has subgoals, and a muted line of who, when (late in Accent Text 600), comments and 📝 for notes. A goal's subgoals sit indented under it (34px) with smaller 18px checks; they are its detail, and the context an agent works from. A goal with subgoals is done when they all are: ticking it ticks them, ticking the last one ticks it, reopening one reopens it. Progress counts the work: a goal, or in its place its subgoals, so splitting a goal never skews the bar. Adding is one line, "Add a goal…" and a quiet Add: Enter adds it at once and the field is ready for the next. "+ Subgoal" is a quiet row action (on hover) that opens the same one line under the goal; Escape closes it. Dates and people are set on the goal's page. Goals reorder by dragging (an orange 2px line shows where it lands) or Alt+↑/↓. Done goals fold under "Show N done goals". The project head, Home's cards and the Overview show the same share with the shared `ProgressBar` (Tile Pressed track, Kargul Orange fill).
 
 ### Lineup Bars
 Each dated project is a 34px Tile Gray pill positioned on one shared track, with left and width set as percentages of the date range. The name is 600 weight and the dates muted 400. A 2px Kargul Orange vertical line marks today, topped by an orange "Today" pill in tag type.
@@ -521,7 +515,7 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
   - **Clicking an icon or a preview swaps them in place:** the picked window glides into the master, and the one you left glides into its spot in the list (the picked one leaves the list). Those two glide, and the previews between them slide a slot; the rest hold still.
   - A preview's title bar shows "N new" (an orange xs pill) or its summary.
   - A window with nothing in it yet says so in one muted sentence, its summary ("No files yet."). No placeholder bars: gray bars say "loading", and nothing is.
-  - The Tasks preview leads with what's late, in Accent Text 650: "1 late: Pick the type pairing", then who and "was due Oct 20". Previews draw no checkboxes; they'd look tickable and aren't.
+  - The Compass preview leads with what's late, in Accent Text 650: "1 late: Pick the type pairing", then who and "was due Oct 20". Previews draw no checkboxes; they'd look tickable and aren't.
 - **What's new, inside a window:** the project's "since" moment reaches the window's pages (`useSince`).
   - Chat draws HEY's line, "New since Tuesday" (the day rule and label in orange), before the first new line, and opens there.
   - Lists (Posts, Files) mark each new item with a solid Kargul Orange "New" tag beside its title (`NewTag`), never Peach Wash, which is Pinned. It works whichever way a list runs.
@@ -529,7 +523,7 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
 - **A brand-new project** (every window empty) says one line in place of the news: "A fresh start. Invite the people on it, then post what this project is about."
 - **Nothing under the desk** but the taskbar: "Add a link" and "See all activity" live in the ••• project menu.
 - **What's new:** one sentence, the last line of the project head, on its white, padded like it. It isn't a way around (the rail is); it says where to look.
-  - "**Since Tuesday:** 18 new in Tasks, Files and Chat." (the "since" in words and 650 weight: "Since yesterday:", "Since Oct 12:"), or "All caught up." in muted text when nothing is new. Then any late work, in Accent Text 650: "1 late in Tasks." A first visit shows only the late work, if any.
+  - "**Since Tuesday:** 18 new in Compass, Files and Chat." (the "since" in words and 650 weight: "Since yesterday:", "Since Oct 12:"), or "All caught up." in muted text when nothing is new. Then any late work, in Accent Text 650: "1 late in Compass." A first visit shows only the late work, if any.
 $1 what other people added since you last opened that window (comments count in the window of what they comment on; board columns, task groups and card steps aren't news). Opening a window is reading it, and only that window: glancing at the project leaves the others' news waiting. A window never opened yet counts from your previous visit to the project. The times live in `prefs.window_seen` ("2:campfire"), merged in the database on each visit; the page reads them once as it opens, so counts don't vanish while you're looking. Home's cards count the same way (`src/client/news.ts`).
   - In full screen the sentence sits at the top of the overlay, on Tile Gray, led by the project's name in 650 ("**Website Redesign** · All caught up."), since the head is out of sight; the rail stays beside the master.
 - **On a phone** the main window is part of the page, not a box that scrolls inside it, and Chat's pinned composer sits just above the bottom bar.
@@ -537,7 +531,7 @@ $1 what other people added since you last opened that window (comments count in 
 - **Motion:** swapping windows by mouse glides with a view transition (240ms, cubic-bezier(0.32, 0.72, 0, 1)); the windows' pictures are clipped, never stretched. Keyboard swaps are instant. Reduced motion keeps the fades and drops the movement.
 
 ### Shaped for daily use
-- **A task's page:** its check and title, then its subtasks (a small bar with "1 of 3 done · this task is done when they all are", each subtask with its check, and the one-line "Add a subtask…"), then its details (assigned, notify, due, notes, added by) and Edit. A subtask's page says "A subtask of …". `kit.quietSummary` is the look of a quiet toggle: a disclosure with no pill and no chevron.
+- **A goal's page:** its check and title, then its subgoals (a small bar with "1 of 3 done · this goal is done when they all are", each subgoal with its check, and the one-line "Add a subgoal…"), then its details (assigned, notify, due, notes, added by) and Edit. A subgoal's page says "A subgoal of …". `kit.quietSummary` is the look of a quiet toggle: a disclosure with no pill and no chevron.
 - **Files:** "Upload files" is the primary, "New doc" beside it, and a quiet ••• holds New folder and "Link a Google Doc, Sheet or other file". Sort and View appear past 10 items. A folder's color is a 9px dot before its name, never the color's name.
 
 ### Board
@@ -555,10 +549,10 @@ The month calendar is a fixed-layout table inside a 1px Hairline frame with 16px
 Vault rows lead with a 40px Tile Gray square (12px radius) holding a 20-unit line icon drawn in currentColor at a 1.5px stroke with round caps and joins. Grid view shows 200px file cards with a 4:3 Sheet White thumbnail at 16px corners.
 
 ### Slabs
-Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "every project gets its own home" and "fewer features" sections. The app footer is the same material with only its top corners rounded. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
+Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "each project gets its own space", "bring your own agent" and startups sections. The app footer is the same material with only its top corners rounded. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
 
-### Tasks on marketing
-The marketing "progress" section shows a project's tasks the way the app does: the percentage in 3rem 750, "done · 7 of 11", one 10px bar, then each task with its check and its subtasks' count. Once scrolled into view the bar fills from the left (transform: scaleX, 1.1s strong ease-out); under reduced motion or without JavaScript it's simply full.
+### Compass on marketing
+The marketing "progress" section shows a project's goals the way the app does: the percentage in 3rem 750, "done · 7 of 11", one 10px bar, then each goal with its check and its subgoals' count. Once scrolled into view the bar fills from the left (transform: scaleX, 1.1s strong ease-out); under reduced motion or without JavaScript it's simply full.
 
 ### Giant Wordmark
 The marketing footer ends with "Saintsflow" in the giant wordmark step, cropped by the page bottom and hidden from assistive tech. Marketing only.
@@ -575,7 +569,7 @@ The marketing footer ends with "Saintsflow" in the giant wordmark step, cropped 
 - **Do** define every new color in both `light` and `dark` in `tokens.stylex.ts`.
 - **Do** keep app type on the fixed rem steps and reserve `clamp()` steps for marketing.
 - **Do** gate every hover style behind `media.hover`, and let reduced motion remove movement while keeping color and fade transitions.
-- **Do** keep app motion to 150ms color shifts, the 0.97 press and the ease-out curve. Marketing may go further: a staggered blur-and-rise hero entrance, an example project that comes alive and can be played with (two to-dos tick themselves off and the Milestones bar slides with them, chat messages arrive with yours on the right, to-dos check off with a click, board cards drag between columns with a 3% lift, a -2° tilt and a shadow, then glide 320ms to their new place, or click one column on; a card let go outside the board glides home; touch scrolls the page, so there a tap moves the card; a keyboard move doesn't glide), the Milestones section's bar filling once it's on screen and following every check, scroll-linked reveals via `animation-timeline: view()` behind `@supports`, the cut features struck through as they scroll in, and the giant wordmark rising out of the page edge. Every element rests in its final state, so reduced motion and unsupported browsers see it all in place (reduced motion: the to-dos start ticked, the bar jumps, the cards don't glide).
+- **Do** keep app motion to 150ms color shifts, the 0.97 press and the ease-out curve. Marketing may go further: a staggered blur-and-rise hero entrance, an example project that comes alive and can be played with (two to-dos tick themselves off and the Compass bar slides with them, chat messages arrive with yours on the right, to-dos check off with a click, board cards drag between columns with a 3% lift, a -2° tilt and a shadow, then glide 320ms to their new place, or click one column on; a card let go outside the board glides home; touch scrolls the page, so there a tap moves the card; a keyboard move doesn't glide), the Compass section's bar filling once it's on screen and following every check, scroll-linked reveals via `animation-timeline: view()` behind `@supports`, and the giant wordmark rising out of the page edge. Every element rests in its final state, so reduced motion and unsupported browsers see it all in place (reduced motion: the to-dos start ticked, the bar jumps, the cards don't glide).
 
 ### Don't:
 - **Don't** use Kargul Orange for buttons, headings, backgrounds or decoration; it is for unread, today, done, progress and focus.

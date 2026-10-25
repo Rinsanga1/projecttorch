@@ -10,7 +10,6 @@ import { db, state } from "./store.ts"
 import { meOrNull } from "./data.ts"
 import { isQuiet } from "../shared/domain.ts"
 import { Face, sx, theme } from "./ui/kit.tsx"
-import { Form, submitOwnForm } from "./ui/forms.tsx"
 import type { Handle } from "./ui/page.tsx"
 import { color, media, motion, radius, space, text } from "./ui/tokens.stylex.ts"
 
@@ -67,15 +66,10 @@ const s = stylex.create({
   },
   footerInner: {
     maxWidth: 1200, marginInline: "auto", paddingInline: { default: 20, [DESKTOP]: space.s6 }, paddingBlock: space.s6,
-    display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s4,
+    display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: space.s4,
   },
-  footerForm: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   footerLinks: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, margin: 0, maxWidth: "none" },
   footerLink: { color: color.slabInk, textDecoration: "none", ":hover": { textDecoration: "underline" } },
-  footerControl: {
-    color: color.slabInk, borderColor: "transparent",
-    backgroundColor: { default: color.slabTile, ":hover": { default: null, [media.hover]: `color-mix(in srgb, ${color.slabTile} 80%, white)` } },
-  },
 })
 
 // Half a bar, on purpose: the wordmark is Home (which now holds the Timeline and a link to Activity), your face is Me,
@@ -119,20 +113,12 @@ const Header = observer(() => {
 const Footer = observer(() => {
   const me = meOrNull()
   if (!me) return null
-  const people = [...db.people.values()].filter((p) => p.account_id === me.account_id && !p.removed_at && p.joined_at).sort((a, b) => a.name.localeCompare(b.name))
   return (
     <footer {...sx(s.footer)}>
       <div {...sx(s.footerInner)}>
-        <Form action="/dev/act-as" {...sx(s.footerForm)}>
-          <label htmlFor="act-as">Acting as (no sign-in yet)</label>
-          <select id="act-as" name="person_id" key={me.id} defaultValue={me.id} onChange={submitOwnForm} {...sx(s.footerControl)}>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.role})</option>)}
-          </select>
-          <button {...sx(s.footerControl)}>Switch</button>
-        </Form>
         <p {...sx(s.footerLinks)}>
           <a href="/accounts" {...sx(s.footerLink)}>Switch accounts</a>
-          <a href="/inbox" {...sx(s.footerLink)}>Dev inbox (emails we'd send)</a>
+          {import.meta.env.DEV && <a href="/inbox" {...sx(s.footerLink)}>Dev inbox (emails we'd send)</a>}
           <a href="/shortcuts" {...sx(s.footerLink)}>Keyboard shortcuts</a>
           <a href="/help" {...sx(s.footerLink)}>Help</a>
         </p>
@@ -190,7 +176,8 @@ export const App = observer(() => {
   }, [loc.key])
 
   if (!state.ready) return null
-  if (!me && !handle.pub) return <Navigate to="/signin" replace />
+  // Signed out, Home is the marketing page; anywhere else asks you to sign in and brings you back.
+  if (!me && !handle.pub) return <Navigate to={loc.pathname === "/" ? "/marketing" : `/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />
   if (account && (account.status === "on_hold" || account.status === "cancelled") && !handle.pub && !ON_HOLD_OK.test(loc.pathname))
     return <Navigate to="/lockout" replace />
   if (handle.bare) return <Outlet />

@@ -11,7 +11,7 @@ import { scope, personName } from "./reports.tsx"
 
 const TYPES: Record<string, { label: string; types: string[] }> = {
   messages: { label: "Posts", types: ["message"] },
-  todos: { label: "Tasks", types: ["todo"] },
+  todos: { label: "Goals", types: ["todo"] },
   files: { label: "Files", types: ["folder", "doc", "upload", "cloudfile"] },
   chats: { label: "Chats", types: ["line"] },
   comments: { label: "Comments", types: ["comment"] },
@@ -86,7 +86,7 @@ export const routes = [
           </p>
         </GetForm>
         {!q
-          ? <p>Search every project, post, task, file, chat and comment.</p>
+          ? <p>Search every project, post, goal, card, file, chat and comment.</p>
           : rows.length === 0
             ? <p>No results for “{q}”. Try fewer words, or remove a filter.</p>
             : <>

@@ -1,6 +1,6 @@
-// Tasks: one bar for how far along the work is, then the tasks. A task can be split into subtasks (one level), shown
-// under it; it's done when they all are. Adding is one line: type, Enter, the next. Dates and people go on the task's
-// page. Posts: src/areas/todos.ts. Adding, completing and reordering change the copy right away.
+// Compass: one bar for how far along the work is, then the goals. A goal can be split into subgoals (one level), shown
+// under it; it's done when they all are. Adding is one line: type, Enter, the next. Dates and people go on the goal's
+// page. In the code below a goal is a "task" and a subgoal a "subtask" (old names). Posts: src/areas/todos.ts. Adding, completing and reordering change the copy right away.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
 import { useState, type DragEvent, type KeyboardEvent } from "react"
@@ -58,7 +58,7 @@ const ts = stylex.create({
   check: {
     width: 22, height: 22, minHeight: 22, padding: 0, flexShrink: 0, borderRadius: 7, backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.accentSoft } },
     borderWidth: 1.5, borderStyle: "solid", borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.focus } }, color: color.onAccent,
-    transitionProperty: "background-color, border-color", transitionDuration: motion.fast,
+    transitionProperty: "background-color, border-color, transform", transitionDuration: motion.fast,
   },
   checkSmall: { width: 18, height: 18, minHeight: 18, borderRadius: 6 },
   checkDone: { backgroundColor: color.accent, borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.focus } } },
@@ -183,10 +183,10 @@ const TaskItem = observer(({ p, t, people, active, adding, onAdd }: { p: Project
         <a href={urlFor(t)} {...sx(ts.title, !!t.data.completed_at && ts.done)}>{t.data.completed_at ? <s>{t.title}</s> : t.title}</a>
         {subs.length > 0 && <span {...sx(ts.meta, ts.count)}>{done}/{subs.length}</span>}
         <Meta t={t} people={people} />
-        {active && !adding && <button type="button" data-quiet data-row-action onClick={() => onAdd(true)} {...sx(kit.linkButton, ts.rowAction)}>+ Subtask</button>}
+        {active && !adding && <button type="button" data-quiet data-row-action onClick={() => onAdd(true)} {...sx(kit.linkButton, ts.rowAction)}>+ Subgoal</button>}
       </div>
       {(subs.length > 0 || adding) && (
-        <ul {...sx(ts.subs)} aria-label={`Subtasks of ${t.title}`}>
+        <ul {...sx(ts.subs)} aria-label={`Subgoals of ${t.title}`}>
           {subs.map((s) => (
             <li key={s.id} {...sx(ts.sub)}>
               {active ? <CheckButton p={p} t={s} small /> : <CheckMark t={s} small />}
@@ -194,7 +194,7 @@ const TaskItem = observer(({ p, t, people, active, adding, onAdd }: { p: Project
               <Meta t={s} people={people} />
             </li>
           ))}
-          {adding && <li {...sx(ts.sub)}><QuickAdd p={p} action={`/projects/${p.id}/tasks/${t.id}/subtasks`} placeholder="Add a subtask…" parent={t} autoFocus onClose={() => onAdd(false)} /></li>}
+          {adding && <li {...sx(ts.sub)}><QuickAdd p={p} action={`/projects/${p.id}/tasks/${t.id}/subtasks`} placeholder="Add a subgoal…" parent={t} autoFocus onClose={() => onAdd(false)} /></li>}
         </ul>
       )}
     </>
@@ -207,7 +207,7 @@ const TodoFields = ({ people, t }: { people: People; t: Partial<Recording> }) =>
   const mode = d.starts_on ? "range" : d.due_on ? "day" : "none"
   return (
     <>
-      <TextField label="Task" name="title" value={t.title ?? ""} placeholder="What needs to be done?" />
+      <TextField label="Goal" name="title" value={t.title ?? ""} placeholder="What does the project need to reach?" />
       <fieldset><legend>Assigned to</legend><PeopleCheckboxes name="assignee_ids" people={people} checked={d.assignee_ids ?? []} /></fieldset>
       <fieldset><legend>When done, notify</legend><PeopleCheckboxes name="notify_ids" people={people} checked={d.notify_ids ?? []} /></fieldset>
       <fieldset><legend>Due on</legend>
@@ -241,7 +241,7 @@ export const routes = [
     const open = pr.tasks.filter((t) => !t.data.completed_at).sort(byPosition)
     const finished = pr.tasks.filter((t) => t.data.completed_at).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at)))
     const late = pr.tasks.flatMap((t) => [t, ...(pr.subtasks.get(t.id) ?? [])]).filter(isLate).length
-    const [showDone, setShowDone] = useState(false)
+    const [showDone, setShowDone] = useState(true)
     const [adding, setAdding] = useState<number | null>(null)
 
     // Reordering: drag a task (with its subtasks), or Alt+↑/↓ on it. The order saves at once.
@@ -283,14 +283,14 @@ export const routes = [
         if (to >= 0 && to < ids.length) moveTo(id, to)
       },
     }
-    const addTask = active && <QuickAdd p={p} w={w} action={`/projects/${p.id}/tasks`} placeholder="Add a task…" />
+    const addTask = active && <QuickAdd p={p} w={w} action={`/projects/${p.id}/tasks`} placeholder="Add a goal…" />
 
     return (
       <Page title={w.name} crumbs={projectCrumbs(p)}>
         <h1>{w.name}</h1>
         {pr.tasks.length === 0 ? (
           <div {...sx(ts.empty)}>
-            <p {...sx(ts.emptyText)}>Make a list of what needs doing. Split a big task into subtasks. The bar fills up as things get done.</p>
+            <p {...sx(ts.emptyText)}>List the goals this project has to reach. Split a goal into subgoals: the detail people and agents work from. The bar fills as they get done.</p>
             {addTask}
           </div>
         ) : (
@@ -303,7 +303,7 @@ export const routes = [
               <Bar pct={pr.pct} done={pr.total > 0 && pr.done === pr.total} />
             </div>
             {open.length > 0
-              ? <ol {...sx(ts.list)} aria-label="Tasks">
+              ? <ol {...sx(ts.list)} aria-label="Goals">
                   {open.map((t, i) => (
                     <li key={t.id} {...dragProps(t.id, i)} title={canOrder ? "Drag to reorder (or Alt+↑/↓)" : undefined}
                       {...sx(ts.task, dragId === t.id && ts.dragging, dragId !== null && drop === i && ts.dropBefore, dragId !== null && drop === i + 1 && i === ids.length - 1 && ts.dropAfter)}>
@@ -316,14 +316,14 @@ export const routes = [
             {finished.length > 0 && (
               <div {...sx(ts.showDone)}>
                 <button type="button" data-quiet aria-expanded={showDone} onClick={() => setShowDone(!showDone)} {...sx(kit.linkButton)}>
-                  {showDone ? "Hide done tasks" : `Show ${plural(finished.length, "done task")}`}
+                  {showDone ? "Hide done goals" : `Show ${plural(finished.length, "done goal")}`}
                 </button>
                 {showDone && <ul {...sx(ts.list)}>{finished.map((t) => <li key={t.id} {...sx(ts.task)}><TaskItem p={p} t={t} people={people} active={active} adding={false} onAdd={() => {}} /></li>)}</ul>}
               </div>
             )}
           </>
         )}
-        <p {...sx(kit.links)}><a href={`/projects/${p.id}/trash`}>Archived & trashed tasks</a></p>
+        <p {...sx(kit.links)}><a href={`/projects/${p.id}/trash`}>Archived & trashed goals</a></p>
       </Page>
     )
   }),
@@ -345,7 +345,7 @@ export const routes = [
         <StatusBanner r={t} />
         <ClientBanner r={parent ?? t} hasClients={people.some(isClient)} />
         <article>
-          {parent && <p>A subtask of <a href={urlFor(parent)}>{parent.title}</a></p>}
+          {parent && <p>A subgoal of <a href={urlFor(parent)}>{parent.title}</a></p>}
           <h1>
             {!readOnly && <CheckButton p={p} t={t} large />}
             {t.data.completed_at ? <s>{t.title}</s> : t.title}
@@ -353,11 +353,11 @@ export const routes = [
           {t.data.completed_at && <p>Completed by {completer?.name ?? "someone"} on {fmtDate(t.data.completed_at, m.time_zone)}</p>}
           {/* A task's subtasks come first: for a split task they're the work. Its details follow. */}
           {!parent && (subs.length > 0 || !readOnly) && (
-            <section aria-label="Subtasks">
+            <section aria-label="Subgoals">
               <div {...sx(ts.subsHead)}>
-                <h2 style={{ margin: 0 }}>Subtasks</h2>
-                {subs.length > 0 ? <><Bar pct={pct} done={done === subs.length} /><small>{done} of {subs.length} done · this task is done when they all are</small></>
-                  : <small>Split this task into smaller steps. It's done when they all are.</small>}
+                <h2 style={{ margin: 0 }}>Subgoals</h2>
+                {subs.length > 0 ? <><Bar pct={pct} done={done === subs.length} /><small>{done} of {subs.length} done · this goal is done when they all are</small></>
+                  : <small>Split this goal into subgoals. It's done when they all are.</small>}
               </div>
               <ul {...sx(ts.list)}>
                 {subs.map((s) => (
@@ -368,7 +368,7 @@ export const routes = [
                   </li>
                 ))}
               </ul>
-              {!readOnly && <QuickAdd p={p} action={`/projects/${p.id}/tasks/${t.id}/subtasks`} placeholder="Add a subtask…" parent={t} />}
+              {!readOnly && <QuickAdd p={p} action={`/projects/${p.id}/tasks/${t.id}/subtasks`} placeholder="Add a subgoal…" parent={t} />}
             </section>
           )}
           <dl {...sx(ts.details)}>
@@ -376,7 +376,7 @@ export const routes = [
             <dt>When done, notify</dt><dd>{names(people, t.data.notify_ids) || "Nobody"}</dd>
             <dt>Due on</dt><dd>{dueText(t) || "No due date"}</dd>
             <dt>Notes</dt><dd>{t.body ? <Fmt text={t.body} {...sx(kit.prose)} /> : "None"}</dd>
-            <dt>Added by</dt><dd>{author?.name ?? "Someone"} on {fmtDateTime(t.created_at, m.time_zone)}</dd>
+            <dt>Added by</dt><dd>{author?.name ?? "Someone"}{t.via ? ` via ${t.via}` : ""} on {fmtDateTime(t.created_at, m.time_zone)}</dd>
           </dl>
           <p>{!readOnly && <a href={`/projects/${p.id}/tasks/${t.id}/edit`}>Edit</a>}</p>
         </article>
@@ -394,8 +394,8 @@ export const routes = [
   page("/projects/:id/tasks/:tid/edit", () => {
     const { r: t, project: p } = findRecording(useParams().tid, "todo")
     return (
-      <Page title="Edit task" crumbs={crumbs(p, t)}>
-        <h1>Edit task</h1>
+      <Page title="Edit goal" crumbs={crumbs(p, t)}>
+        <h1>Edit goal</h1>
         <Form action={`/projects/${p.id}/tasks/${t.id}/edit`}>
           <TodoFields people={projectPeople(p)} t={t} />
           <p><button>Save changes</button> <a href={urlFor(t)}>Cancel</a></p>

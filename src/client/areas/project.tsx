@@ -11,7 +11,7 @@ import { Icon } from "../ui/icons.tsx"
 import { InWindow, WindowId, WindowSince } from "../ui/in-window.tsx"
 import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, windowIdOf, windowOfPath, windowUrl, type Project, type Recording, type Tool, type ToolType } from "../../shared/domain.ts"
 import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
-import { ActivityList } from "../ui/activity.tsx"
+import { ActivityList, AgentsFilter, useJustAgents } from "../ui/activity.tsx"
 import { Face, Fmt, kit, menu, ProgressBar, sx } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, PostOnOpen, submitOnChange, usePost } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
@@ -35,17 +35,17 @@ const pm = stylex.create({
 
 const PITCH: Record<ToolType, string> = {
   message_board: "Share news and ideas with the team. Talk them over in one place.",
-  todos: "Make a list of what needs doing. Split a big task into subtasks. The bar fills up as things get done.",
+  todos: "List the goals this project has to reach. Split a goal into subgoals. The bar fills as they get done.",
   vault: "Keep docs, files, and images here. Sort them into folders.",
   campfire: "Chat with the team about anything.",
-  schedule: "Add events and dates. Tasks and cards with due dates show up here too.",
-  cardtable: "Move cards from column to column as work gets done. Add your first card to New, or set up columns first.",
+  schedule: "Add events and dates. Goals and cards with due dates show up here too.",
+  cardtable: "Move cards from column to column as work gets done. New cards start in Triage.",
 }
 
 /** What each kind of window is for, in a few words, for the + menu. */
 const MENU_PITCH: Record<ToolType, string> = {
   message_board: "Announcements and write-ups",
-  todos: "The tasks that finish the project, with one progress bar",
+  todos: "The goals the project has to reach, under one bar",
   vault: "Docs, files and folders",
   campfire: "Quick back-and-forth",
   schedule: "Events and deadlines",
@@ -217,7 +217,7 @@ const windowBody = (p: Project, t: Tool): ReactNode => {
       return list(upcoming(p, t).slice(0, 8).map((r) =>
         row(r.id, link(r), `${fmtDate(r.data.starts_at)} · ${r.data.all_day ? "All day" : clock(r.data.starts_at)}${r.data.repeat && r.data.repeat !== "never" ? ` · every ${r.data.repeat === "weekly" ? "week" : r.data.repeat.replace(/ly$/, "")}` : ""}`)))
     case "cardtable":
-      // Fizzy's order: Not now, To do, your columns, Done; Golden Tickets first in each.
+      // Fizzy's order: Not now, Triage, your columns, Done; Golden Tickets first in each.
       return list(activeIn(p, t, "column").sort((a, b) => (COLUMN_ORDER[a.data.kind ?? "custom"] ?? 2) - (COLUMN_ORDER[b.data.kind ?? "custom"] ?? 2) || byPosition(a, b)).map((c) => {
         const cards = recordings((k) => k.parent_id === c.id && k.type === "card" && k.status === "active").sort((a, b) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position)
         return row(c.id, c.title, plural(cards.length, "card"), cards.length > 0 && <span {...sx(ps.excerpt)}>{cards.slice(0, 3).map((k, i) => <span key={k.id}>{i ? " · " : ""}{link(k)}</span>)}{cards.length > 3 ? " …" : ""}</span>)
@@ -238,7 +238,7 @@ const summary = (p: Project, t: Tool): string => {
     case "todos": {
       const pr = progressOf(p, t.id)
       const late = lateTasks(p.id, t.id)
-      return pr.total ? `${pr.pct}% done${late ? ` · ${late} late` : ""}` : "No tasks yet"
+      return pr.total ? `${pr.pct}% done${late ? ` · ${late} late` : ""}` : "No goals yet"
     }
     case "vault": {
       const n = activeIn(p, t, ["doc", "upload", "cloudfile"]).length
@@ -503,8 +503,9 @@ export const routes = [
     const [q] = useSearchParams()
     const personId = Number(q.get("person")) || null
     const pageN = Math.max(1, Number(q.get("page")) || 1)
+    const agents = useJustAgents()
     const evs = [...db.events.values()]
-      .filter((e) => e.project_id === p.id && (!personId || e.person_id === personId))
+      .filter((e) => e.project_id === p.id && (!personId || e.person_id === personId) && (!agents || !!e.via))
       .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id)
       .slice((pageN - 1) * 50, pageN * 50 + 1)
       .map((e) => {
@@ -515,9 +516,10 @@ export const routes = [
       <Page title="Project activity" crumbs={projectCrumbs(p)}>
         <h1>Activity on {p.name}</h1>
         <GetForm method="get" ref={submitOnChange} {...sx(kit.toolbar)}><label>Show only what <select name="person" defaultValue={personId ?? ""} {...sx(kit.toolbarControl)}><option value="">everyone</option>
-          {projectPeople(p).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> did</label></GetForm>
-        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={me().time_zone} /> : <p {...sx(kit.empty)}>Nothing's happened yet. Activity shows up here as people post, comment, and check things off.</p>}
-        {evs.length > 50 && <p><a href={`?page=${pageN + 1}${personId ? `&person=${personId}` : ""}`}>Show more</a></p>}
+          {projectPeople(p).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> did</label>{agents && <input type="hidden" name="by" value="agents" />}</GetForm>
+        <AgentsFilter />
+        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={me().time_zone} /> : <p {...sx(kit.empty)}>{agents ? "No agent work here yet. What agents do for people on this project shows up here." : "Nothing's happened yet. Activity shows up here as people post, comment, and check things off."}</p>}
+        {evs.length > 50 && <p><a href={`?page=${pageN + 1}${personId ? `&person=${personId}` : ""}${agents ? "&by=agents" : ""}`}>Show more</a></p>}
       </Page>
     )
   }),

@@ -23,6 +23,9 @@ const VAULT_TYPES = ["folder", "doc", "upload", "cloudfile"]
 
 // ---------- reads ----------
 
+/** Clients change only what they added; the server says the same. */
+const mayEdit = (r: Recording) => !isClient(me()) || r.creator_id === me().id
+
 /** What's in a folder (or the top level): folders first, then by the chosen sort. */
 const vaultItems = (projectId: number, folderId: number | null, sort: string) => {
   const order = (a: Recording, b: Recording) =>
@@ -240,11 +243,11 @@ const DocView = observer(({ r, p }: { r: Recording; p: Project }) => {
       <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
       <article>
         <h1>{r.title}</h1>
-        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+        <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
         {last && n > 1 && <p><small>Last edited by {last.name ?? "someone"} on {fmtDate(last.created_at, m.time_zone)}</small></p>}
         <Fmt text={r.body} />
       </article>
-      <p>{r.status === "active" && <><a href={`/projects/${p.id}/docs/${r.id}/edit`}>Edit</a> · </>}<a href={`/r/${r.id}/history`}>Previous versions{last && n > 1 ? ` (${n - 1})` : ""}</a></p>
+      <p>{r.status === "active" && mayEdit(r) && <><a href={`/projects/${p.id}/docs/${r.id}/edit`}>Edit</a> · </>}<a href={`/r/${r.id}/history`}>Previous versions{last && n > 1 ? ` (${n - 1})` : ""}</a></p>
       <ItemFooter r={r} project={p} />
     </Page>
   )
@@ -352,7 +355,7 @@ export const routes = [
         <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
         <article>
           <h1>📎 {r.title}</h1>
-          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} />
+          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
           {ct.startsWith("image/") ? <p><img src={raw} alt={r.title} /></p>
             : ct.startsWith("video/") ? <p><video src={raw} controls width={640} /></p>
             : ct === "application/pdf" ? <p><embed src={raw} type="application/pdf" width={640} height={480} /></p>
@@ -361,7 +364,7 @@ export const routes = [
           {r.body && <Fmt text={r.body} />}
         </article>
         <p><a href={`/api/uploads/${r.id}/download`} data-button>Download</a></p>
-        {r.status === "active" && (
+        {r.status === "active" && mayEdit(r) && (
           // Keyed by the current file, so the picker clears once the new version lands.
           <Form key={r.data.path} action={`/projects/${p.id}/uploads/${r.id}/versions`} encType="multipart/form-data">
             <label>Upload a new version <input type="file" name="file" required /></label> <button>Upload</button>
@@ -369,7 +372,7 @@ export const routes = [
         )}
         <p>
           <a href={`/r/${r.id}/history`}>Versions ({versions.length + 1})</a>
-          {r.status === "active" && <> · <a href={`/projects/${p.id}/uploads/${r.id}/edit`}>Rename or add a note</a></>}
+          {r.status === "active" && mayEdit(r) && <> · <a href={`/projects/${p.id}/uploads/${r.id}/edit`}>Rename or add a note</a></>}
           {!isClient(m) && <> · <a href={`/r/${r.id}/public-link`}>{link ? "Public link is on" : "Share a public link"}</a></>}
         </p>
         {versions.length > 0 && (
@@ -420,10 +423,10 @@ export const routes = [
         <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
         <article>
           <h1>🔗 {r.title}</h1>
-          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={me().time_zone} />
+          <ByLine who={personById(r.creator_id)} when={r.created_at} tz={me().time_zone} via={r.via} />
           <p><a href={r.data.url} target="_blank" rel="noopener noreferrer">Open {r.data.url}</a></p>
         </article>
-        {r.status === "active" && <p><a href={`/projects/${p.id}/cloudfiles/${r.id}/edit`}>Edit</a></p>}
+        {r.status === "active" && mayEdit(r) && <p><a href={`/projects/${p.id}/cloudfiles/${r.id}/edit`}>Edit</a></p>}
         <ItemFooter r={r} project={p} />
       </Page>
     )
@@ -431,6 +434,7 @@ export const routes = [
 
   page("/projects/:id/cloudfiles/:cid/edit", () => {
     const { r, project: p } = findRecording(useParams().cid, "cloudfile")
+    if (!mayEdit(r)) throw new NoAccess()
     return <Page title="Edit link" crumbs={folderCrumbs(p, r.parent_id)}><h1>Edit link</h1><CloudForm p={p} folder={null} l={r} /></Page>
   }),
 
