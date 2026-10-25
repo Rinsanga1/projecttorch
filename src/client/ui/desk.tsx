@@ -47,6 +47,9 @@ const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)"
 const EASE_DRAWER = "cubic-bezier(0.32, 0.72, 0, 1)"
 /** A rail icon and the 4px gap under it: how far one window moves when reordering. */
 const SLOT = 44
+/** The rail's width: room for an icon, a window's name and its count. (The icon list spans the wider previews, so buttons
+ * take this, not 100%.) */
+const RAIL = 160
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const s = stylex.create({
   // No corners of its own: it runs to the sheet's edges and the sheet clips it.
@@ -56,9 +59,9 @@ const s = stylex.create({
   wrapFull: { position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", backgroundColor: color.tile },
   desk: {
     display: "grid", gap: 10, padding: 10,
-    // The rail keeps its 44px on the left (40px icons, room for their counts); every other pixel goes to the big window.
+    // The rail keeps 160px on the left: each window by icon and name, with its count; every other pixel goes to the big window.
     // Opening the previews widens the rail and the big window gives way, one smooth slide (closing is quicker).
-    gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "44px minmax(0, 1fr)" },
+    gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: `${RAIL}px minmax(0, 1fr)` },
     gridTemplateRows: { default: "auto", [DESKTOP]: "minmax(0, 1fr)" },
     transitionProperty: "grid-template-columns", transitionDuration: { default: "200ms", [media.reduce]: "0ms" }, transitionTimingFunction: EASE_DRAWER,
     // Fills the screen under the project head.
@@ -74,8 +77,9 @@ const s = stylex.create({
     display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, backgroundColor: color.sheet, borderRadius: radius.md, overflow: "clip",
     borderWidth: 1.5, borderStyle: "solid", borderColor: color.line,
   },
-  // The big window carries the focus ring: it's where you are.
-  master: { borderWidth: 2, borderColor: color.accent, minHeight: { default: 320, [DESKTOP]: 0 } },
+  master: { borderWidth: 2, minHeight: { default: 320, [DESKTOP]: 0 } },
+  // With the previews open, the big window carries the focus ring: it says which one is where you are. Alone, it needs none.
+  masterFocus: { borderColor: color.accent },
 
   head: { display: "flex", alignItems: "center", gap: space.s2, minHeight: 40, paddingBlock: 4, paddingInline: "12px 6px", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line, flexShrink: 0 },
   // The back button is wider than the icon it replaces; it tucks into the padding so the name stays put.
@@ -126,12 +130,12 @@ const s = stylex.create({
   glyph: { display: "inline-flex" },
   // A preview's own icon waits, hidden, until the flying one lands on it.
   glyphWaiting: { visibility: "hidden" },
-  railToggle: { color: color.muted, marginBottom: 2, flexShrink: 0 },
+  railToggle: { width: 40, justifyContent: "center", paddingInline: 0, color: color.muted, marginBottom: 2, flexShrink: 0 },
   railToggleOn: { color: color.ink, backgroundColor: { default: color.tileHover, ":hover": { default: null, [media.hover]: color.tileHover } } },
   railBtn: {
-    position: "relative", width: 40, minHeight: 40, padding: 0, borderRadius: 12, color: color.ink,
+    position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, width: RAIL, minHeight: 40, paddingBlock: 0, paddingInline: "11px 8px", borderRadius: 12, color: color.ink,
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tileHover } },
-    transitionProperty: "background-color, color, box-shadow, opacity", transitionDuration: "160ms", transitionTimingFunction: EASE_OUT,
+    transitionProperty: "background-color, color, box-shadow, opacity, transform", transitionDuration: "160ms", transitionTimingFunction: EASE_OUT,
   },
   // With the previews open, a button is only its icon (in flight): its fill, outline and count fade away.
   railBare: { color: color.ink, boxShadow: "none", backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } } },
@@ -140,12 +144,18 @@ const s = stylex.create({
   railLate: { color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
   railCur: { color: color.onPrimary, boxShadow: "none", backgroundColor: { default: color.primary, ":hover": { default: null, [media.hover]: color.primaryHover } } },
   railPlus: { color: color.muted, marginTop: 4 },
+  // The window's name beside its icon: plain words, so nobody has to learn what a glyph means. It fades while the icons fly.
+  railName: {
+    minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: text.sm, fontWeight: 600, letterSpacing: "-0.01em", textAlign: "left",
+    transitionProperty: "opacity", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
+  },
+  railPlusName: { fontWeight: 500 },
   num: {
     display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, paddingInline: 5, borderRadius: radius.pill,
     backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
   },
-  // On a rail icon the count sits on its corner, ringed in the desk's gray so it reads apart from the icon.
-  badge: { position: "absolute", top: -4, right: -4, boxShadow: `0 0 0 2px ${color.tile}`, transitionProperty: "opacity", transitionDuration: "120ms" },
+  // On the rail the count sits at the end of the row, after the name.
+  badge: { marginLeft: "auto", flexShrink: 0, transitionProperty: "opacity", transitionDuration: "120ms" },
   // The previews, in the icons' place and order: each window's title bar, then the start of its body. They fade in as the
   // rail opens (a beat behind it, so the icons lead) and leave faster than they came. They never move: their width is
   // fixed, so the opening slide uncovers them rather than squeezing them, and the icons know where to land.
@@ -171,7 +181,7 @@ const s = stylex.create({
     borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.ink } },
     color: { default: color.muted, ":hover": { default: null, [media.hover]: color.ink } },
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.sheet } },
-    transitionProperty: "border-color, color, background-color", transitionDuration: "150ms", transitionTimingFunction: "ease",
+    transitionProperty: "border-color, color, background-color, transform", transitionDuration: "150ms", transitionTimingFunction: "ease",
   },
   // The + menu: a white card that floats over the desk (in the top layer, so nothing clips it). The + that opened it
   // places it; its open and close are in app.css.
@@ -454,7 +464,7 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
 
   const lateLine = late.length > 0 && <span {...sx(s.lateLine)}> {late.map((w) => `${w.late} late in ${w.name}`).join(", ")}.</span>
   const news = note ? <span {...sx(s.calm)}>{note}</span>
-    : since ? <>{withNews.length ? <><span {...sx(s.lead)}>{since}:</span> {newsTotal} new in {and(withNews.map((w) => w.name))}.</> : <span {...sx(s.calm)}>All caught up.</span>}{lateLine}</>
+    : since ? <>{withNews.length ? <><span {...sx(s.lead)}>{since}:</span> {newsTotal} new in {and(withNews.map((w) => w.name))}.</> : <span {...sx(s.calm)}>{late.length ? "Nothing new." : "All caught up."}</span>}{lateLine}</>
     : lateLine
 
   return (
@@ -472,17 +482,18 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
                 {windows.map((w, i) => {
                   const cur = w.key === master, n = newsOf(w), lateHere = (w.late ?? 0) > 0 && !cur
                   return (
-                    <button key={w.key} type="button" aria-current={cur || undefined} aria-label={say(w)} title={w.name}
+                    <button key={w.key} type="button" aria-current={cur || undefined} aria-label={say(w)}
                       ref={(el) => { if (el) railBtn.current.set(w.key, el); else railBtn.current.delete(w.key) }}
                       onClick={(e) => { if (dragged.current) dragged.current = false; else bring(w.key, e.nativeEvent) }}
                       {...reorderable(w.key, i)} style={dragStyle(w.key, i)}
                       {...sx(s.railBtn, n > 0 && s.railNews, lateHere && s.railLate, cur && s.railCur, col && s.railBare, col && cur && s.badgeGone)}>
                       <span ref={(el) => { if (el) railGlyph.current.set(w.key, el); else railGlyph.current.delete(w.key) }} {...sx(s.glyph)}><Icon name={w.icon} size={18} /></span>
+                      <span aria-hidden="true" {...sx(s.railName, col && s.badgeGone)}>{w.name}</span>
                       {n > 0 && !cur && <span aria-hidden="true" {...sx(s.num, s.badge, col && s.badgeGone)}>{n}</span>}
                     </button>
                   )
                 })}
-                {menu && <button {...plus} aria-label="Add a window" title="Add a window" {...sx(s.railBtn, s.railPlus, col && s.badgeGone)}><Icon name="plus" size={16} /></button>}
+                {menu && <button {...plus} {...sx(s.railBtn, s.railPlus, col && s.badgeGone)}><Icon name="plus" size={16} /><span {...sx(s.railName, s.railPlusName)}>Add a window</span></button>}
               </div>
               <div inert={!col} {...sx(s.pane, col && s.paneOpen)}>
                 {/* The window in front is already open beside them: it has no preview. */}
@@ -508,7 +519,7 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
           </nav>
         )}
         {m ? (
-          <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master)}>
+          <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master, col && s.masterFocus)}>
             <WindowHead w={m} onRename={onRename}>
               <button type="button" onClick={(e) => toggleFull(e.nativeEvent)} aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen (Esc)" : "Full screen"} {...sx(s.iconBtn)}><Icon name={full ? "shrink" : "full"} size={16} /></button>
             </WindowHead>

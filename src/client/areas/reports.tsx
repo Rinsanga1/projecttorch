@@ -1,5 +1,5 @@
 // Activity & reports: Latest activity, Reports, Someone's activity, Someone's assignments, What's overdue,
-// Upcoming dates, Tasks added & completed, Overview, Everything. Everything reads the local copy, which already
+// Upcoming dates, Goals added & completed, Overview, Everything. Everything reads the local copy, which already
 // holds only what this person may see (clients included), so "scope" is just the projects in it.
 import type { ReactNode } from "react"
 import { Form as GetForm, useSearchParams } from "react-router"
@@ -7,7 +7,7 @@ import { db } from "../store.ts"
 import { me, accountPeople, visibleProjects, recordings, NoAccess } from "../data.ts"
 import { isClient, projectUrl, titleOf, urlFor, TYPE_NAMES, type Event, type Person, type Recording } from "../../shared/domain.ts"
 import { daysFromToday, excerpt, fmtDate, isoDate, ms, plural, today } from "../../shared/format.ts"
-import { ActivityList, type ActivityItem } from "../ui/activity.tsx"
+import { ActivityList, AgentsFilter, useJustAgents, type ActivityItem } from "../ui/activity.tsx"
 import { ProgressBar } from "../ui/kit.tsx"
 import { progressOf } from "../news.ts"
 import { Page, page, type Crumb } from "../ui/page.tsx"
@@ -47,12 +47,12 @@ const firstName = (p: Person) => p.name.split(" ")[0]!
 const PER = 50
 
 /** Events in projects I can see, newest first, shaped for <ActivityList>. */
-const events = (opts: { projectId?: number | null; personId?: number | null }) => {
+const events = (opts: { projectId?: number | null; personId?: number | null; agents?: boolean }) => {
   const ids = new Set(scope().ids)
   const m = me()
   return [...db.events.values()]
     .filter((e) => e.account_id === m.account_id && e.project_id !== null && ids.has(e.project_id)
-      && (!opts.projectId || e.project_id === opts.projectId) && (!opts.personId || e.person_id === opts.personId))
+      && (!opts.projectId || e.project_id === opts.projectId) && (!opts.personId || e.person_id === opts.personId) && (!opts.agents || !!e.via))
     .sort((a, b) => ms(b.created_at) - ms(a.created_at) || b.id - a.id)
 }
 
@@ -106,7 +106,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const EVERYTHING: Record<string, { label: string; types: string[] }> = {
   messages: { label: "Posts", types: ["message"] },
-  todos: { label: "Tasks", types: ["todo"] },
+  todos: { label: "Goals", types: ["todo"] },
   files: { label: "Files", types: ["folder", "doc", "upload", "cloudfile"] },
   cards: { label: "Cards", types: ["card"] },
   events: { label: "Events", types: ["event"] },
@@ -121,7 +121,8 @@ export const routes = [
     const projectId = Number(q.get("project")) || null
     const personId = Number(q.get("person")) || null
     const pg = pageNo(q)
-    const evs = events({ projectId, personId }).slice((pg - 1) * PER, pg * PER + 1)
+    const agents = useJustAgents()
+    const evs = events({ projectId, personId, agents }).slice((pg - 1) * PER, pg * PER + 1)
     const more = new URLSearchParams(q)
     more.set("page", String(pg + 1))
     return (
@@ -134,10 +135,12 @@ export const routes = [
           {" "}<label>Person <select name="person" defaultValue={personId ?? ""}><option value="">Everyone</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           {" "}<button>Filter</button>
+          {agents && <input type="hidden" name="by" value="agents" />}
         </GetForm>
+        <AgentsFilter />
         {evs.length
           ? <ActivityList events={evs.slice(0, PER).map(toItem)} tz={m.time_zone} />
-          : <p>{projectId || personId ? "Nothing matches those filters." : "Activity across every project shows up here."}</p>}
+          : <p>{agents ? "No agent work matches yet. What agents do for people shows up here." : projectId || personId ? "Nothing matches those filters." : "Activity across every project shows up here."}</p>}
         {evs.length > PER && <p><a href={`/activity?${more.toString()}`}>Show more</a></p>}
       </Page>
     )
@@ -156,7 +159,7 @@ export const routes = [
         <ul>
           <li><a href="/reports/overdue">What's overdue?</a></li>
           <li><a href="/reports/upcoming">What's coming up?</a></li>
-          <li><a href="/reports/tasks">Tasks added & completed</a></li>
+          <li><a href="/reports/tasks">Goals added & completed</a></li>
         </ul>
       </Page>
     )
@@ -166,14 +169,16 @@ export const routes = [
     const [q] = useSearchParams()
     const { people, person } = pickedPerson(q)
     const pg = pageNo(q)
-    const evs = person ? events({ personId: person.id }).slice((pg - 1) * PER, pg * PER + 1) : []
+    const agents = useJustAgents()
+    const evs = person ? events({ personId: person.id, agents }).slice((pg - 1) * PER, pg * PER + 1) : []
     return (
       <Page title={person ? `What's ${firstName(person)} been up to?` : "Someone's activity"} crumbs={reportCrumbs}>
         <h1>{person ? `What's ${firstName(person)} been up to?` : "What's someone been up to?"}</h1>
         <PersonPicker action="/reports/activity" people={people} selectedId={person?.id ?? null} />
+        {person && <AgentsFilter />}
         {!person ? <p>Pick a person to see everything they did, by day.</p>
-          : evs.length ? <ActivityList events={evs.slice(0, PER).map(toItem)} tz={me().time_zone} /> : <p>{firstName(person)} hasn't done anything here yet.</p>}
-        {person && evs.length > PER && <p><a href={`/reports/activity?person=${person.id}&page=${pg + 1}`}>Show more</a></p>}
+          : evs.length ? <ActivityList events={evs.slice(0, PER).map(toItem)} tz={me().time_zone} /> : <p>{agents ? `No agent has done anything for ${firstName(person)} yet.` : `${firstName(person)} hasn't done anything here yet.`}</p>}
+        {person && evs.length > PER && <p><a href={`/reports/activity?person=${person.id}&page=${pg + 1}${agents ? "&by=agents" : ""}`}>Show more</a></p>}
       </Page>
     )
   }),
@@ -187,7 +192,7 @@ export const routes = [
       <Page title={person ? `What's on ${firstName(person)}'s plate?` : "Someone's assignments"} crumbs={reportCrumbs}>
         <h1>{person ? `What's on ${firstName(person)}'s plate?` : "What's on someone's plate?"}</h1>
         <PersonPicker action="/reports/assignments" people={people} selectedId={person?.id ?? null} />
-        {!person ? <p>Pick a person to see their tasks, cards and steps.</p>
+        {!person ? <p>Pick a person to see their goals, cards and steps.</p>
           : rows.length
             ? [...byProject].map(([name, rs]) => (
               <div key={name}>
@@ -279,8 +284,8 @@ export const routes = [
       ? <ul>{rs.map(({ e, r }) => <li key={e.id}><a href={`/r/${e.recording_id}/go`}>{r!.title}</a> <small>{personName(e.person_id) ?? "Someone"} · {projectName(e.project_id)} · {fmtDate(e.created_at, m.time_zone)}</small></li>)}</ul>
       : <p>None.</p>
     return (
-      <Page title="Tasks added & completed" crumbs={reportCrumbs}>
-        <h1>Tasks added & completed</h1>
+      <Page title="Goals added & completed" crumbs={reportCrumbs}>
+        <h1>Goals added & completed</h1>
         <GetForm method="get">
           <label>From <input type="date" name="from" defaultValue={from} /></label> <label>To <input type="date" name="to" defaultValue={to} /></label>
           {" "}<label>Project <select name="project" defaultValue={projectId ?? ""}><option value="">All projects</option>
@@ -291,7 +296,7 @@ export const routes = [
         </GetForm>
         {bad ? <p role="alert">The “From” date has to come before the “To” date.</p> : (
           <>
-            <p><b>{plural(added.length, "task")} added, {done.length} completed</b> between {fmtDate(from)} and {fmtDate(to)}.</p>
+            <p><b>{plural(added.length, "goal")} added, {done.length} completed</b> between {fmtDate(from)} and {fmtDate(to)}.</p>
             <h2>Added</h2>{list(added)}
             <h2>Completed</h2>{list(done)}
           </>
@@ -351,7 +356,7 @@ export const routes = [
                   <td><a href={projectUrl(p)}>{p.name}</a></td>
                   <td>{s.pr.total
                     ? <><ProgressBar pct={s.pr.pct} width={96} /> {s.pr.pct}% <small>{s.pr.done} of {s.pr.total} done</small></>
-                    : <small>No tasks yet</small>}</td>
+                    : <small>No goals yet</small>}</td>
                   <td>{flags.length ? <ul>{flags.map((f) => <li key={f}>⚑ {f}</li>)}</ul> : "All clear"}</td>
                 </tr>
               ))}

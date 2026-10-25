@@ -3,13 +3,13 @@
 //
 // recordings.data by type (all optional):
 //   message:   category_id, pinned
-//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a task at the top level, a
-//              subtask when its parent is a task; a task with subtasks is done when they all are)
+//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a Compass goal at the top level,
+//              a subgoal when its parent is a goal; a goal with subgoals is done when they all are)
 //   folder:    color
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
 //   event:     starts_at, ends_at, all_day, repeat, participant_ids[]
-//   column:    kind (triage = "To do" | custom | not_now = "Not now" | done), color, watcher_ids[]
+//   column:    kind (triage = "Triage" | custom | review | not_now = "Not now" | done), color, note (what it's for), watcher_ids[]
 //   card:      assignee_ids[], due_on, golden (pinned to the top of its column), completed_at
 //   step:      assignee_ids[], due_on, completed_at
 //   line:      (body only)
@@ -53,7 +53,11 @@ export type Account = {
     who_can_invite?: "everyone" | "admins"
     clients_can_ping?: boolean
     require_2fa?: boolean
+    /** The template agents start new projects from (areas/home.ts). */
+    agent_template_id?: number
   }
+  /** The team link's code (/join/<code>). Only arrives for people who may invite. */
+  join_code: string | null
   created_at: Stamp
 }
 
@@ -120,6 +124,8 @@ export type Recording = {
   position: number
   visible_to_clients: boolean
   creator_id: number | null
+  /** The agent that made it for the creator (its connection's name), or null. */
+  via?: string | null
   created_at: Stamp
   updated_at: Stamp
 }
@@ -136,7 +142,7 @@ export type Notification = {
 }
 export type Event = {
   id: number; account_id: number; project_id: number | null; recording_id: number | null; person_id: number | null
-  action: string; summary: string; created_at: Stamp
+  action: string; summary: string; via: string | null; created_at: Stamp
 }
 export type Category = { id: number; account_id: number; emoji: string; name: string }
 export type Marker = { id: number; account_id: number; name: string; on_date: string }
@@ -145,7 +151,8 @@ export type Chatbot = { id: number; account_id: number; name: string; command_ur
 export type Webhook = { id: number; project_id: number; url: string; types: string[]; created_at: Stamp }
 export type PublicLink = { token: string; recording_id: number; created_at: Stamp }
 export type Export = { id: number; account_id: number; person_id: number | null; status: "pending" | "ready"; file_path: string | null; created_at: Stamp }
-export type ConnectedApp = { id: number; person_id: number; name: string; created_at: Stamp }
+/** An agent or app working as this person: approved from the app (`client_id`), or a key made on /my/agents. */
+export type ConnectedApp = { id: number; person_id: number; name: string; client_id: string | null; scope: "full" | "read"; last_used_at: Stamp | null; created_at: Stamp }
 
 /** Every table the browser holds a copy of, with its row type. */
 export type Tables = {
@@ -213,7 +220,7 @@ export const windowOfPath = (path: string): ToolType | null => {
 
 export const defaultTools = (): Tool[] => [
   { id: "message_board", type: "message_board", name: "Posts", enabled: true },
-  { id: "todos", type: "todos", name: "Milestones", enabled: true },
+  { id: "todos", type: "todos", name: "Compass", enabled: true },
   { id: "vault", type: "vault", name: "Files", enabled: true },
   { id: "campfire", type: "campfire", name: "Chat", enabled: true },
   { id: "schedule", type: "schedule", name: "Calendar", enabled: true },
@@ -250,7 +257,7 @@ export const windowIdOf = (p: Pick<Project, "tools">, top: Pick<Recording, "type
 }
 
 export const TYPE_NAMES: Record<string, string> = {
-  message: "post", todo: "task", folder: "folder", doc: "doc",
+  message: "post", todo: "goal", folder: "folder", doc: "doc",
   upload: "file", cloudfile: "link", event: "event", column: "column",
   card: "card", step: "step", line: "chat line", comment: "comment",
 }
@@ -285,6 +292,8 @@ export const CLIENT_INHERITS = ["comment", "line", "step", "column"]
 type Who = Pick<Person, "role">
 export const isAdmin = (p: Who) => p.role === "owner" || p.role === "admin"
 export const isClient = (p: Who) => p.role === "client"
+/** Can this person invite people (and see the team link)? */
+export const mayInvite = (p: Who, a: Pick<Account, "settings">) => !isClient(p) && (a.settings.who_can_invite !== "admins" || isAdmin(p))
 
 /** Work Can Wait: true when notifications should be held for this person right now. */
 export const isQuiet = (p: Pick<Person, "prefs" | "time_zone">, now = new Date()) => {

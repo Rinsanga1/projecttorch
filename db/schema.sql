@@ -12,7 +12,8 @@ create table accounts (
   cancelled_at timestamptz,
   billing_email text,
   card_last4  text,
-  settings    jsonb not null default '{}',                 -- who_can_create_projects, who_can_invite, clients_can_ping, require_2fa
+  settings    jsonb not null default '{}',                 -- who_can_create_projects, who_can_invite, clients_can_ping, require_2fa, agent_template_id
+  join_code   text not null unique default replace(gen_random_uuid()::text, '-', ''), -- the team link, /join/<code>; `set join_code = default` makes a new one
   created_at  timestamptz not null default now()
 );
 
@@ -92,6 +93,7 @@ create table recordings (
   position    int not null default 0,
   visible_to_clients boolean not null default false,
   creator_id  int references people on delete set null,
+  via         text,                                        -- the agent that made it for creator_id (connected_apps.name)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -163,6 +165,7 @@ create table events (
   person_id   int references people on delete set null,
   action      text not null,   -- created completed uncompleted commented edited trashed restored archived moved copied uploaded
   summary     text not null,
+  via         text,            -- the agent that did it for person_id
   created_at  timestamptz not null default now()
 );
 create index on events (account_id, created_at desc);
@@ -222,10 +225,44 @@ create table exports (
   created_at  timestamptz not null default now()
 );
 
+-- Agents (docs/user_agents/plan.md). An app that registered itself so people can connect it (OAuth dynamic client
+-- registration: Claude, ChatGPT, Cursor…). Not synced.
+create table oauth_clients (
+  id            text primary key,
+  name          text not null,
+  redirect_uris text[] not null,
+  created_at    timestamptz not null default now()
+);
+
+-- An app or agent that works as this person. Made by approving an app, or by hand on /my/agents (client_id null).
 create table connected_apps (
   id          serial primary key,
   person_id   int not null references people on delete cascade,
   name        text not null,
+  client_id   text references oauth_clients on delete cascade,
+  scope       text not null default 'full',                -- full | read
+  last_used_at timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+-- What an app gets back once someone approves it: spent once, within 10 minutes, with the PKCE verifier. Not synced.
+create table oauth_codes (
+  code_hash    text primary key,
+  client_id    text not null references oauth_clients on delete cascade,
+  person_id    int not null references people on delete cascade,
+  scope        text not null,
+  redirect_uri text not null,
+  challenge    text not null,
+  created_at   timestamptz not null default now()
+);
+
+-- A connection's keys, as sha256s: access (an hour; no expiry for keys made by hand) and refresh (swapped on use).
+-- Not synced. Disconnecting deletes the connection and these with it.
+create table agent_tokens (
+  token_hash  text primary key,
+  app_id      int not null references connected_apps on delete cascade,
+  kind        text not null,                               -- access | refresh
+  expires_at  timestamptz,
   created_at  timestamptz not null default now()
 );
 
@@ -247,6 +284,23 @@ create table emails (
   reply_to_recording_id int references recordings on delete set null,  -- replying to this email comments/answers here
   reply_person_id int references people on delete set null,
   created_at  timestamptz not null default now()
+);
+
+-- Sign-in. One login per email address, shared by every account that address is in. Not synced: never leaves the server.
+create table logins (
+  email         text primary key,                          -- lower-cased
+  password_hash text,                                      -- Bun.password (argon2id); null = Google only
+  google_sub    text unique,                               -- Google's id for the person, set the first time they use Google
+  created_at    timestamptz not null default now()
+);
+
+-- The `sid` cookie holds a random token; only its sha256 is stored. Unused for 30 days = signed out.
+create table sessions (
+  token_hash   text primary key,
+  person_id    int not null references people on delete cascade,
+  verified     boolean not null default true,              -- false while two-step verification is pending
+  created_at   timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
 );
 
 -- ---------- sync ----------

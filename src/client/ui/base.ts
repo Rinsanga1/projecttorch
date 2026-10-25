@@ -8,7 +8,7 @@ import { color, font, motion, radius, space, text } from "./tokens.stylex.ts"
 // A page can also say so outright: data-primary promotes a button, data-quiet keeps one plain.
 const PRIMARY = ":is([data-primary],p>button:first-child,p>a[data-button]:first-child," +
   "form:not([style],[method=get])>:not(input[type=hidden])+button:is(:last-child,:has(+a:last-child))," +
-  "form:not([style],[method=get])>button:first-child:has(+a:last-child)):not([data-quiet])"
+  "form:not([style],[method=get])>button:first-of-type:has(+a:last-child)):not([data-quiet])"
 const base = `
 @font-face{font-family:"Geist";src:url(/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
 @layer base{
@@ -49,6 +49,9 @@ ul>li:first-child{border-top:0;padding-top:${space.s1}}
 li ul{margin:${space.s2} 0 0}
 ol{margin:0 0 ${space.s5};padding-left:1.4em}
 ol>li{padding:${space.s1} 0}
+[data-prose] ul{padding-left:1.4em;list-style:disc}
+[data-prose] ul>li{border:0;padding:${space.s1} 0}
+[data-prose]>:last-child{margin-bottom:0}
 dl{margin:0 0 ${space.s5}}
 dt{font-weight:600}
 dd{margin:2px 0 ${space.s3};color:${color.muted}}
@@ -116,8 +119,12 @@ fieldset fieldset{border:0;padding:0;margin:0}
 fieldset fieldset>legend{font-size:${text.xs};font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:${color.muted};padding:0;margin:${space.s2} 0 ${space.s1}}
 fieldset p:has(>i:only-child){margin:${space.s3} 0 ${space.s1}}
 meter,progress,input[type=range]{accent-color:${color.accent}}
-/* Checkbox labels laid side by side ("created  edited  completed") keep a gap between them. */
-label:has(>:is([type=checkbox],[type=radio]))+label:has(>:is([type=checkbox],[type=radio])){margin-left:${space.s4};white-space:nowrap}
+/* Checkbox labels laid side by side ("created  edited  completed") keep a gap between them. The gap trails each label,
+   so a row that wraps starts flush left. */
+label:has(>:is([type=checkbox],[type=radio])):has(+label>:is([type=checkbox],[type=radio])){margin-right:${space.s4}}
+label:has(>:is([type=checkbox],[type=radio]))+label:has(>:is([type=checkbox],[type=radio])){white-space:nowrap}
+/* A filter row (a GET form: "Filter by name … Sort … View …") keeps its fields apart. */
+form[method=get]>:is(label,button)+:is(label,button){margin-left:${space.s2}}
 
 [role=note]{background:${color.tile};border-radius:${radius.md};padding:${space.s3} ${space.s4};margin:0 0 ${space.s5}}
 [role=note] p:last-child{margin-bottom:0}

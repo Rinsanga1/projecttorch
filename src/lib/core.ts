@@ -2,12 +2,12 @@
 //
 // recordings.data by type (all optional):
 //   message:   category_id, pinned
-//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a task, or a subtask of one)
+//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a Compass goal, or a subgoal of one)
 //   folder:    color
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
 //   event:     starts_at, ends_at, all_day, repeat, participant_ids[]
-//   column:    kind (triage = "To do" | custom | not_now = "Not now" | done), color, watcher_ids[]
+//   column:    kind (triage = "Triage" | custom | review | not_now = "Not now" | done), color, note (what it's for), watcher_ids[]
 //   card:      assignee_ids[], due_on, golden (pinned to the top of its column), completed_at
 //   step:      assignee_ids[], due_on, completed_at
 //   line:      (body only)
@@ -15,7 +15,7 @@
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { fmtDate, esc } from "../shared/format.ts"
-import { CLIENT_INHERITS, TYPE_NAMES, TYPE_TOOL, titleOf, urlFor, mentionedIds, canSeeProject, type Tool } from "../shared/domain.ts"
+import { CLIENT_INHERITS, TYPE_NAMES, TYPE_TOOL, titleOf, urlFor, mentionedIds, canSeeProject, mayInvite, type Tool } from "../shared/domain.ts"
 import { NotFound, NoAccess, Deleted, isAdmin, isClient, isQuiet, type Ctx, type Person } from "./web.ts"
 
 export {
@@ -55,6 +55,8 @@ export type Recording = {
   position: number
   visible_to_clients: boolean
   creator_id: number | null
+  /** The agent that made it for the creator (its connection's name), or null when they made it themselves. */
+  via: string | null
   created_at: Date
   updated_at: Date
 }
@@ -136,8 +138,9 @@ export const clientFilter = (sql: SqlClient.SqlClient, me: Person, alias = "reco
 export const logEvent = (c: Ctx, e: { project_id: number | null; recording_id?: number | null; action: string; summary: string }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    yield* sql`insert into events ${sql.insert({ account_id: c.me.account_id, project_id: e.project_id, recording_id: e.recording_id ?? null, person_id: c.me.id, action: e.action, summary: e.summary })}`
-    if (e.project_id) yield* fireWebhooks(e.project_id, e.action, { ...e, person: c.me.name })
+    const via = c.app?.name ?? null
+    yield* sql`insert into events ${sql.insert({ account_id: c.me.account_id, project_id: e.project_id, recording_id: e.recording_id ?? null, person_id: c.me.id, action: e.action, summary: e.summary, via })}`
+    if (e.project_id) yield* fireWebhooks(e.project_id, e.action, { ...e, person: c.me.name, via })
   })
 
 /** POST event JSON to project webhooks in the background, recording each delivery. */
@@ -186,6 +189,9 @@ export const sendEmail = (to: Person, e: { subject: string; body: string; kind: 
 export const notify = (c: Ctx, n: { personIds: ReadonlyArray<number>; recording?: Recording | null; project_id?: number | null; kind: string; summary: string; email?: boolean }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
+    // Agents don't ping: their work waits in activity (and Review) for whenever people look. Only what's addressed to
+    // someone gets through: an @mention, or a Ping.
+    if (c.app && n.kind !== "mention" && n.kind !== "ping") return
     const targets = [...new Set(n.personIds)].filter((id) => id !== c.me.id)
     if (!targets.length) return
     const people = yield* sql<Person>`select * from people where id in ${sql.in(targets)} and removed_at is null`
@@ -247,6 +253,7 @@ export const createRecording = (c: Ctx, n: NewRecording) =>
       status: n.status ?? "active",
       visible_to_clients: n.visible_to_clients ?? (isClient(c.me) ? true : n.project.clients_see_new),
       creator_id: c.me.id,
+      via: c.app?.name ?? null,
       position,
     })} returning *`
     yield* sql`insert into versions ${sql.insert({ recording_id: r!.id, title: r!.title, body: r!.body, data: JSON.stringify(r!.data), person_id: c.me.id })}`
@@ -362,5 +369,4 @@ export const canCreateProjects = (c: Ctx) =>
   !isClient(c.me) && (c.account.settings.who_can_create_projects !== "admins" || isAdmin(c.me))
 
 /** Can this person invite people? */
-export const canInvite = (c: Ctx) =>
-  !isClient(c.me) && (c.account.settings.who_can_invite !== "admins" || isAdmin(c.me))
+export const canInvite = (c: Ctx) => mayInvite(c.me, c.account)

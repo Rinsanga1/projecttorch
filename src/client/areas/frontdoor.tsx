@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
-import { me, account, useApi } from "../data.ts"
+import { me, meOrNull, account, useApi } from "../data.ts"
 import { isAdmin } from "../../shared/domain.ts"
 import { fmtDate, ms, today } from "../../shared/format.ts"
 import { Errors, Form, usePost } from "../ui/forms.tsx"
@@ -13,14 +13,43 @@ import { Page, page } from "../ui/page.tsx"
 const LINK_MINUTES = 15
 const UNKNOWN_EMAIL = "We don't know that email address. Check for typos, or sign up."
 
+/** On Sign in or Sign up while already signed in: say so, and offer the way in (or out). */
+const AlreadyIn = ({ title }: { title: string }) => {
+  const m = meOrNull()!
+  return (
+    <Page title={title}>
+      <h1>You're already signed in</h1>
+      <p>You're signed in as <b>{m.name}</b> ({m.email}).</p>
+      <p><a href="/" data-button>Go to Saintsflow</a></p>
+      <Form action="/signout"><button>Sign out, then {title === "Sign up" ? "sign up" : "sign in"} as someone else</button></Form>
+    </Page>
+  )
+}
+
+/** The page to go back to after signing in (?next=, set when a signed-out page sent you here). */
+const useNext = () => useSearchParams()[0].get("next") ?? ""
+const NextField = () => {
+  const next = useNext()
+  return next ? <input type="hidden" name="next" value={next} /> : null
+}
+
+/** Off to Google and back (a full page load, not a route), when the server has Google set up. */
+const GoogleLink = ({ then, children }: { then: string; children: React.ReactNode }) => {
+  const { data } = useApi<{ google: boolean }>("/auth/options")
+  const next = useNext()
+  return data?.google ? <p><a href={`/api/auth/google?then=${encodeURIComponent(then)}${next ? `&next=${encodeURIComponent(next)}` : ""}`}>{children}</a></p> : null
+}
+
 const EmailStep = ({ email, errs = [] }: { email: string; errs?: string[] }) => (
   <>
     <h1>Sign in</h1>
     <Errors list={errs} />
     <GetForm method="get" action="/signin">
+      <NextField />
       <p><label>Email address<br /><input type="email" name="email" defaultValue={email} required autoFocus /></label></p>
       <button>Next</button>
     </GetForm>
+    <GoogleLink then="signin">Sign in with Google</GoogleLink>
     <p><a href="/signup">New here? Try it free</a></p>
   </>
 )
@@ -29,11 +58,13 @@ const PasswordStep = ({ email }: { email: string }) => (
   <>
     <h1>Sign in</h1>
     <Form action="/signin">
+      <NextField />
       <input type="hidden" name="email" value={email} />
       <p>Signing in as <b>{email}</b> <a href="/signin">(not you?)</a></p>
       <p><label>Password<br /><input type="password" name="password" autoFocus /></label></p>
-      <p><button>Sign in</button> <button name="google" value="1">Sign in with Google</button></p>
+      <p><button>Sign in</button></p>
     </Form>
+    <GoogleLink then="signin">Sign in with Google</GoogleLink>
     <Form action="/signin/link"><input type="hidden" name="email" value={email} /><button>Email me a link to sign in instead</button></Form>
     <p><a href={`/forgot?email=${encodeURIComponent(email)}`}>Forgot your password?</a> · <a href="/signup">New here? Try it free</a></p>
   </>
@@ -55,31 +86,62 @@ const OpenLink = ({ action, gone }: { action: string; gone: React.ReactNode }) =
 const browserTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined } }
 
 type Invite =
-  | { state: "open"; account: string; inviter: string | null; name: string; email: string; time_zone: string }
+  | { state: "open"; account: string; inviter: string | null; name: string; email: string; time_zone: string; google: string | null }
   | { state: "used"; account: string | null; email: string }
   | { state: "gone" }
+  | { state: "team"; account: string; already_in: boolean; email: string; name: string; google: string | null }
+
+/** The team link's sign-up: a name tag, after Campfire. */
+const JoinTeam = ({ code, t }: { code: string; t: Extract<Invite, { state: "team" }> }) => {
+  if (t.already_in) return <Page title={`Join ${t.account}`}><h1>You're already in {t.account}</h1><p><a href="/" data-button>Go to {t.account}</a></p></Page>
+  return (
+    <Page title={`Join ${t.account}`}>
+      <h1>Join {t.account}</h1>
+      <p>Someone at {t.account} shared this link so you can join them on Saintsflow.</p>
+      <Form action={`/join/${code}`}>
+        <p><label>Your name<br /><input name="name" defaultValue={t.name} required autoFocus /></label></p>
+        {t.google
+          ? <p><input type="hidden" name="google" value="1" />Joining with Google as <b>{t.google}</b></p>
+          : <>
+            <p><label>Email address<br /><input type="email" name="email" defaultValue={t.email} required /></label></p>
+            <p><label>Password (8 characters or more, or your Saintsflow password if you have one)<br /><input type="password" name="password" required minLength={8} /></label></p>
+          </>}
+        <input type="hidden" name="time_zone" value={browserTz() ?? ""} />
+        <p><button>Join {t.account}</button></p>
+      </Form>
+      {!t.google && <GoogleLink then={`join:${code}`}>Join with Google</GoogleLink>}
+    </Page>
+  )
+}
 
 export const routes = [
   // Sign up
-  page("/signup", () => (
-    <Page title="Sign up">
-      <h1>Sign up</h1>
-      <p>Start a new account. One short form, then you're inside.</p>
-      <Form action="/signup">
-        <p><label>Your name<br /><input name="name" required autoFocus /></label></p>
-        <p><label>Email address<br /><input type="email" name="email" required /></label></p>
-        <p><label>Company or team name<br /><input name="company" required /></label></p>
-        <p><label>Password<br /><input type="password" name="password" /></label></p>
-        <p><button>Start my free trial</button> <button name="google" value="1">Sign up with Google</button></p>
-      </Form>
-      <p><a href="/signin">Already have an account? Sign in</a></p>
-    </Page>
-  ), { pub: true }),
+  // Back from Google with no account yet: ?google=1&name=&email=, and who they are rides in a signed cookie.
+  page("/signup", () => {
+    const [q] = useSearchParams()
+    if (meOrNull()) return <AlreadyIn title="Sign up" />
+    const google = q.get("google") === "1"
+    return (
+      <Page title="Sign up">
+        <h1>Sign up</h1>
+        <p>Start a new account. One short form, then you're inside.</p>
+        <Form action="/signup">
+          <p><label>Your name<br /><input name="name" defaultValue={q.get("name") ?? ""} required autoFocus /></label></p>
+          {google
+            ? <p><input type="hidden" name="google" value="1" />Signing up with Google as <b>{q.get("email")}</b> <a href="/signup">(use a password instead)</a></p>
+            : <p><label>Email address<br /><input type="email" name="email" required /></label></p>}
+          <p><label>Company or team name<br /><input name="company" required /></label></p>
+          {!google && <p><label>Password (8 characters or more)<br /><input type="password" name="password" required minLength={8} /></label></p>}
+          <p><button>Make my account</button></p>
+        </Form>
+        {!google && <GoogleLink then="signup">Sign up with Google</GoogleLink>}
+        <p><a href="/signin">Already have an account? Sign in</a></p>
+      </Page>
+    )
+  }, { pub: true }),
 
   // First run
   page("/welcome", () => {
-    const m = me()
-    const sample = [...db.projects.values()].find((p) => p.name.startsWith("Sample project") && p.status === "active" && db.project_people.has(`${p.id}:${m.id}`))
     return (
       <Page title="Welcome">
         <h1>Welcome! Let's get your first project going.</h1>
@@ -87,7 +149,7 @@ export const routes = [
           <p><label>What are you working on?<br /><input name="name" required autoFocus placeholder="e.g. Website redesign" /></label></p>
           <button>Make this project</button>
         </Form>
-        {sample && <p>Or look around <a href={`/projects/${sample.id}`}>a sample project</a> first. It's yours to trash.</p>}
+        <p>Or start from <a href="/templates">a template</a>, a project that comes ready.</p>
         <p><a href="/">Skip, take me Home</a></p>
       </Page>
     )
@@ -98,6 +160,7 @@ export const routes = [
     const [q] = useSearchParams()
     const email = (q.get("email") ?? "").trim()
     const { data } = useApi<{ known: boolean }>(email ? `/signin?email=${encodeURIComponent(email)}` : null)
+    if (meOrNull()) return <AlreadyIn title="Sign in" />
     return (
       <Page title="Sign in">
         {!email ? <EmailStep email="" />
@@ -172,11 +235,11 @@ export const routes = [
   // Two-step verification
   page("/signin/verify", () => {
     const backup = useSearchParams()[0].get("backup") === "1"
-    if (!/(^|;\s*)pending_pid=\d/.test(document.cookie)) return <Navigate to="/signin" replace />
     return (
       <Page title="Two-step verification">
         <h1>Two-step verification</h1>
         <Form action="/signin/verify" key={String(backup)}>
+          <NextField />
           {backup
             ? <><input type="hidden" name="backup" value="1" /><p><label>Enter one of your backup codes<br /><input name="code" required autoFocus autoComplete="off" /></label></p></>
             : <p><label>Enter the 6-digit code from your authenticator app<br /><input name="code" inputMode="numeric" pattern="[0-9 ]*" maxLength={7} required autoFocus autoComplete="one-time-code" /></label></p>}
@@ -192,6 +255,7 @@ export const routes = [
     const token = useParams().token!
     const { data: inv } = useApi<Invite>(`/join/${token}`)
     if (!inv) return <Page title="Invitation">{null}</Page>
+    if (inv.state === "team") return <JoinTeam code={token} t={inv} />
     if (inv.state === "used")
       return <Page title="Invitation"><h1>This invitation was already used</h1><p><a href={`/signin?email=${encodeURIComponent(inv.email)}`}>Sign in to get to {inv.account ?? "your account"}</a></p></Page>
     if (inv.state === "gone")
@@ -203,10 +267,13 @@ export const routes = [
         <Form action={`/join/${token}`}>
           <p><label>Your name<br /><input name="name" defaultValue={inv.name} required autoFocus /></label></p>
           <p>Email: {inv.email}</p>
-          <p><label>Password<br /><input type="password" name="password" /></label></p>
+          {inv.google
+            ? <p><input type="hidden" name="google" value="1" />Joining with Google as <b>{inv.google}</b></p>
+            : <p><label>Password (8 characters or more)<br /><input type="password" name="password" required minLength={8} /></label></p>}
           <p><label>Time zone (guessed from your browser)<br /><input name="time_zone" id="tz" defaultValue={browserTz() ?? inv.time_zone} /></label></p>
-          <p><button>Join {inv.account}</button> <button name="google" value="1">Join with Google</button></p>
+          <p><button>Join {inv.account}</button></p>
         </Form>
+        {!inv.google && <GoogleLink then={`join:${token}`}>Join with Google</GoogleLink>}
         <p><a href="/signin">Already have a Saintsflow login? Sign in to accept</a></p>
       </Page>
     )

@@ -1,4 +1,4 @@
-// Board, after Fizzy: drag cards across Not now · To do · your columns · Done. New cards land in To do; a Golden
+// Board, after Fizzy: drag cards across Not now · Triage · your columns · Done. New cards land in Triage; a Golden
 // Ticket keeps a card at the top of its column; cards nobody touches for 30 days move to Not now on their own (a job in
 // src/areas/cards.ts). The board, new column, column ••• menu, card (with steps), edit card. Posts: src/areas/cards.ts.
 // Moving a card, adding one, a Golden Ticket, checking off a step and reordering columns change the copy right away.
@@ -10,7 +10,7 @@ import { db, temp } from "../store.ts"
 import { me, findProject, findRecording, projectPeople, children, recordings, personById, topOf, useVisit, NoAccess, NotFound, type PersonWithCompany } from "../data.ts"
 import { isClient, urlFor, windowIdOf, windowUrl, type Project, type Recording, type Tool } from "../../shared/domain.ts"
 import { useWindow, WindowField } from "../ui/in-window.tsx"
-import { fmtDate, isoDate } from "../../shared/format.ts"
+import { ago, fmtDate, isoDate, plural } from "../../shared/format.ts"
 import { ByLine, fadeOverflow, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, PostOnOpen, submitOwnForm, usePost, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
@@ -24,8 +24,9 @@ export const DOT: Record<string, string> = { red: "#e5484d", orange: "#f99c00", 
 const ks = stylex.create({
   board: {
     // Columns share the width when they fit (a window with two or three columns has no empty gap); past that the
-    // board scrolls sideways, its end fading while there are more columns to see.
-    display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(min(240px, 82vw), 1fr)", gap: space.s3, alignItems: "start",
+    // board scrolls sideways, its end fading while there are more columns to see. Not now and Done fold into narrow
+    // strips, so the columns where work happens fit a window.
+    display: "flex", gap: 10, alignItems: "flex-start",
     overflowX: "auto", overscrollBehaviorX: "contain", scrollSnapType: "x proximity", marginBottom: space.s5,
     // No scrollbar: the faded end says there are more columns, and you get there by dragging the background, Shift+wheel
     // or a trackpad swipe.
@@ -40,18 +41,33 @@ const ks = stylex.create({
   colDropAfter: { boxShadow: `inset -3px 0 0 ${color.accent}` },
   // The last thing on the board, after Done: a dashed tile that adds a column (its own one-line field once opened).
   addCol: {
-    alignSelf: "start", display: "flex", alignItems: "center", justifyContent: "center", gap: space.s2, minHeight: 52, width: "100%",
+    flexShrink: 0, alignSelf: "start", display: "flex", flexDirection: "column", alignItems: "center", gap: space.s2, width: 48, minHeight: 180, paddingBlock: 14, paddingInline: 0,
     borderRadius: radius.xl, borderWidth: 1.5, borderStyle: "dashed", fontSize: text.sm, fontWeight: 600,
     borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.ink } },
     color: { default: color.muted, ":hover": { default: null, [media.hover]: color.ink } },
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
-    transitionProperty: "border-color, color, background-color", transitionDuration: "150ms", transitionTimingFunction: "ease",
+    transitionProperty: "border-color, color, background-color, transform", transitionDuration: "150ms", transitionTimingFunction: "ease",
   },
-  addColForm: { alignSelf: "start", display: "flex", gap: 6, padding: space.s3, borderRadius: radius.xl, backgroundColor: color.tile, margin: 0 },
+  addColForm: { flexShrink: 0, flexBasis: 200, alignSelf: "start", display: "flex", gap: 6, padding: space.s3, borderRadius: radius.xl, backgroundColor: color.tile, margin: 0 },
   column: {
+    flexGrow: 1, flexShrink: 0, flexBasis: 176, minWidth: 0,
     scrollSnapAlign: "start", backgroundColor: color.tile, borderRadius: radius.xl, padding: space.s3, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: space.s2,
     transitionProperty: "box-shadow, background-color", transitionDuration: "120ms", transitionTimingFunction: "ease",
   },
+  // Not now and Done, folded: a narrow strip with the count and the name running down it. Click to open; a card dragged
+  // onto it still lands there.
+  spine: {
+    flexShrink: 0, width: 48, scrollSnapAlign: "start", borderRadius: radius.xl, backgroundColor: color.tile,
+    transitionProperty: "box-shadow, background-color", transitionDuration: "120ms", transitionTimingFunction: "ease",
+  },
+  spineBtn: {
+    display: "flex", flexDirection: "column", alignItems: "center", gap: space.s2, width: "100%", minHeight: 180, paddingBlock: 14, paddingInline: 0,
+    borderRadius: "inherit", color: color.ink, fontSize: text.base, fontWeight: 650,
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tileHover } },
+  },
+  vertical: { writingMode: "vertical-rl", whiteSpace: "nowrap" },
+  spineCount: { marginLeft: 0 },
+  fold: { padding: 0, minHeight: 0, background: "none", color: "inherit", font: "inherit", textAlign: "left", transform: "none" },
   // The column a dragged card would land in.
   columnOver: { backgroundColor: color.tileHover, boxShadow: `inset 0 0 0 2px ${color.accent}` },
   colHead: { display: "flex", alignItems: "center", gap: space.s2, paddingInline: 6, paddingTop: 4, margin: 0, fontSize: text.base },
@@ -90,6 +106,10 @@ const ks = stylex.create({
   // At least as wide as its longest column name (the browser's own measure cuts the name short).
   columnPick: { color: color.ink, paddingLeft: 8, marginLeft: -8, minWidth: "max-content" },
   cardDo: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s4, marginTop: space.s5 },
+  // The sweep: a card waiting in Review, and its three answers.
+  sweep: { marginTop: space.s5, padding: space.s5, borderRadius: radius.xl, backgroundColor: color.tile },
+  sweepHead: { margin: 0 },
+  sweepDo: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s3, marginTop: space.s3 },
   steps: { marginTop: space.s7 },
   stepList: { margin: 0, marginBottom: space.s4 },
   step: { display: "flex", alignItems: "flex-start", gap: space.s3, paddingBlock: 8 },
@@ -97,7 +117,7 @@ const ks = stylex.create({
     width: 22, height: 22, minHeight: 22, padding: 0, flexShrink: 0, borderRadius: 7, color: color.onAccent,
     borderWidth: 1.5, borderStyle: "solid", borderColor: { default: color.control, ":hover": { default: null, [media.hover]: color.focus } },
     backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.accentSoft } },
-    transitionProperty: "background-color, border-color", transitionDuration: motion.fast,
+    transitionProperty: "background-color, border-color, transform", transitionDuration: motion.fast,
   },
   checkDone: { backgroundColor: color.accent, borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.focus } } },
   stepDone: { color: color.muted, textDecoration: "line-through", textDecorationColor: color.accent, textDecorationThickness: 2 },
@@ -106,22 +126,48 @@ const ks = stylex.create({
 })
 
 const COLORS = ["", "red", "orange", "yellow", "green", "blue", "purple", "gray"]
-const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, done: 3 }
+const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, review: 3, done: 4 }
 /** What an empty column says. */
 const EMPTY: Record<string, string> = {
-  not_now: "Cards nobody touches for 30 days end up here.", triage: "New cards start here.", custom: "No cards here.", done: "Done cards land here.",
+  not_now: "Cards nobody touches for 30 days end up here.", triage: "New cards start here.", custom: "No cards here.", review: "Finished work waits here for someone to look at it.", done: "Done cards land here.",
 }
 /** Cards in a column: Golden Tickets first, then the one that arrived last on top. */
 const cardOrder = (a: Recording, b: Recording) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position || b.id - a.id
 
-/** A board's active columns in display order: Not now, To do, your columns, Done. A project can have several boards. */
+/** A board's active columns in display order: Not now, Triage, your columns, Review, Done. A project can have several boards. */
 const columnsOf = (p: Project, boardId: string) =>
   recordings((r) => r.project_id === p.id && r.type === "column" && r.status === "active" && windowIdOf(p, r) === boardId)
     .sort((a, b) => (KIND_ORDER[a.data.kind ?? "custom"]! - KIND_ORDER[b.data.kind ?? "custom"]!) || a.position - b.position || a.id - b.id)
 
-/** Every board starts with Not now, To do and Done; the server makes any that are missing. */
+/** Every board has Not now, Triage, Review and Done; the server makes any that are missing. */
 const EnsureColumns = ({ p, boardId, cols }: { p: Project; boardId: string; cols: ReadonlyArray<Recording> }) =>
-  ["triage", "not_now", "done"].every((k) => cols.some((col) => col.data.kind === k)) ? null : <PostOnOpen action={`/projects/${p.id}/board/setup`} fields={{ tool: boardId }} />
+  ["triage", "not_now", "review", "done"].every((k) => cols.some((col) => col.data.kind === k)) ? null : <PostOnOpen action={`/projects/${p.id}/board/setup`} fields={{ tool: boardId }} />
+
+/** The sweep, on a card waiting in Review: Ship it, Send it back (with what should change), or Kill it. Posts to
+ * /cards/:cid/review, which also says when someone got there first. `then`: where to go after, when it isn't the board. */
+const Sweep = ({ p, r, then, tz }: { p: Project; r: Recording; then: string; tz: string }) => {
+  const action = `/projects/${p.id}/cards/${r.id}/review`
+  const rv = r.data.review as { at?: string; by?: number; via?: string | null } | undefined
+  const by = rv?.by ? personById(rv.by) : null
+  const fields = (verdict: string) => <><input type="hidden" name="verdict" value={verdict} />{then && <input type="hidden" name="then" value={then} />}</>
+  return (
+    <section aria-label="Review" {...sx(ks.sweep)}>
+      <p {...sx(ks.sweepHead)}><b>Ready for you.</b>{rv?.at && <> {by?.name ?? "Someone"}{rv.via ? ` via ${rv.via}` : ""} moved it here {ago(rv.at, tz)}.</>}</p>
+      <div {...sx(ks.sweepDo)}>
+        <Form action={action} style={{ display: "inline" }}>{fields("ship")}<button data-primary>Ship it</button></Form>
+        <Form action={action} style={{ display: "inline" }}>{fields("kill")}<button>Kill it</button></Form>
+      </div>
+      <details>
+        <summary>Send it back</summary>
+        <Form action={action}>
+          {fields("back")}
+          <p><label>What should change?<br /><textarea name="body" rows={3} cols={60} required /></label></p>
+          <p><button>Send back</button></p>
+        </Form>
+      </details>
+    </section>
+  )
+}
 
 /** The address of the board a column is on. */
 const boardOf = (p: Project, col: Recording) => windowUrl(p, { id: windowIdOf(p, col) ?? "cardtable", type: "cardtable" })
@@ -163,7 +209,7 @@ const addColumnLocal = (p: Project, w: Tool, title: string) => {
   })
 }
 
-/** A new card shows at once, on top of To do, until the server's row replaces it. */
+/** A new card shows at once, on top of Triage, until the server's row replaces it. */
 const addLocal = (p: Project, col: Recording, title: string) => {
   const now = new Date().toISOString()
   temp("recordings", {
@@ -230,10 +276,10 @@ const AddColumn = ({ p, w }: { p: Project; w: Tool }) => {
           onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false) } }} />
         <button data-quiet {...sx(ks.small, ks.onTile)}>Add</button>
       </Form>
-    : <button type="button" data-quiet onClick={() => setOpen(true)} {...sx(ks.addCol)}>+ Add a column</button>
+    : <button type="button" data-quiet onClick={() => setOpen(true)} {...sx(ks.addCol)}><span aria-hidden="true">+</span><span {...sx(ks.vertical)}>Add a column</span></button>
 }
 
-/** Add a card to To do: one line, Enter, and it's ready for the next. Escape closes it. */
+/** Add a card to Triage: one line, Enter, and it's ready for the next. Escape closes it. */
 const AddCard = ({ p, col, onClose }: { p: Project; col: Recording; onClose: () => void }) => (
   <Form action={`/projects/${p.id}/cards`} optimistic={(fd) => addLocal(p, col, String(fd.get("title") ?? "").trim())} {...sx(ks.add)}>
     <input type="hidden" name="column_id" value={col.id} />
@@ -257,6 +303,10 @@ export const routes = [
     const cards = recordings((r) => r.project_id === p.id && r.type === "card" && r.status === "active" && onBoard.has(r.parent_id!)).sort(cardOrder)
     const active = p.status === "active"
     const [adding, setAdding] = useState(false)
+    // Not now and Done start folded; opening one lasts for this visit.
+    const [unfolded, setUnfolded] = useState<ReadonlySet<number>>(new Set())
+    const folds = (col: Recording) => col.data.kind === "not_now" || col.data.kind === "done"
+    const fold = (id: number, open: boolean) => setUnfolded((u) => { const n = new Set(u); if (open) n.add(id); else n.delete(id); return n })
 
     // Dragging a card: an orange line shows where it will land (between two cards, in its own column or another), the
     // column under it lights up when it's another, and dropping puts it there at once.
@@ -319,7 +369,7 @@ export const routes = [
       },
     }
 
-    // Dragging one of your columns by its head (Not now, To do and Done stay where they are): the spot is before the
+    // Dragging one of your columns by its head (Not now, Triage and Done stay where they are): the spot is before the
     // first of your other columns whose middle is right of the pointer; dropping saves the new order at once.
     const yours = cols.filter((col) => col.data.kind === "custom")
     const [draggedCol, setDraggedCol] = useState<Recording | null>(null)
@@ -365,16 +415,27 @@ export const routes = [
         <div ref={fadeOverflow} data-board {...boardDrop} {...panning} onPointerCancel={panning.onPointerUp} {...sx(ks.board)}>
           {cols.map((col) => {
             const inCol = cards.filter((k) => k.parent_id === col.id)
+            if (folds(col) && !unfolded.has(col.id))
+              return (
+                <section key={col.id} id={`column-${col.id}`} aria-label={col.title} {...dropZone(col)}
+                  {...sx(ks.spine, over?.col === col.id && dragged?.parent_id !== col.id && ks.columnOver)}>
+                  <button type="button" data-quiet aria-expanded={false} aria-label={`${col.title}, ${plural(inCol.length, "card")}. Open`} onClick={() => fold(col.id, true)} {...sx(ks.spineBtn)}>
+                    <span {...sx(ks.count, ks.spineCount)}>{inCol.length}</span><span {...sx(ks.vertical)}>{col.title}</span>
+                  </button>
+                </section>
+              )
             return (
               <section key={col.id} id={`column-${col.id}`} aria-label={col.title} data-your-column={col.data.kind === "custom" || undefined} {...dropZone(col)}
                 {...sx(ks.column, over?.col === col.id && dragged?.parent_id !== col.id && ks.columnOver, draggedCol?.id === col.id && ks.colDragging,
                   edgeBefore === col.id && ks.colDropBefore, edgeAfter === col.id && ks.colDropAfter)}>
                 <h2 {...colDrag(col)} title={canOrder && col.data.kind === "custom" ? "Drag to move this column" : undefined} {...sx(ks.colHead, canOrder && col.data.kind === "custom" && ks.colGrab)}>
-                  {col.data.color && <span title={col.data.color} {...sx(ks.dotBox, ks.dot(DOT[col.data.color] ?? DOT.gray!))} />}{col.title}<span {...sx(ks.count)}>{inCol.length}</span>
+                  {col.data.color && <span title={col.data.color} {...sx(ks.dotBox, ks.dot(DOT[col.data.color] ?? DOT.gray!))} />}
+                  {folds(col) ? <button type="button" data-quiet aria-expanded title="Fold" onClick={() => fold(col.id, false)} {...sx(ks.fold)}>{col.title}</button> : col.title}
+                  <span {...sx(ks.count)}>{inCol.length}</span>
                   {!isClient(m) && <a href={`/projects/${p.id}/columns/${col.id}`} aria-label={`${col.title} column options`} title="Column options" {...sx(ks.colMore)}>•••</a>}
                 </h2>
                 {col.data.watcher_ids?.length > 0 && <p {...sx(ks.colMeta)}><span>Watching: {names(people, col.data.watcher_ids)}</span></p>}
-                {/* New cards start in To do, like Fizzy: one quiet "+ Add a card" that opens a one-line field. */}
+                {/* New cards start in Triage, like Fizzy: one quiet "+ Add a card" that opens a one-line field. */}
                 {active && col.data.kind === "triage" && (adding
                   ? <AddCard key={loc.key} p={p} col={col} onClose={() => setAdding(false)} />
                   : <button type="button" data-quiet onClick={() => setAdding(true)} {...sx(ks.addCard)}>+ Add a card</button>)}
@@ -391,7 +452,7 @@ export const routes = [
                       const idx = anchor ? inCol.findIndex((k) => k.id === anchor.id) : inCol.length
                       return [...items.slice(0, idx), line, ...items.slice(idx)]
                     })()}</ul>
-                  : <>{over?.col === col.id && <div aria-hidden="true" {...sx(ks.dropLine)} />}<p {...sx(ks.none)}>{EMPTY[col.data.kind ?? "custom"]}</p></>}
+                  : <>{over?.col === col.id && <div aria-hidden="true" {...sx(ks.dropLine)} />}<p {...sx(ks.none)}>{col.data.note || EMPTY[col.data.kind ?? "custom"]}</p></>}
               </section>
             )
           })}
@@ -418,11 +479,12 @@ export const routes = [
         <Form action={`/projects/${p.id}/columns/${col.id}`}>
           <p><label>Rename <input name="name" defaultValue={col.title} required /></label></p>
           <p><label>Color <ColorSelect current={col.data.color ?? ""} /></label></p>
+          <p><label>What it's for (shown when it's empty)<br /><input name="note" defaultValue={col.data.note ?? ""} maxLength={140} placeholder={EMPTY[col.data.kind ?? "custom"]} size={50} /></label></p>
           <button>Save changes</button>
         </Form>
         <Form action={`/projects/${p.id}/columns/${col.id}/watch`}>
           <p>{watching ? "You're watching this column. You get notified when cards land in it." : "Watch this column to get notified when cards land in it."}</p>
-          <button>{watching ? "Stop watching this column" : "Watch this column"}</button>
+          <button data-quiet>{watching ? "Stop watching this column" : "Watch this column"}</button>
         </Form>
         <Form action={`/projects/${p.id}/columns/${col.id}/move-all`}>
           <p><label>Move all cards to… <ColumnSelect cols={others} current={null} /></label> <button>Move all cards</button></p>
@@ -449,6 +511,7 @@ export const routes = [
     const author = personById(r.creator_id)
     const live = r.status === "active" && project.status === "active"
     const doneCol = cols.find((x) => x.data.kind === "done")
+    const from = new URLSearchParams(loc.search).get("from")
     return (
       <Page title={r.title} crumbs={crumbs(project)}>
         <EnsureColumns p={project} boardId={boardId} cols={cols} />
@@ -468,11 +531,12 @@ export const routes = [
             <span>{names(people, r.data.assignee_ids) || "Nobody's on it"}</span>
             {r.data.due_on && <span>due {fmtDate(r.data.due_on)}</span>}
           </p>
-          <ByLine who={author} when={r.created_at} tz={m.time_zone} />
+          <ByLine who={author} when={r.created_at} tz={m.time_zone} via={r.via} />
           {r.body && <Fmt text={r.body} {...sx(kit.prose)} />}
+          {live && col?.data.kind === "review" && <Sweep p={project} r={r} then={from === "home" ? "/" : ""} tz={m.time_zone} />}
           {live && (
             <p {...sx(ks.cardDo)}>
-              {col?.data.kind !== "done" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} style={{ display: "inline" }} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
+              {col?.data.kind !== "done" && col?.data.kind !== "review" && <Form action={`/projects/${project.id}/cards/${r.id}/done`} style={{ display: "inline" }} optimistic={() => doneCol && moveLocal(r, doneCol.id)}><button data-primary>Mark as done</button></Form>}
               <a href={`/projects/${project.id}/cards/${r.id}/edit`}>Edit</a>
               <Form action={`/projects/${project.id}/cards/${r.id}/golden`} style={{ display: "inline" }} optimistic={() => flipLocal(r, (d) => ({ golden: !d.golden }))}>
                 <button data-quiet title="A Golden Ticket keeps a card at the top of its column" {...sx(kit.linkButton)}>{r.data.golden ? "Take the Golden Ticket away" : "Give it a Golden Ticket"}</button>

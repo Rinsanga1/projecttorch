@@ -78,7 +78,7 @@ export const ProgressBar = ({ pct, width = 64 }: { pct: number; width?: number }
 )
 
 export const Fmt = ({ text, ...rest }: { text: string | null | undefined } & React.HTMLAttributes<HTMLDivElement>) =>
-  <div {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />
+  <div data-prose {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />
 
 // ---------- the kit tool pages share ----------
 // A page heading with its actions, tags, a byline, a readable body, record rows, a filter bar, a quiet link row.
@@ -111,7 +111,8 @@ export const kit = stylex.create({
     borderColor: "transparent", backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
   },
   links: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s6, marginBottom: 0, maxWidth: "none", fontSize: text.sm },
-  empty: { maxWidth: "none", paddingBlock: space.s7, paddingInline: space.s5, borderRadius: radius.xl, backgroundColor: color.tile, textAlign: "center", color: color.muted },
+  // Grid, so a paragraph narrower than the box (prose keeps its measure) centers with the button under it.
+  empty: { display: "grid", justifyItems: "center", maxWidth: "none", paddingBlock: space.s7, paddingInline: space.s5, borderRadius: radius.xl, backgroundColor: color.tile, textAlign: "center", color: color.muted },
   // A day heading: a group label, then a hairline to the edge.
   day: { display: "flex", alignItems: "center", gap: space.s3, marginTop: space.s6, marginBottom: space.s2, fontSize: text.xs, fontWeight: 600,
     letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },
@@ -142,11 +143,11 @@ export const PageHead = ({ title, actions = [] }: { title: ReactNode; actions?: 
   )
 }
 
-/** "Name · Oct 4 at 3:12pm" under a title, with the author's face. */
-export const ByLine = ({ who, when, tz = "UTC" }: { who: { id: number; name: string; avatar_url?: string | null } | null | undefined; when: string; tz?: string }) => (
+/** "Name · via Claude Code · Oct 4 at 3:12pm" under a title, with the author's face. `via`: the agent that wrote it. */
+export const ByLine = ({ who, when, tz = "UTC", via }: { who: { id: number; name: string; avatar_url?: string | null } | null | undefined; when: string; tz?: string; via?: string | null }) => (
   <p {...sx(kit.by)}>
     <Face p={who} px={24} />
-    <span>{who ? <a href={`/people/${who.id}`} {...sx(kit.byName)}>{who.name}</a> : "(someone)"} · {fmtDateTime(when, tz)}</span>
+    <span>{who ? <a href={`/people/${who.id}`} {...sx(kit.byName)}>{who.name}</a> : "(someone)"}{via ? ` · via ${via}` : ""} · {fmtDateTime(when, tz)}</span>
   </p>
 )
 

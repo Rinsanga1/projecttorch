@@ -6,7 +6,7 @@ import { db } from "../store.ts"
 import { me, recordings } from "../data.ts"
 import { isAdmin, isOutOfOffice, isQuiet, titleOf, urlFor, TYPE_NAMES, type Recording } from "../../shared/domain.ts"
 import { excerpt, fmtDate, fmtDateTime, ms } from "../../shared/format.ts"
-import { ActivityList } from "../ui/activity.tsx"
+import { ActivityList, AgentsFilter, useJustAgents } from "../ui/activity.tsx"
 import { Form } from "../ui/forms.tsx"
 import { Page, page } from "../ui/page.tsx"
 
@@ -65,26 +65,18 @@ export const routes = [
       <Page title="Me">
         <h1>Me</h1>
         <p><b>{m.name}</b>{m.title ? `, ${m.title}` : ""}{isQuiet(m) ? " · ☾ notifications paused" : ""}{isOutOfOffice(m) ? ` · out of office until ${fmtDate(m.prefs.ooo!.until)}` : ""}</p>
-        <ul>
-          <li><a href="/my/assignments">My Assignments</a></li>
-          <li><a href="/my/calendar">My Calendar</a></li>
-          <li><a href="/my/bookmarks">My Bookmarks</a></li>
-          <li><a href="/my/drafts">My Drafts</a></li>
-          <li><a href="/my/activity">My Activity</a></li>
-          <li><a href="/my/reactions">My Reactions</a></li>
-          <li><a href="/my/reminders">My Reminders</a></li>
-        </ul>
+        {/* Only what has no other way in. Assignments and Calendar open from Home, Drafts from Posts, Reminders and
+            Reactions from Updates and each item, Help and Switch accounts from the footer. */}
         <ul>
           <li><a href="/my/profile">Profile</a></li>
           <li><a href="/my/notifications">Notification settings</a></li>
           <li><a href="/my/out-of-office">Out of office</a></li>
           <li><a href="/my/appearance">Appearance</a></li>
           <li><a href="/my/security">Login & security</a></li>
-          <li><a href="/my/apps">Get the apps</a></li>
+          <li><a href="/my/agents">Agents</a></li>
           {isAdmin(m) && <li><a href="/admin">Admin</a></li>}
-          <li><a href="/help">Help</a></li>
-          <li><a href="/accounts">Switch accounts</a></li>
         </ul>
+        <p><a href="/my/bookmarks">Bookmarks</a> · <a href="/my/activity">Your activity</a></p>
         <Form action="/signout"><button>Sign out</button></Form>
       </Page>
     )
@@ -219,16 +211,18 @@ export const routes = [
     const [q] = useSearchParams()
     const m = me()
     const pageN = Math.max(1, Number(q.get("page")) || 1)
+    const agents = useJustAgents()
     const evs = [...db.events.values()]
-      .filter((e) => e.person_id === m.id)
+      .filter((e) => e.person_id === m.id && (!agents || !!e.via))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice((pageN - 1) * 50, pageN * 50 + 1)
       .map((e) => ({ ...e, name: m.name, avatar_url: m.avatar_url, project_name: e.project_id ? projectName(e.project_id) : undefined }))
     return (
       <Page title="My Activity" crumbs={MY}>
         <h1>My Activity</h1>
-        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={m.time_zone} /> : <p>You haven't done anything yet. Your posts, comments and check-offs show up here.</p>}
-        {evs.length > 50 && <p><a href={`/my/activity?page=${pageN + 1}`}>Show more</a></p>}
+        <AgentsFilter />
+        {evs.length ? <ActivityList events={evs.slice(0, 50)} tz={m.time_zone} /> : <p>{agents ? "Your agents haven't done anything yet. What they do for you shows up here." : "You haven't done anything yet. Your posts, comments and check-offs show up here."}</p>}
+        {evs.length > 50 && <p><a href={`/my/activity?page=${pageN + 1}${agents ? "&by=agents" : ""}`}>Show more</a></p>}
       </Page>
     )
   }),
@@ -317,7 +311,6 @@ export const routes = [
           <p><label>Time zone<br /><select name="time_zone" defaultValue={m.time_zone}>{TIME_ZONES.map((z) => <option key={z}>{z}</option>)}</select></label></p>
           <p><button>Save changes</button></p>
         </Form>
-        <p><small>ponytail: photo is a link for now; upload and crop come with file storage.</small></p>
         <p><a href={`/people/${m.id}`}>See your profile as others do</a></p>
       </Page>
     )
@@ -352,7 +345,6 @@ export const routes = [
     return (
       <Page title="Login & security" crumbs={MY}>
         <h1>Login & security</h1>
-        <p><small>ponytail: there's no sign-in yet, so passwords aren't stored. These forms validate and record your choices.</small></p>
         <h2>Email address</h2>
         <Form action="/my/security/email">
           <p><label>Email <input type="email" name="email" defaultValue={m.email} required /></label> <button>Change email</button></p>
@@ -396,7 +388,7 @@ export const routes = [
         <li>Mac</li>
         <li>Windows</li>
       </ul>
-      <p><small>ponytail: no native apps yet. This page is where the download links go.</small></p>
+      <p><small>The apps aren't out yet. Their download links will be here.</small></p>
     </Page>
   )),
 

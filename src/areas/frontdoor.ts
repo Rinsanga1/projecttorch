@@ -2,20 +2,130 @@
 // two-step verification, accepting an invitation, the account chooser, account on hold, sign out.
 // The pages are client/areas/frontdoor.tsx; these are their posts, plus lookups signed-out pages need.
 //
-// ponytail: no real auth. Passwords are checked for shape only and never stored; "signing in" just sets the
-// `pid` cookie for the person with that email. Swap in hashed passwords + sessions when this goes live.
+// Signing in starts a session (`sessions`, the `sid` cookie; see loadMe in lib/web.ts). Passwords and Google ids live
+// in `logins`, one per email address, so one login opens every account that address is in.
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { get, post, pubGet, pubPost, redirect, invalid, json, withCookie, resync, str, num, type Ctx, type Person, type Account } from "../lib/web.ts"
-import { defaultTools, createRecording, logEvent, sendEmail, type Project } from "../lib/core.ts"
+import { get, post, pubGet, pubPost, redirect, invalid, json, withCookie, resync, navigate, hashToken, origin, str, num, DEV, SESSION_DAYS, type Ctx, type PubCtx, type Person, type Account, type Reply } from "../lib/web.ts"
+import { logEvent, sendEmail, type Project } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const LINK_MINUTES = 15
 const RESET_HOURS = 2
+const VERIFY_MINUTES = 10
 
-/** Become this person: the browser drops its copy and bootstraps as them. */
-const signInAs = (to: string, personId: number, flash?: string) => resync(withCookie(redirect(to, flash), "pid", String(personId)))
+type Login = { email: string; password_hash: string | null; google_sub: string | null }
+type GoogleId = { sub: string; email: string; name: string }
+
+const randomToken = () => randomBytes(32).toString("base64url")
+
+// ---------- sessions ----------
+
+/** A new session for this person: a random token in the `sid` cookie, its hash in `sessions`. Drops the dev `pid`. */
+const startSession = (r: Reply, personId: number, verified = true) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const token = randomToken()
+    yield* sql`insert into sessions ${sql.insert({ token_hash: hashToken(token), person_id: personId, verified })}`
+    return withCookie(withCookie(r, "sid", token, { httpOnly: true, maxAge: SESSION_DAYS * 86400 }), "pid", null)
+  })
+
+/** End this browser's session, if it has one. */
+const endSession = (c: PubCtx) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    if (c.req.cookies.sid) yield* sql`delete from sessions where token_hash = ${hashToken(c.req.cookies.sid)}`
+  })
+
+/** Become this person: a fresh session, and the browser drops its copy and bootstraps as them. */
+const signInAs = (c: PubCtx, to: string, personId: number, flash?: string) =>
+  Effect.gen(function* () {
+    yield* endSession(c)
+    return resync(yield* startSession(redirect(to, flash), personId))
+  })
+
+/** A page in this app to go back to after signing in (`next`), or null for anything else. */
+const safeNext = (s: string | null | undefined) => (s && /^\/(?![/\\])/.test(s) ? s : null)
+
+/** Where to land after signing in: two-step check, then `next`, or the account chooser if there's more than one account. */
+const finishSignIn = (c: PubCtx, person: Person, accounts: number, next?: string | null) =>
+  person.prefs.two_factor
+    ? Effect.gen(function* () {
+        yield* endSession(c)
+        return yield* startSession(redirect(`/signin/verify${next ? `?next=${encodeURIComponent(next)}` : ""}`), person.id, false)
+      })
+    : signInAs(c, next ?? (accounts > 1 ? "/accounts" : "/"), person.id)
+
+// ---------- logins ----------
+
+export const loginFor = (email: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    return (yield* sql<Login>`select * from logins where email = lower(${email})`)[0] ?? null
+  })
+
+export const setPassword = (email: string, password: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const hash = yield* Effect.promise(() => Bun.password.hash(password))
+    yield* sql`insert into logins (email, password_hash) values (lower(${email}), ${hash})
+      on conflict (email) do update set password_hash = excluded.password_hash`
+  })
+
+// ponytail: no attempt limit; argon2 is slow enough to start. Lock out after N misses if anyone hammers it.
+export const checkPassword = (email: string, password: string) =>
+  Effect.gen(function* () {
+    const login = yield* loginFor(email)
+    if (!login?.password_hash || !password) return false
+    return yield* Effect.promise(() => Bun.password.verify(password, login.password_hash!))
+  })
+
+const setGoogle = (email: string, sub: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`insert into logins (email, google_sub) values (lower(${email}), ${sub})
+      on conflict (email) do update set google_sub = coalesce(logins.google_sub, excluded.google_sub)`
+  })
+
+// ---------- Google ----------
+// The authorization-code flow, by hand: send people to Google, swap the code for an ID token, read their verified email.
+// Google is on when GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set; otherwise its buttons don't show.
+
+const GOOGLE = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+  ? { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET }
+  : null
+
+const callbackUrl = (c: PubCtx) => `${origin(c.req)}/api/auth/google/callback`
+
+const googleIdentity = async (code: string, redirectUri: string): Promise<GoogleId | null> => {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    body: new URLSearchParams({ code, client_id: GOOGLE!.id, client_secret: GOOGLE!.secret, redirect_uri: redirectUri, grant_type: "authorization_code" }),
+  })
+  if (!res.ok) return null
+  const { id_token } = (await res.json()) as { id_token?: string }
+  // Straight from Google over TLS, so its signature needn't be checked (Google's own guidance for this flow).
+  const p = JSON.parse(Buffer.from(id_token?.split(".")[1] ?? "", "base64url").toString() || "null")
+  return p?.aud === GOOGLE!.id && p.email_verified && p.sub && p.email ? { sub: p.sub, email: String(p.email).toLowerCase(), name: p.name ?? "" } : null
+}
+
+// Who Google said you are, carried to the sign-up or join form in a signed cookie that lasts 15 minutes.
+const sign = (d: string) => createHmac("sha256", GOOGLE!.secret).update(d).digest("base64url")
+const sealGoogle = (g: GoogleId) => {
+  const d = Buffer.from(JSON.stringify({ ...g, exp: Date.now() + 15 * 60_000 })).toString("base64url")
+  return `${d}.${sign(d)}`
+}
+const openGoogle = (c: PubCtx): GoogleId | null => {
+  const [d, sig] = (c.req.cookies.google ?? "").split(".")
+  if (!GOOGLE || !d || !sig) return null
+  const want = Buffer.from(sign(d)), got = Buffer.from(sig)
+  if (want.length !== got.length || !timingSafeEqual(want, got)) return null
+  const g = JSON.parse(Buffer.from(d, "base64url").toString())
+  return g.exp > Date.now() ? { sub: g.sub, email: g.email, name: g.name } : null
+}
+const withGoogle = (r: Reply, g: GoogleId) => withCookie(r, "google", sealGoogle(g), { httpOnly: true, maxAge: 15 * 60 })
 
 /** Joined, active people with this email, one per account. */
 const peopleByEmail = (email: string) =>
@@ -32,23 +142,61 @@ const setPrefs = (personId: number, prefs: Record<string, unknown>) =>
     yield* sql`update people set prefs = prefs || ${JSON.stringify(prefs)}::jsonb where id = ${personId}`
   })
 
-/** Where to land after signing in: two-step check, then the account chooser if there's more than one account. */
-const finishSignIn = (person: Person, accounts: number) =>
-  person.prefs.two_factor
-    ? withCookie(redirect("/signin/verify"), "pending_pid", String(person.id))
-    : signInAs(accounts > 1 ? "/accounts" : "/", person.id)
-
 const UNKNOWN_EMAIL = "We don't know that email address. Check for typos, or sign up."
+const GOOGLE_EXPIRED = "Your Google sign-in timed out. Try the Google button again."
 
 // ---------- routes ----------
 export const routes = [
+  /** What the signed-out pages can offer. */
+  pubGet("/auth/options", () => Effect.succeed(json({ google: !!GOOGLE }))),
+
+  /** Off to Google. `then` is where it leads on the way back: signin, signup, or join:<invitation token>; `next` is the
+   * page to land on after signing in. Both ride in the state cookie. */
+  pubGet("/auth/google", (c) =>
+    Effect.sync(() => {
+      if (!GOOGLE) return navigate(redirect("/signin"))
+      const then = c.query.get("then") ?? ""
+      const state = randomToken()
+      const q = new URLSearchParams({
+        client_id: GOOGLE.id, redirect_uri: callbackUrl(c), response_type: "code", scope: "openid email profile", state, prompt: "select_account",
+      })
+      const carry = { then: /^(signup|join:.+)$/.test(then) ? then : "signin", next: safeNext(c.query.get("next")) }
+      return navigate(withCookie(redirect(`https://accounts.google.com/o/oauth2/v2/auth?${q}`), "google_state",
+        `${state}.${Buffer.from(JSON.stringify(carry)).toString("base64url")}`, { httpOnly: true, maxAge: 600 }))
+    })),
+
+  /** Google sends people back here: sign them in, or carry who they are to the sign-up or join form. */
+  pubGet("/auth/google/callback", (c) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const [state, carried = ""] = (c.req.cookies.google_state ?? "").split(".")
+      const { then = "signin", next = null } = (() => { try { return JSON.parse(Buffer.from(carried, "base64url").toString()) } catch { return {} } })()
+      const go = (r: Reply) => navigate(withCookie(r, "google_state", null))
+      const code = c.query.get("code")
+      // No code means they backed out on Google's side.
+      if (!GOOGLE || !state || c.query.get("state") !== state || !code) return go(redirect("/signin"))
+      const g = yield* Effect.promise(() => googleIdentity(code, callbackUrl(c)).catch(() => null))
+      if (!g) return go(redirect("/signin"))
+
+      if (then.startsWith("join:")) return go(withGoogle(redirect(`/join/${encodeURIComponent(then.slice(5))}?google=1`), g))
+
+      // A login that already uses this Google account, or failing that, one for its (verified) address.
+      const [login] = yield* sql<Login>`select * from logins where google_sub = ${g.sub} or email = ${g.email} order by (google_sub = ${g.sub}) desc nulls last limit 1`
+      if (login && !login.google_sub) yield* setGoogle(login.email, g.sub)
+      const people = yield* peopleByEmail(login?.email ?? g.email)
+      if (people.length) return go(yield* finishSignIn(c, people[0]!, people.length, safeNext(next)))
+      // New here: the sign-up form, with name and email from Google.
+      return go(withGoogle(redirect(`/signup?${new URLSearchParams({ google: "1", name: g.name, email: g.email })}`), g))
+    })),
+
   // Sign up
   pubPost("/signup", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const fd = yield* c.form
-      const v = { name: str(fd, "name"), email: str(fd, "email").toLowerCase(), company: str(fd, "company") }
-      const google = fd.get("google") === "1"
+      const google = fd.get("google") === "1" ? openGoogle(c) : null
+      if (fd.get("google") === "1" && !google) return invalid([GOOGLE_EXPIRED])
+      const v = { name: str(fd, "name"), email: google?.email ?? str(fd, "email").toLowerCase(), company: str(fd, "company") }
       const errs = [
         ...(v.name ? [] : ["Tell us your name."]),
         ...(EMAIL.test(v.email) ? [] : ["That doesn't look like an email address."]),
@@ -59,30 +207,21 @@ export const routes = [
       if (errs.length) return invalid(errs)
 
       const [account] = yield* sql<Account>`insert into accounts ${sql.insert({
-        name: v.company, status: "trial", trial_ends_on: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10), billing_email: v.email,
+        // In beta, free: no trial to run out. (The on-hold job below still handles trials, for when there are prices.)
+        name: v.company, status: "active", billing_email: v.email,
         settings: JSON.stringify({ who_can_create_projects: "everyone", who_can_invite: "everyone", clients_can_ping: false }),
       })} returning *`
       const [company] = yield* sql<{ id: number }>`insert into companies ${sql.insert({ account_id: account!.id, name: v.company })} returning id`
       const [me] = yield* sql<Person>`insert into people ${sql.insert({
         account_id: account!.id, company_id: company!.id, name: v.name, email: v.email, role: "owner", joined_at: new Date(),
-        prefs: JSON.stringify({ notify_email: true, google }),
+        prefs: JSON.stringify({ notify_email: true, google: !!google }),
       })} returning *`
+      if (google) yield* setGoogle(v.email, google.sub)
+      else yield* setPassword(v.email, str(fd, "password"))
+      // No HQ and no sample project: a new account starts empty, and ready-made projects come from Templates.
       const ctx: Ctx = { ...c, me: me!, account: account! }
-      const project = (p: { name: string; description: string; is_hq?: boolean; tools?: ReturnType<typeof defaultTools> }) =>
-        sql<Project>`insert into projects ${sql.insert({
-          account_id: account!.id, name: p.name, description: p.description, is_hq: p.is_hq ?? false, all_access: p.is_hq ?? false,
-          tools: JSON.stringify(p.tools ?? []), created_by: me!.id,
-        })} returning *`.pipe(Effect.map((r) => r[0]!))
-      yield* project({ name: `${v.company} HQ`, description: "Company-wide announcements and stuff everyone needs.", is_hq: true })
-      // A sample project to poke around in, with Posts and Tasks open (new projects start with no windows). Theirs to trash.
-      const sample = yield* project({ name: "Sample project (yours to trash)", description: "Poke around. Post, check things off, then trash it from the ••• menu.",
-        tools: defaultTools().filter((t) => t.type === "message_board" || t.type === "todos") })
-      yield* sql`insert into project_people (project_id, person_id) values (${sample.id}, ${me!.id})`
-      yield* createRecording(ctx, { project: sample, type: "message", title: "Welcome! Start here", body: "This is a post. Everyone on the project can read it and comment below.\n\nAdd a comment, then check off the tasks.", quiet: true })
-      for (const t of ["Add a comment to the welcome post", "Make your first real project", "Invite someone"])
-        yield* createRecording(ctx, { project: sample, type: "todo", title: t, data: { assignee_ids: [me!.id] }, quiet: true })
       yield* logEvent(ctx, { project_id: null, action: "created", summary: `started the ${v.company} account` })
-      return signInAs("/welcome", me!.id)
+      return withCookie(yield* signInAs(c, "/welcome", me!.id), "google", null)
     })),
 
   // First run
@@ -96,7 +235,7 @@ export const routes = [
       })} returning *`
       yield* sql`insert into project_people (project_id, person_id) values (${p!.id}, ${c.me.id})`
       yield* logEvent(c, { project_id: p!.id, action: "created", summary: `started the project ${name}` })
-      return redirect(`/projects/${p!.id}/people/setup`)
+      return redirect(`/projects/${p!.id}`)
     })),
 
   // Sign in: email first, then a password, an emailed link, or Google.
@@ -112,10 +251,9 @@ export const routes = [
       const email = str(fd, "email")
       const people = yield* peopleByEmail(email)
       if (!people.length) return invalid([UNKNOWN_EMAIL])
-      // ponytail: any non-empty password works; nothing is stored to compare against.
-      if (fd.get("google") !== "1" && !str(fd, "password"))
+      if (!(yield* checkPassword(email, str(fd, "password"))))
         return invalid(["That email and password don't match. Try again, or we can email you a sign-in link."])
-      return finishSignIn(people[0]!, people.length)
+      return yield* finishSignIn(c, people[0]!, people.length, safeNext(str(fd, "next")))
     })),
 
   pubPost("/signin/link", (c) =>
@@ -142,7 +280,7 @@ export const routes = [
       const at = (person?.prefs as any)?.signin_token_at
       if (!person || !at || Date.now() - Date.parse(at) > LINK_MINUTES * 60_000) return json({ expired: true })
       yield* setPrefs(person.id, { signin_token: null, signin_token_at: null })
-      return finishSignIn(person, (yield* peopleByEmail(person.email)).length)
+      return yield* finishSignIn(c, person, (yield* peopleByEmail(person.email)).length)
     })),
 
   // Forgot / reset password
@@ -171,27 +309,31 @@ export const routes = [
     Effect.gen(function* () {
       const person = yield* resetPerson(c.params.token)
       if (!person) return invalid(["This reset link has expired."])
-      if (str(yield* c.form, "password").length < 8) return invalid(["Pick a longer password. At least 8 characters."])
-      // ponytail: the new password isn't stored (no auth yet). The token is spent either way.
+      const password = str(yield* c.form, "password")
+      if (password.length < 8) return invalid(["Pick a longer password. At least 8 characters."])
+      yield* setPassword(person.email, password)
       yield* setPrefs(person.id, { reset_token: null, reset_token_at: null })
-      return signInAs((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/", person.id, "Password saved. You're signed in.")
+      return yield* signInAs(c, (yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/", person.id, "Password saved. You're signed in.")
     })),
 
-  // Two-step verification
+  // Two-step verification: signing in left an unverified session; a good code verifies it.
   pubPost("/signin/verify", (c) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const pid = num(c.req.cookies.pending_pid)
-      if (!pid) return redirect("/signin")
+      const sid = c.req.cookies.sid ?? ""
+      const [pending] = yield* sql<{ person_id: number }>`select person_id from sessions
+        where token_hash = ${hashToken(sid)} and not verified and created_at > now() - make_interval(mins => ${VERIFY_MINUTES})`
+      if (!pending) return redirect("/signin", "That took too long. Sign in again.")
       const fd = yield* c.form
       const backup = fd.get("backup") === "1"
       const code = str(fd, "code").replace(/\s/g, "")
-      // ponytail: any well-formed code passes. Real TOTP check goes here with auth.
+      // ponytail: any well-formed code passes. Real TOTP check goes here; the password already had to be right.
       if (backup ? !/^[a-z0-9-]{8,}$/i.test(code) : !/^\d{6}$/.test(code))
         return invalid([backup ? "That backup code didn't work. Each one works once." : "That code didn't work. Codes change every 30 seconds, so try the newest one."])
-      const [person] = yield* sql<Person>`select * from people where id = ${pid} and removed_at is null`
+      const [person] = yield* sql<Person>`select * from people where id = ${pending.person_id} and removed_at is null`
       if (!person) return redirect("/signin")
-      return withCookie(signInAs((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/", person.id), "pending_pid", null)
+      yield* sql`update sessions set verified = true, last_seen_at = now() where token_hash = ${hashToken(sid)}`
+      return resync(redirect(safeNext(str(fd, "next")) ?? ((yield* peopleByEmail(person.email)).length > 1 ? "/accounts" : "/")))
     })),
 
   // Accept an invitation
@@ -199,8 +341,13 @@ export const routes = [
   pubGet("/join/:token", (c) =>
     Effect.gen(function* () {
       const inv = yield* invitation(c.params.token)
+      const team = inv.state === "gone" ? yield* teamAccount(c.params.token) : null
+      if (team) {
+        const g = openGoogle(c)
+        return json({ state: "team", account: team.name, already_in: c.me?.account_id === team.id, email: g?.email ?? c.me?.email ?? "", name: g?.name ?? "", google: g?.email ?? null })
+      }
       return json(inv.state === "open"
-        ? { state: "open", account: inv.account.name, inviter: inv.inviter, name: inv.person.name, email: inv.person.email, time_zone: inv.person.time_zone }
+        ? { state: "open", account: inv.account.name, inviter: inv.inviter, name: inv.person.name, email: inv.person.email, time_zone: inv.person.time_zone, google: openGoogle(c)?.email ?? null }
         : inv.state === "used" ? { state: "used", account: inv.account?.name ?? null, email: inv.email } : { state: "gone" })
     })),
 
@@ -208,19 +355,32 @@ export const routes = [
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const inv = yield* invitation(c.params.token)
+      const team = inv.state === "gone" ? yield* teamAccount(c.params.token) : null
+      if (team) return yield* joinTeam(c, team)
       if (inv.state !== "open") return invalid([inv.state === "used" ? "This invitation was already used." : "This invitation was cancelled."])
       const fd = yield* c.form
       const name = str(fd, "name")
-      const google = fd.get("google") === "1"
-      const errs = [...(name ? [] : ["Tell us your name."]), ...(google || str(fd, "password").length >= 8 ? [] : ["Pick a longer password. At least 8 characters."])]
+      const password = str(fd, "password")
+      const google = fd.get("google") === "1" ? openGoogle(c) : null
+      if (fd.get("google") === "1" && !google) return invalid([GOOGLE_EXPIRED])
+      const errs = [...(name ? [] : ["Tell us your name."]), ...(google || password.length >= 8 ? [] : ["Pick a longer password. At least 8 characters."])]
       if (errs.length) return invalid(errs)
-      const tz = str(fd, "time_zone")
-      const validTz = (() => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return !!tz } catch { return false } })()
-      yield* sql`update people set name = ${name}, time_zone = ${validTz ? tz : inv.person.time_zone}, joined_at = now(), invite_token = null,
-        prefs = prefs || ${JSON.stringify({ used_invite_token: c.params.token, google })}::jsonb where id = ${inv.person.id}`
+      const email = inv.person.email
+      const login = yield* loginFor(email)
+      if (google) {
+        if (google.email !== email.toLowerCase())
+          return invalid([`Google signed you in as ${google.email}, but this invitation is for ${email}. Use a password, or pick that Google account.`])
+        yield* setGoogle(email, google.sub)
+      } else if (login) {
+        // The address already has a login (from another account): it has to be them, so its password, not a new one.
+        if (!(yield* checkPassword(email, password)))
+          return invalid(["You already have a Saintsflow login with this email. Use that password, or join with Google."])
+      } else yield* setPassword(email, password)
+      yield* sql`update people set name = ${name}, time_zone = ${validTz(str(fd, "time_zone")) ?? inv.person.time_zone}, joined_at = now(), invite_token = null,
+        prefs = prefs || ${JSON.stringify({ used_invite_token: c.params.token, google: !!google })}::jsonb where id = ${inv.person.id}`
       const [first] = yield* sql<{ project_id: number }>`select pp.project_id from project_people pp join projects p on p.id = pp.project_id
         where pp.person_id = ${inv.person.id} and p.status = 'active' order by pp.added_at limit 1`
-      return signInAs(first ? `/projects/${first.project_id}` : "/", inv.person.id, `Welcome to ${inv.account.name}!`)
+      return withCookie(yield* signInAs(c, first ? `/projects/${first.project_id}` : "/", inv.person.id, `Welcome to ${inv.account.name}!`), "google", null)
     })),
 
   // Account chooser: the other accounts aren't in the browser's copy.
@@ -235,18 +395,28 @@ export const routes = [
       const id = num(str(yield* c.form, "person_id"))
       const target = (yield* peopleByEmail(c.me.email)).find((p) => p.id === id)
       if (!target) return redirect("/accounts", "You're not in that account.")
-      return signInAs("/", target.id, `Switched to ${target.account_name}.`)
+      return yield* signInAs(c, "/", target.id, `Switched to ${target.account_name}.`)
     })),
 
-  // Signing out sets pid=out, which web.ts loadMe treats as nobody.
-  pubPost("/signout", () => Effect.succeed(resync(withCookie(redirect("/signin", "You're signed out."), "pid", "out")))),
+  // In dev, pid=out also stops the switcher's cookie from signing you straight back in.
+  pubPost("/signout", (c) =>
+    Effect.gen(function* () {
+      yield* endSession(c)
+      return resync(withCookie(withCookie(redirect("/signin", "You're signed out."), "sid", null), "pid", DEV ? "out" : null))
+    })),
 ]
 
-// Trials that ran out go on hold. Everything stays; Billing and Export keep working.
 export const jobs = [
+  // Trials that ran out go on hold. Everything stays; Billing and Export keep working.
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`update accounts set status = 'on_hold' where status = 'trial' and trial_ends_on < current_date`
+  }),
+  // Sessions unused for 30 days, and two-step checks nobody finished.
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`delete from sessions where last_seen_at < now() - make_interval(days => ${SESSION_DAYS})
+      or (not verified and created_at < now() - make_interval(mins => ${VERIFY_MINUTES}))`
   }),
 ]
 
@@ -283,6 +453,50 @@ const invitation = (token: string | undefined) =>
     return { state: "gone" } as Invitation
   })
 
+const validTz = (tz: string) => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz || null } catch { return null } }
+
+/** The account whose team link this is, while it's open for business. */
+const teamAccount = (code: string | undefined) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    return (yield* sql<Account>`select * from accounts where join_code = ${code ?? ""} and status in ('active', 'trial')`)[0] ?? null
+  })
+
+/** Join through the team link: anyone with it becomes a member, after Campfire. Clients only come in by invitation. */
+const joinTeam = (c: PubCtx, account: Account) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const fd = yield* c.form
+    const google = fd.get("google") === "1" ? openGoogle(c) : null
+    if (fd.get("google") === "1" && !google) return invalid([GOOGLE_EXPIRED])
+    const v = { name: str(fd, "name"), email: google?.email ?? str(fd, "email").toLowerCase(), password: str(fd, "password") }
+    const errs = [
+      ...(v.name ? [] : ["Tell us your name."]),
+      ...(EMAIL.test(v.email) ? [] : ["That doesn't look like an email address."]),
+      ...(google || v.password.length >= 8 ? [] : ["Pick a longer password. At least 8 characters."]),
+    ]
+    if (errs.length) return invalid(errs)
+    const [existing] = yield* sql<Person>`select * from people where account_id = ${account.id} and lower(email) = ${v.email}`
+    // Someone who was removed stays out until a person invites them back.
+    if (existing?.removed_at) return invalid([`${v.email} can't join ${account.name} with this link. Ask someone there to invite you.`])
+    if (existing?.joined_at) return invalid([`${v.email} is already in ${account.name}. Sign in instead.`])
+    // The link proves nothing about the address, so a pending invitation (its role, its projects) is only taken up from its email.
+    if (existing) return invalid([`There's an invitation waiting for ${v.email}. Use the link in that email to join.`])
+    if (google) yield* setGoogle(v.email, google.sub)
+    else if (yield* loginFor(v.email)) {
+      if (!(yield* checkPassword(v.email, v.password)))
+        return invalid(["You already have a Saintsflow login with this email. Use that password, or join with Google."])
+    } else yield* setPassword(v.email, v.password)
+    const tz = validTz(str(fd, "time_zone")) ?? "UTC"
+    const [company] = yield* sql<{ id: number }>`select id from companies where account_id = ${account.id} and name = ${account.name} limit 1`
+    const [me] = yield* sql<Person>`insert into people ${sql.insert({
+      account_id: account.id, company_id: company?.id ?? null, name: v.name, email: v.email, role: "member", time_zone: tz, joined_at: new Date(),
+      prefs: JSON.stringify({ notify_email: true, google: !!google }),
+    })} returning *`
+    yield* logEvent({ ...c, me: me!, account }, { project_id: null, action: "joined", summary: "joined with the team link" })
+    return withCookie(yield* signInAs(c, "/", me!.id, `Welcome to ${account.name}!`), "google", null)
+  })
+
 export const seed = (s: Seed) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
@@ -298,4 +512,7 @@ export const seed = (s: Seed) =>
     }, true)
     // Ann uses two-step verification, so signing in as ann@acme.test shows the code step.
     yield* sql`update people set prefs = prefs || '{"two_factor": true}'::jsonb where id = ${s.people.ann.id}`
+    // Everyone in the sample data signs in with the password "saintsflow".
+    const hash = yield* Effect.promise(() => Bun.password.hash("saintsflow"))
+    yield* sql`insert into logins (email, password_hash) select distinct lower(email), ${hash} from people where joined_at is not null on conflict do nothing`
   })
