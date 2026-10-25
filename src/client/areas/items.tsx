@@ -251,7 +251,7 @@ export const routes = [
     return (
       <Page title="React" crumbs={crumbsFor(project, r)}>
         <h1>React</h1>
-        <p>Send a quick reply to <a href={urlFor(r)}>{titleOf(r)}</a>: an emoji or a few words.</p>
+        <p>Reply to “<a href={urlFor(r)}>{titleOf(r)}</a>” with an emoji or a few words.</p>
         {boostsOn(r.id).length ? <BoostList recordingId={r.id} /> : <p>No reactions yet.</p>}
         <Form action={`/r/${r.id}/reactions`} optimistic={addBoost(r.id)}>
           <p><label>An emoji or a few words (16 letters or less)<br /><input name="content" maxLength={16} required autoFocus /></label></p>

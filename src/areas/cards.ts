@@ -25,13 +25,17 @@ const boardId = (p: Project, tool?: string) => (tool && p.tools.some((t) => t.id
 /** That board's address. */
 const board = (p: Project, tool?: string) => windowUrl(p, { id: boardId(p, tool), type: "cardtable" })
 
-/** Every board has Not now, Triage, Review and Done. Made on first visit (the board page posts to /board/setup). */
+/** Every board has Not now, Triage, Review and Done. Made on first visit (the board page posts to /board/setup). A new
+ * board also starts with Running and Mine, the same columns everywhere, so people and agents share one way of working. */
 const ensureColumns = (c: Ctx, p: Project, tool?: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const id = boardId(p, tool)
     const columns = sql<Recording>`select * from recordings where project_id = ${p.id} and type = 'column' and status = 'active' and coalesce(data->>'tool', 'cardtable') = ${id}`
     const existing = yield* columns
+    if (!existing.length)
+      for (const [i, [title, color, note]] of [["Running", "", "What's being worked on now."], ["Mine", "blue", "Work only a person can do."]].entries())
+        yield* createRecording(c, { project: p, type: "column", tool: id, title, data: { kind: "custom", color, note, watcher_ids: [] }, visible_to_clients: true, position: i + 1, quiet: true })
     for (const [kind, title] of [["not_now", "Not now"], ["triage", "Triage"], ["review", "Review"], ["done", "Done"]] as const)
       if (!existing.some((col) => col.data.kind === kind))
         yield* createRecording(c, { project: p, type: "column", tool: id, title, data: { kind, color: "", watcher_ids: [] }, visible_to_clients: true, quiet: true })

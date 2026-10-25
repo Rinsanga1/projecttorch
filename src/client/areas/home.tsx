@@ -6,10 +6,11 @@ import { observer } from "mobx-react-lite"
 import { me, account, findProject, visibleProjects, accountPeople, canCreateProjects, canInvite, projectPeople, recordings, NoAccess, type ProjectRow } from "../data.ts"
 import { isClient, projectUrl, urlFor, type Recording } from "../../shared/domain.ts"
 import { addDays, ago, fmtDate, excerpt, ms, plural, today } from "../../shared/format.ts"
-import { Face, kit, ProgressBar, sx } from "../ui/kit.tsx"
+import { kit, ProgressBar, sx } from "../ui/kit.tsx"
 import { lateTasks, progressOf, seenOf, windowNews } from "../news.ts"
 import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
+import { TeamLink } from "./people.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
 
 const DESKTOP = "@media (min-width: 768px)"
@@ -45,7 +46,7 @@ const hs = stylex.create({
   homeTitle: { margin: 0, fontSize: text.lg },
   homeCards: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: space.s3, margin: 0 },
   hcard: {
-    position: "relative", display: "flex", flexDirection: "column", gap: 6, minHeight: 176, padding: space.s5, borderRadius: radius.xl, borderTopWidth: 0,
+    position: "relative", display: "flex", flexDirection: "column", gap: 6, minHeight: 148, padding: space.s5, borderRadius: radius.xl, borderTopWidth: 0,
     transitionProperty: "background-color", transitionDuration: motion.fast,
     backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
   },
@@ -63,39 +64,19 @@ const hs = stylex.create({
   },
   hlate: { paddingBlock: 1, paddingInline: 8, borderRadius: radius.pill, color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
   hcalm: { fontWeight: 400, color: color.muted },
-  hfaces: { display: "flex", paddingLeft: 4, marginTop: space.s2 },
-  hface: { marginLeft: -4, borderRadius: radius.pill, boxShadow: `0 0 0 2px ${color.tile}`, display: "inline-flex" },
   hmore: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s3, marginBottom: 0, fontSize: text.sm },
   // Two short lists under the projects: what's due for you, what's coming up.
   waiting: { marginTop: space.s7 },
   waitingCount: { color: color.muted, fontWeight: 400 },
-  lists: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, gap: space.s3, marginTop: space.s7 },
+  // Each list as tall as what it holds: a short one leaves no empty gray box beside a long one.
+  lists: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, alignItems: "start", gap: space.s3, marginTop: space.s7 },
+  foot: { marginTop: space.s6 },
+  // A template: its name and what it is, and the button to use it at the end of the row.
+  trow: { display: "flex", alignItems: "center", gap: space.s4, justifyContent: "space-between" },
+  tuse: { flexShrink: 0 },
   listTitle: { marginTop: 0, marginBottom: space.s2, fontSize: text.md },
   late: { color: color.accentText, fontWeight: 650 },
   quiet: { margin: 0, color: color.muted },
-  timeline: { marginTop: space.s7 },
-  // Timeline: each dated project as a bar on one shared track, with today marked.
-  lineup: { marginBottom: space.s6 },
-  lineupHead: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: space.s3 },
-  lineupTitle: { margin: 0, fontSize: text.md },
-  track: { position: "relative", display: "grid", gap: space.s2, paddingTop: 26, paddingBottom: space.s2 },
-  lane: { position: "relative", zIndex: 1, height: 34 },
-  bar: (left: string, width: string) => ({ left, width }),
-  barBox: {
-    position: "absolute", top: 0, bottom: 0, minWidth: "fit-content", display: "flex", alignItems: "center", gap: space.s2,
-    paddingInline: 14, borderRadius: radius.pill, fontSize: text.sm, fontWeight: 600,
-    color: color.ink, textDecoration: "none", whiteSpace: "nowrap",
-    transitionProperty: "background-color, transform", transitionDuration: motion.fast, transitionTimingFunction: motion.out,
-    backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
-    transform: { default: null, ":active": { default: "scale(.98)", [media.reduce]: null } },
-  },
-  barDates: { fontWeight: 400, color: color.muted },
-  today: (left: string) => ({ left }),
-  todayLine: { position: "absolute", top: 0, bottom: 0, width: 2, marginLeft: -1, borderRadius: 2, backgroundColor: color.accent, pointerEvents: "none" },
-  todayLabel: {
-    position: "absolute", top: 0, transform: "translateX(-50%)", paddingBlock: 3, paddingInline: 8, borderRadius: radius.pill,
-    backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
-  },
 })
 
 /** Pin or unpin a project for me, right away (the project menu uses it too). */
@@ -103,25 +84,6 @@ export const togglePin = (projectId: number) => () => {
   const k = `${me().id}:${projectId}`
   if (db.pins.has(k)) db.pins.delete(k)
   else db.pins.set(k, { person_id: me().id, project_id: projectId })
-}
-
-const DAY = 86_400_000
-const Lineup = ({ ps }: { ps: ReadonlyArray<ProjectRow> }) => {
-  const t = (d: string | null) => Date.parse(String(d).slice(0, 10))
-  const from = Math.min(...ps.map((p) => t(p.starts_on)))
-  const to = Math.max(...ps.map((p) => t(p.ends_on))) + DAY
-  const pct = (ms: number) => `${(((ms - from) / (to - from)) * 100).toFixed(2)}%`
-  const now = t(today())
-  return (
-    <div {...sx(hs.track)}>
-      {ps.map((p) => (
-        <div key={p.id} {...sx(hs.lane)}>
-          <a href={projectUrl(p)} {...sx(hs.barBox, hs.bar(pct(t(p.starts_on)), pct(from + t(p.ends_on) + DAY - t(p.starts_on))))}>{p.name} <span {...sx(hs.barDates)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</span></a>
-        </div>
-      ))}
-      {now >= from && now <= to && <><span aria-hidden="true" {...sx(hs.todayLine, hs.today(pct(now)))} /><span {...sx(hs.todayLabel, hs.today(pct(now)))}>Today</span></>}
-    </div>
-  )
 }
 
 const PinButton = ({ p }: { p: ProjectRow }) => (
@@ -152,7 +114,6 @@ const HomeCard = observer(({ p }: { p: ProjectRow }) => {
   const news = [...windowNews(p.id, m.id, seenOf(m.prefs, p.id)).counts].filter(([id]) => nameOf.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 3)
   const late = shown.some((t) => t.type === "todos") ? lateTasks(p.id) : 0
   const pr = progressOf(p)
-  const people = projectPeople(p)
   return (
     <li {...sx(hs.hcard)}>
       <a href={projectUrl(p)} {...sx(hs.cardName)}>{p.name}</a>
@@ -169,7 +130,6 @@ const HomeCard = observer(({ p }: { p: ProjectRow }) => {
         {late > 0 && <span {...sx(hs.hlate)}>{late} late</span>}
         {!news.length && !late && since && <span {...sx(hs.hcalm)}>All caught up.</span>}
       </p>
-      {people.length > 0 && <span aria-label={`People: ${people.map((x) => x.name).join(", ")}`} {...sx(hs.hfaces)}>{people.slice(0, 6).map((x) => <span key={x.id} {...sx(hs.hface)}><Face p={x} px={24} /></span>)}</span>}
       {p.kind === "project" && !p.is_hq && <PinButton p={p} />}
     </li>
   )
@@ -259,14 +219,10 @@ export const routes = [
   page("/", () => {
     const m = me()
     const all = visibleProjects()
-    const hq = all.filter((p) => p.is_hq)
-    const pinned = all.filter((p) => p.pinned && !p.is_hq)
-    const recentIds = (m.prefs.recent_projects ?? []).filter((id) => !pinned.some((p) => p.id === id) && !hq.some((p) => p.id === id))
-    const recent = recentIds.map((id) => all.find((p) => p.id === id)).filter((p): p is ProjectRow => !!p)
-    // HQ, then pinned, then recent, up to 8; with none pinned or visited yet, the first projects there are.
-    const rest = all.filter((p) => !p.is_hq && !pinned.includes(p) && !recent.includes(p))
-    const shown = [...hq, ...pinned, ...recent, ...(pinned.length + recent.length ? [] : rest)].slice(0, 8)
-    const dated = all.filter((p) => p.starts_on && p.ends_on)
+    // Late work first, then pinned, then recently visited, then the rest: up to 8, so a project with late work never hides.
+    const recent = m.prefs.recent_projects ?? []
+    const rank = (p: ProjectRow) => lateTasks(p.id) > 0 ? 0 : p.pinned ? 1 : recent.includes(p.id) ? 2 : 3
+    const shown = [...all].sort((a, b) => rank(a) - rank(b) || (recent.indexOf(a.id) + 1 || 999) - (recent.indexOf(b.id) + 1 || 999)).slice(0, 8)
     const { assigned, dates, assignedTotal } = myUpcoming()
     const t = today()
     return (
@@ -276,6 +232,7 @@ export const routes = [
           <div {...sx(kit.empty)}>
             <p>Welcome. Make your first project, then invite the people working on it.</p>
             {canCreateProjects() && <p><a href="/projects/new" data-button>Make a new project</a></p>}
+            <TeamLink />
           </div>
         ) : (
           <section aria-labelledby="projects">
@@ -284,19 +241,19 @@ export const routes = [
               {canCreateProjects() && <a href="/projects/new" data-button>Make a new project</a>}
             </div>
             <ul {...sx(hs.homeCards)}>{shown.map((p) => <HomeCard key={p.id} p={p} />)}</ul>
-            <p {...sx(hs.hmore)}><a href="/projects">All projects ({all.length})</a><a href="/templates">Templates</a></p>
+            <p {...sx(hs.hmore)}><a href="/projects">All projects ({all.length})</a>{!isClient(m) && <a href="/templates">Templates</a>}</p>
           </section>
         )}
         <WaitingForYou />
         <div {...sx(hs.lists)}>
           <section aria-labelledby="due" {...sx(hs.panel)}>
-            <h2 id="due" {...sx(hs.listTitle)}><a href="/my/assignments">Due for you</a></h2>
+            <h2 id="due" {...sx(hs.listTitle)}><a href="/my/assignments">On your plate</a></h2>
             {assigned.length ? (
               <ul>{assigned.map((r) => {
                 const late = r.data.due_on && r.data.due_on < t
                 return <li key={r.id} {...sx(hs.row)}><span><a href={`/r/${r.id}/go`}>{r.title}</a> <small>{r.project_name}{r.data.due_on && <>, <span {...sx(late && hs.late)}>{late ? `was due ${fmtDate(r.data.due_on)}` : `due ${fmtDate(r.data.due_on)}`}</span></>}</small></span></li>
               })}</ul>
-            ) : <p {...sx(hs.quiet)}>Nothing's due for you. Enjoy it.</p>}
+            ) : <p {...sx(hs.quiet)}>Nothing on your plate. Enjoy it.</p>}
             {assignedTotal > assigned.length && <p {...sx(hs.hmore)}><a href="/my/assignments">See all {assignedTotal}</a></p>}
           </section>
           <section aria-labelledby="coming" {...sx(hs.panel)}>
@@ -306,13 +263,7 @@ export const routes = [
               : <p {...sx(hs.quiet)}>Nothing on your calendar in the next two weeks.</p>}
           </section>
         </div>
-        {dated.length > 0 && (
-          <section aria-label="Timeline" {...sx(hs.lineup, hs.timeline)}>
-            <div {...sx(hs.lineupHead)}><h2 {...sx(hs.lineupTitle)}><a href="/timeline">Timeline</a></h2><a href="/timeline"><small>Open the Timeline</small></a></div>
-            <Lineup ps={dated} />
-          </section>
-        )}
-        <p {...sx(hs.hmore)}><a href="/activity">See all activity</a>{canInvite() && <a href="/people/invite">Invite people</a>}</p>
+        <p {...sx(hs.hmore, hs.foot)}><a href="/timeline">Timeline</a><a href="/activity">See all activity</a>{canInvite() && <a href="/people/invite">Invite people</a>}</p>
       </Page>
     )
   }),
@@ -406,8 +357,9 @@ export const routes = [
       <Page title="Templates" crumbs={[["Home", "/"]]}>
         <h1>Templates</h1>
         {ts.length
-          ? <ul>{ts.map((t) => <li key={t.id}><a href={`/projects/${t.id}`}>{t.name}</a> {t.description && <>: {t.description}</>} <a href={`/templates/${t.id}/use`} data-button>Use this template</a>
-              {t.id === account().settings.agent_template_id && <><br /><small>Agents start new projects from this template.</small></>}</li>)}</ul>
+          ? <ul>{ts.map((t) => <li key={t.id} {...sx(hs.trow)}><span><a href={`/projects/${t.id}`}>{t.name}</a>{t.description && <>: {t.description}</>}
+              {t.id === account().settings.agent_template_id && <><br /><small>Agents start new projects from this template.</small></>}</span>
+              <a href={`/templates/${t.id}/use`} data-button {...sx(hs.tuse)}>Use this template</a></li>)}</ul>
           : <p>Templates are projects you copy over and over. Start one from scratch, or save any project as a template from its ••• menu.</p>}
         {!isClient(me()) && <Form action="/templates"><p><label>Name a new template <input name="name" required /></label> <button>Make a new template</button></p></Form>}
       </Page>

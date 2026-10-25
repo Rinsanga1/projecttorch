@@ -56,10 +56,10 @@ const fullProject = (c: Ctx, t: Rows, p: Project) => {
   const recs = t.recordings.filter((r) => r.project_id === p.id && r.status === "active")
   const kids = (id: number, type: string) => recs.filter((r) => r.parent_id === id && r.type === type)
   const win = (r: Recording) => windowIdOf(p, r) ?? ""
-  const task = (r: Recording): any => ({
+  const goal = (r: Recording): any => ({
     id: r.id, title: r.title, done: !!r.data.completed_at, assignee_ids: r.data.assignee_ids ?? [], assignees: (r.data.assignee_ids ?? []).map(name),
     due_on: r.data.due_on ?? null, starts_on: r.data.starts_on ?? null, window: win(r), url: abs(c, urlFor(r)),
-    subtasks: r.parent_id ? [] : kids(r.id, "todo").sort((a, b) => a.position - b.position || a.id - b.id).map(task),
+    subgoals: r.parent_id ? [] : kids(r.id, "todo").sort((a, b) => a.position - b.position || a.id - b.id).map(goal),
   })
   const tops = recs.filter((r) => r.type === "todo" && !r.parent_id)
   const byNewest = (a: Recording, b: Recording) => b.created_at.localeCompare(a.created_at)
@@ -75,10 +75,10 @@ const fullProject = (c: Ctx, t: Rows, p: Project) => {
       id: r.id, title: r.title, excerpt: excerpt(r.body), author: name(r.creator_id), created_at: r.created_at,
       comments: kids(r.id, "comment").length, window: win(r), url: abs(c, urlFor(r)),
     })),
-    milestones: [
+    goals: [
       ...tops.filter((r) => !r.data.completed_at).sort((a, b) => a.position - b.position || a.id - b.id),
       ...tops.filter((r) => r.data.completed_at).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at))).slice(0, 20),
-    ].map(task),
+    ].map(goal),
     boards: p.tools.filter((w) => w.type === "cardtable").map((w) => ({
       window: w.id, name: w.name,
       columns: recs.filter((r) => r.type === "column" && win(r) === w.id)
@@ -190,8 +190,8 @@ const pkceOk = (verifier: string, challenge: string) => !!verifier && createHash
 // ---------- MCP ----------
 
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26"]
-const INSTRUCTIONS = "Saintsflow is project software: projects with Posts, Milestones, Files, Chat, Calendar and a Board. " +
-  "To-dos are cards on the Board; Milestones holds only milestones. Projects you create come ready: a Board with Triage, " +
+const INSTRUCTIONS = "Saintsflow is project software: projects with Posts, Compass, Files, Chat, Calendar and a Board. " +
+  "To-dos and tasks are cards on the Board; Compass holds the project's goals and their subgoals. Projects you create come ready: a Board with Triage, " +
   "Running, Mine and Review, and house rules pinned in Posts. A project's pinned posts are its house rules: read them " +
   "(sf.projects.get returns them first) before working in it. Finished work goes to the Board's Review column for a person to check. " +
   "You work as the person who connected you, with exactly their access. Call `describe` once for the `sf` API, then do the work " +

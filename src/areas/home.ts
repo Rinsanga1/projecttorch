@@ -112,7 +112,7 @@ const HOUSE_RULES = `Rules for any agent working in this project. Read them befo
 - **When you finish:** tick the steps, leave one comment saying what you did, and move the card to **Review**.
 - **Stuck?** Leave one comment saying what's missing, and move it to Review anyway.
 - **Sent back?** Read the newest comment on the card and fix exactly that.
-- **Ask first** before you post to the Message Board, contact a client, or trash anything.
+- **Ask first** before you write a post, contact a client, or trash anything.
 - **Drafts go on the card**, not in new posts.`
 
 /** The template agents start projects from: the account's, made on first use. Null when it's been trashed or archived. */

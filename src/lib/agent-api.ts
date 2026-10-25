@@ -90,11 +90,11 @@ const sf = {
     unpin: async (id) => (!(await sf.items.get(id)).data.pinned ? { ok: true, message: "Not pinned." } : post("/r/" + id + "/pin")),
   },
 
-  milestones: {
+  goals: {
     create: (projectId, o) => post("/projects/" + projectId + "/tasks", {
       title: o.title, body: o.body ?? "", tool: o.window ?? "", assignee_ids: o.assignee_ids ?? [], notify_ids: o.notify_ids ?? [], ...due(o),
     }),
-    addSubtask: (taskId, o) => post(P + "/tasks/" + taskId + "/subtasks", {
+    addSubgoal: (goalId, o) => post(P + "/tasks/" + goalId + "/subtasks", {
       title: o.title, body: o.body ?? "", assignee_ids: o.assignee_ids ?? [], notify_ids: o.notify_ids ?? [], ...due(o),
     }),
     update: async (id, ch) => {
@@ -167,8 +167,9 @@ const sf = {
 
   folders: { create: (projectId, o) => post("/projects/" + projectId + "/folders", { title: o.title, folder_id: o.folder_id ?? "", color: o.color ?? "", tool: o.window ?? "" }) },
 }
-// The old name, for scripts written before Milestones got its own.
-sf.tasks = sf.milestones
+// The old names, for scripts written before Compass held goals.
+sf.goals.addSubtask = sf.goals.addSubgoal
+sf.milestones = sf.tasks = sf.goals
 globalThis.sf = sf
 `
 
@@ -178,14 +179,14 @@ export const TYPES = `// Saintsflow, as the \`sf\` object inside \`execute\`. Ev
 //
 // ${WORKFLOW.replace(/\n/g, "\n// ")}
 //
-// Write every body (posts, docs, comments, chat, card and task notes) in Markdown: # headings, - lists, **bold**,
+// Write every body (posts, docs, comments, chat, card and goal notes) in Markdown: # headings, - lists, **bold**,
 // [links](https://…), | tables |, \`code\`. Never HTML: tags show up as plain text. Titles are plain text.
 
 type Id = number
 type Day = string            // "2026-10-23"
 type Url = string            // a link to the page in Saintsflow
 type WindowType = "message_board" | "todos" | "vault" | "campfire" | "schedule" | "cardtable"
-//                 Posts            Milestones (tasks)  Files     Chat        Calendar     Board
+//                 Posts            Compass             Files     Chat        Calendar     Board
 
 /** What every write returns. \`created\` has the new item's id (e.g. created.find(x => x.type === "todo").id). */
 type Done = { ok: true; message?: string; url?: Url; created: Change[]; changed: Change[] }
@@ -194,10 +195,11 @@ type Change = { type: string; id: Id; title: string; url: Url; project_id?: Id; 
 type Notify = "nobody" | "everyone" | Id[]
 
 type Window = { id: string; type: WindowType; name: string; enabled: boolean }
-// To-dos are cards on the Board (sf.cards). Milestones (sf.milestones) are only for milestones: the big steps of a project.
+// To-dos and tasks are cards on the Board (sf.cards). The Compass window (sf.goals) holds the project's goals, each split
+// into subgoals that give the detail (and the context an agent works from). Never put a to-do in Compass.
 type ProjectSummary = { id: Id; name: string; description: string | null; status: string; is_hq: boolean; starts_on: Day | null; ends_on: Day | null; url: Url; windows: Window[] }
 type Person = { id: Id; name: string; email: string; role: "owner" | "admin" | "member" | "client"; title: string | null }
-type Task = { id: Id; title: string; done: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; starts_on: Day | null; window: string; url: Url; subtasks: Task[] }
+type Goal = { id: Id; title: string; done: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; starts_on: Day | null; window: string; url: Url; subgoals: Goal[] }
 type Card = { id: Id; title: string; done: boolean; golden: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; steps: string; url: Url }
 type Column = { id: Id; title: string; kind: "not_now" | "triage" | "custom" | "review" | "done"; color: string; note: string /* what it's for */; cards: Card[] }
 // Every board has Not now, Triage ("triage"), Review and Done, plus its own columns. Review is where finished work waits
@@ -207,7 +209,7 @@ type Project = ProjectSummary & {
   access: "all" | "invited"                 // "all": everyone in the account (except clients) can see it
   people: { id: Id; name: string; role: string }[]
   posts: { id: Id; title: string; excerpt: string; author: string; created_at: string; comments: number; window: string; url: Url }[]   // newest 25
-  milestones: Task[]                        // open ones in order, then the 20 most recently done
+  goals: Goal[]                             // Compass: open ones in order, then the 20 most recently done
   boards: { window: string; name: string; columns: Column[] }[]   // columns are empty until the board is opened (projects.openWindow)
   chat: { id: Id; author: string; body: string; created_at: string }[]   // last 20 lines, oldest first
   files: { id: Id; type: "folder" | "doc" | "upload" | "cloudfile"; title: string; folder_id: Id | null; url: Url }[]
@@ -253,11 +255,11 @@ declare const sf: {
     update(id: Id, ch: { title?: string; body?: string; clientsSee?: boolean }): Promise<Done>
     pin(id: Id): Promise<Done>; unpin(id: Id): Promise<Done>         // pinned posts sit on top and are the house rules
   }
-  milestones: {                                                     // the Milestones window: milestones only, not to-dos
+  goals: {                                                          // the Compass window: goals and subgoals, never to-dos
     create(projectId: Id, o: { title: string; body?: string; assignee_ids?: Id[]; notify_ids?: Id[]; due_on?: Day; starts_on?: Day; window?: string }): Promise<Done>
-    addSubtask(taskId: Id, o: { title: string; body?: string; assignee_ids?: Id[]; due_on?: Day }): Promise<Done>   // one level only
+    addSubgoal(goalId: Id, o: { title: string; body?: string; assignee_ids?: Id[]; due_on?: Day }): Promise<Done>   // one level only
     update(id: Id, ch: { title?: string; body?: string; assignee_ids?: Id[]; notify_ids?: Id[]; due_on?: Day | null; starts_on?: Day | null }): Promise<Done>
-    complete(id: Id): Promise<Done>                                  // a task takes its subtasks with it
+    complete(id: Id): Promise<Done>                                  // a goal takes its subgoals with it
     reopen(id: Id): Promise<Done>
   }
   columns: {

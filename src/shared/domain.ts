@@ -3,8 +3,8 @@
 //
 // recordings.data by type (all optional):
 //   message:   category_id, pinned
-//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a task at the top level, a
-//              subtask when its parent is a task; a task with subtasks is done when they all are)
+//   todo:      assignee_ids[], notify_ids[], due_on, starts_on, completed_at, completer_id (a Compass goal at the top level,
+//              a subgoal when its parent is a goal; a goal with subgoals is done when they all are)
 //   folder:    color
 //   upload:    path, filename, size, content_type, versions[{path, filename, size, at, person_id}]
 //   cloudfile: url
@@ -56,6 +56,8 @@ export type Account = {
     /** The template agents start new projects from (areas/home.ts). */
     agent_template_id?: number
   }
+  /** The team link's code (/join/<code>). Only arrives for people who may invite. */
+  join_code: string | null
   created_at: Stamp
 }
 
@@ -218,7 +220,7 @@ export const windowOfPath = (path: string): ToolType | null => {
 
 export const defaultTools = (): Tool[] => [
   { id: "message_board", type: "message_board", name: "Posts", enabled: true },
-  { id: "todos", type: "todos", name: "Milestones", enabled: true },
+  { id: "todos", type: "todos", name: "Compass", enabled: true },
   { id: "vault", type: "vault", name: "Files", enabled: true },
   { id: "campfire", type: "campfire", name: "Chat", enabled: true },
   { id: "schedule", type: "schedule", name: "Calendar", enabled: true },
@@ -255,7 +257,7 @@ export const windowIdOf = (p: Pick<Project, "tools">, top: Pick<Recording, "type
 }
 
 export const TYPE_NAMES: Record<string, string> = {
-  message: "post", todo: "task", folder: "folder", doc: "doc",
+  message: "post", todo: "goal", folder: "folder", doc: "doc",
   upload: "file", cloudfile: "link", event: "event", column: "column",
   card: "card", step: "step", line: "chat line", comment: "comment",
 }
@@ -290,6 +292,8 @@ export const CLIENT_INHERITS = ["comment", "line", "step", "column"]
 type Who = Pick<Person, "role">
 export const isAdmin = (p: Who) => p.role === "owner" || p.role === "admin"
 export const isClient = (p: Who) => p.role === "client"
+/** Can this person invite people (and see the team link)? */
+export const mayInvite = (p: Who, a: Pick<Account, "settings">) => !isClient(p) && (a.settings.who_can_invite !== "admins" || isAdmin(p))
 
 /** Work Can Wait: true when notifications should be held for this person right now. */
 export const isQuiet = (p: Pick<Person, "prefs" | "time_zone">, now = new Date()) => {

@@ -1,5 +1,5 @@
 // Activity & reports: Latest activity, Reports, Someone's activity, Someone's assignments, What's overdue,
-// Upcoming dates, Tasks added & completed, Overview, Everything. Everything reads the local copy, which already
+// Upcoming dates, Goals added & completed, Overview, Everything. Everything reads the local copy, which already
 // holds only what this person may see (clients included), so "scope" is just the projects in it.
 import type { ReactNode } from "react"
 import { Form as GetForm, useSearchParams } from "react-router"
@@ -106,7 +106,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const EVERYTHING: Record<string, { label: string; types: string[] }> = {
   messages: { label: "Posts", types: ["message"] },
-  todos: { label: "Tasks", types: ["todo"] },
+  todos: { label: "Goals", types: ["todo"] },
   files: { label: "Files", types: ["folder", "doc", "upload", "cloudfile"] },
   cards: { label: "Cards", types: ["card"] },
   events: { label: "Events", types: ["event"] },
@@ -159,7 +159,7 @@ export const routes = [
         <ul>
           <li><a href="/reports/overdue">What's overdue?</a></li>
           <li><a href="/reports/upcoming">What's coming up?</a></li>
-          <li><a href="/reports/tasks">Tasks added & completed</a></li>
+          <li><a href="/reports/tasks">Goals added & completed</a></li>
         </ul>
       </Page>
     )
@@ -192,7 +192,7 @@ export const routes = [
       <Page title={person ? `What's on ${firstName(person)}'s plate?` : "Someone's assignments"} crumbs={reportCrumbs}>
         <h1>{person ? `What's on ${firstName(person)}'s plate?` : "What's on someone's plate?"}</h1>
         <PersonPicker action="/reports/assignments" people={people} selectedId={person?.id ?? null} />
-        {!person ? <p>Pick a person to see their tasks, cards and steps.</p>
+        {!person ? <p>Pick a person to see their goals, cards and steps.</p>
           : rows.length
             ? [...byProject].map(([name, rs]) => (
               <div key={name}>
@@ -284,8 +284,8 @@ export const routes = [
       ? <ul>{rs.map(({ e, r }) => <li key={e.id}><a href={`/r/${e.recording_id}/go`}>{r!.title}</a> <small>{personName(e.person_id) ?? "Someone"} · {projectName(e.project_id)} · {fmtDate(e.created_at, m.time_zone)}</small></li>)}</ul>
       : <p>None.</p>
     return (
-      <Page title="Tasks added & completed" crumbs={reportCrumbs}>
-        <h1>Tasks added & completed</h1>
+      <Page title="Goals added & completed" crumbs={reportCrumbs}>
+        <h1>Goals added & completed</h1>
         <GetForm method="get">
           <label>From <input type="date" name="from" defaultValue={from} /></label> <label>To <input type="date" name="to" defaultValue={to} /></label>
           {" "}<label>Project <select name="project" defaultValue={projectId ?? ""}><option value="">All projects</option>
@@ -296,7 +296,7 @@ export const routes = [
         </GetForm>
         {bad ? <p role="alert">The “From” date has to come before the “To” date.</p> : (
           <>
-            <p><b>{plural(added.length, "task")} added, {done.length} completed</b> between {fmtDate(from)} and {fmtDate(to)}.</p>
+            <p><b>{plural(added.length, "goal")} added, {done.length} completed</b> between {fmtDate(from)} and {fmtDate(to)}.</p>
             <h2>Added</h2>{list(added)}
             <h2>Completed</h2>{list(done)}
           </>
@@ -356,7 +356,7 @@ export const routes = [
                   <td><a href={projectUrl(p)}>{p.name}</a></td>
                   <td>{s.pr.total
                     ? <><ProgressBar pct={s.pr.pct} width={96} /> {s.pr.pct}% <small>{s.pr.done} of {s.pr.total} done</small></>
-                    : <small>No tasks yet</small>}</td>
+                    : <small>No goals yet</small>}</td>
                   <td>{flags.length ? <ul>{flags.map((f) => <li key={f}>⚑ {f}</li>)}</ul> : "All clear"}</td>
                 </tr>
               ))}

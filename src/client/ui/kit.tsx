@@ -111,7 +111,8 @@ export const kit = stylex.create({
     borderColor: "transparent", backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
   },
   links: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s6, marginBottom: 0, maxWidth: "none", fontSize: text.sm },
-  empty: { maxWidth: "none", paddingBlock: space.s7, paddingInline: space.s5, borderRadius: radius.xl, backgroundColor: color.tile, textAlign: "center", color: color.muted },
+  // Grid, so a paragraph narrower than the box (prose keeps its measure) centers with the button under it.
+  empty: { display: "grid", justifyItems: "center", maxWidth: "none", paddingBlock: space.s7, paddingInline: space.s5, borderRadius: radius.xl, backgroundColor: color.tile, textAlign: "center", color: color.muted },
   // A day heading: a group label, then a hairline to the edge.
   day: { display: "flex", alignItems: "center", gap: space.s3, marginTop: space.s6, marginBottom: space.s2, fontSize: text.xs, fontWeight: 600,
     letterSpacing: "0.05em", textTransform: "uppercase", color: color.muted },

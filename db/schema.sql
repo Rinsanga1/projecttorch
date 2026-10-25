@@ -13,6 +13,7 @@ create table accounts (
   billing_email text,
   card_last4  text,
   settings    jsonb not null default '{}',                 -- who_can_create_projects, who_can_invite, clients_can_ping, require_2fa, agent_template_id
+  join_code   text not null unique default replace(gen_random_uuid()::text, '-', ''), -- the team link, /join/<code>; `set join_code = default` makes a new one
   created_at  timestamptz not null default now()
 );
 
