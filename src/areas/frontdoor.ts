@@ -218,7 +218,7 @@ export const routes = [
       })} returning *`
       if (google) yield* setGoogle(v.email, google.sub)
       else yield* setPassword(v.email, str(fd, "password"))
-      // No HQ and no sample project: a new account starts empty, and ready-made projects come from Templates.
+      // No sample project: a new account starts empty (a company-wide project is one people make), and ready-made projects come from Templates.
       const ctx: Ctx = { ...c, me: me!, account: account! }
       yield* logEvent(ctx, { project_id: null, action: "created", summary: `started the ${v.company} account` })
       return withCookie(yield* signInAs(c, "/welcome", me!.id), "google", null)

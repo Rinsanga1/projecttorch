@@ -3,7 +3,7 @@
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { fmtDate, fmtDateTime, isoDate } from "../shared/format.ts"
-import { post, redirect, invalid, str, bool, type Ctx, type Prefs } from "../lib/web.ts"
+import { post, redirect, back, invalid, str, bool, type Ctx, type Prefs } from "../lib/web.ts"
 import type { Seed } from "../seed.ts"
 
 /** Merge into the current person's prefs. A null value clears that key. */
@@ -41,7 +41,8 @@ export const routes = [
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`update notifications set read_at = now() where person_id = ${c.me.id} and read_at is null and kind <> 'ping'`
-      return redirect("/updates", "All caught up.")
+      // From the tray or the Inbox page, stay where you are: the list empties, which says it.
+      return back(c, "/updates")
     })),
 
   post("/my/notifications", (c) =>

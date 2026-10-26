@@ -414,12 +414,10 @@ const PeopleForm = ({ p }: { p: Project }) => {
     <Form action={`/projects/${p.id}/people`} onSubmitCapture={(e) => removingMe(new FormData(e.currentTarget)) && setConfirm(true)}>
       <PeopleCheckboxes name="person_ids" people={accountPeople()} checked={memberIds(p.id)} />
       {confirm && <p><label><input type="checkbox" name="confirm_self" /> Yes, remove me</label></p>}
-      {!p.is_hq ? (
-        <fieldset><legend>Who can see it?</legend>
-          <label><input type="radio" name="access" value="invited" defaultChecked={!p.all_access} /> Just the people checked above</label><br />
-          <label><input type="radio" name="access" value="all" defaultChecked={p.all_access} /> Everyone at the company (all-access)</label>
-        </fieldset>
-      ) : <p>HQ is all-access: everyone at the company can see it.</p>}
+      <fieldset><legend>Who can see it?</legend>
+        <label><input type="radio" name="access" value="invited" defaultChecked={!p.all_access} /> Just the people checked above</label><br />
+        <label><input type="radio" name="access" value="all" defaultChecked={p.all_access} /> Everyone at the company (all-access)</label>
+      </fieldset>
       <p><button>Save changes</button> <a href={projectUrl(p)}>Cancel</a></p>
     </Form>
   )
@@ -472,9 +470,9 @@ export const routes = [
             staff && <menu.Link href={`/projects/${p.id}/webhooks`}>Webhooks</menu.Link>,
           ]} />
           {staff && <menu.Group label="Archive or trash" items={[
-            p.status === "active" && !p.is_hq && <menu.Post action={`/projects/${p.id}/archive`}>Archive this project</menu.Post>,
+            p.status === "active" && <menu.Post action={`/projects/${p.id}/archive`}>Archive this project</menu.Post>,
             p.status === "archived" && <menu.Post action={`/projects/${p.id}/unarchive`}>Unarchive this project</menu.Post>,
-            !p.is_hq && p.status !== "trashed" && <menu.Link href={`/projects/${p.id}/trash-project`} danger>Put this project in the trash</menu.Link>,
+            p.status !== "trashed" && <menu.Link href={`/projects/${p.id}/trash-project`} danger>Put this project in the trash</menu.Link>,
           ]} />}
         </menu.Wrap>
       </Page>
@@ -557,7 +555,7 @@ export const routes = [
 
   page("/projects/:id/trash-project", () => {
     const p = useProject()
-    if (isClient(me()) || p.is_hq) throw new NoAccess()
+    if (isClient(me())) throw new NoAccess()
     return (
       <Page title="Trash this project?" crumbs={projectCrumbs(p)}>
         <h1>Put {p.name} in the trash?</h1>

@@ -220,5 +220,4 @@ export const seed = (s: Seed) =>
     yield* ev(s.projects.website, maya, "Kickoff call with Northwind", { starts_at: `${day(-18)}T09:00`, ends_at: `${day(-18)}T10:00` }, [maya.id, dan.id], "", true)
     yield* ev(s.projects.website, maya, "Launch day", { starts_at: day(24), ends_at: day(24), all_day: true }, [maya.id, ann.id, bob.id, dan.id], "Go live. Champagne optional.", true)
     yield* ev(s.projects.marketing, s.people.cara, "Campaign planning offsite", { starts_at: day(10), ends_at: day(11), all_day: true }, [s.people.cara.id, maya.id])
-    yield* ev(s.projects.hq, maya, "Company all-hands", { starts_at: `${day(3)}T11:00`, ends_at: `${day(3)}T12:00`, repeat: "monthly" }, [maya.id, ann.id, bob.id, s.people.cara.id])
   })

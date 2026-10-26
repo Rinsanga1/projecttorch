@@ -1,16 +1,26 @@
 // Me: the menu, assignments, calendar, bookmarks, drafts, activity, reactions, reminders,
 // profile, appearance, login & security, apps, help. Posts: src/areas/mystuff.ts (and hey.ts for notification settings).
+import * as stylex from "@stylexjs/stylex"
 import { useState } from "react"
-import { useSearchParams } from "react-router"
+import { Navigate, useSearchParams } from "react-router"
 import { db } from "../store.ts"
-import { me, recordings } from "../data.ts"
+import { me, recordings, useApi } from "../data.ts"
 import { isAdmin, isOutOfOffice, isQuiet, titleOf, urlFor, TYPE_NAMES, type Recording } from "../../shared/domain.ts"
 import { excerpt, fmtDate, fmtDateTime, ms } from "../../shared/format.ts"
 import { ActivityList, AgentsFilter, useJustAgents } from "../ui/activity.tsx"
 import { Form } from "../ui/forms.tsx"
 import { Page, page } from "../ui/page.tsx"
+import { Face, kit, menu, sx } from "../ui/kit.tsx"
+import { space } from "../ui/tokens.stylex.ts"
 
 const MY = [["Me", "/my"]] as const
+const mys = stylex.create({
+  // Your face and name, with Edit profile beside them.
+  who: { display: "flex", alignItems: "center", gap: space.s3, margin: 0 },
+  whoText: { display: "grid" },
+  signOut: { marginTop: space.s6 },
+})
+const APPEARANCES = [["light", "Light"], ["dark", "Dark"], ["system", "Match my system"]] as const
 const DAY = 86_400_000
 
 /** A date (YYYY-MM-DD) in a time zone, `offset` days from today. */
@@ -59,25 +69,52 @@ const draftEditPath = (r: Recording) =>
 const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone").filter((z) => z !== "UTC")]
 
 export const routes = [
+  // Me: where your face goes. The settings you change in a click (appearance, which account) change right here; the
+  // rest are rows to their pages. Only what has no other way in: Assignments and Calendar open from Home, Drafts from
+  // Posts, Reminders and Reactions from Updates and each item.
   page("/my", () => {
     const m = me()
+    const { data: accounts } = useApi<Array<{ id: number; account_name: string }>>("/accounts")
+    const appearance = m.appearance === "light" || m.appearance === "dark" ? m.appearance : "system"
     return (
       <Page title="Me">
-        <h1>Me</h1>
-        <p><b>{m.name}</b>{m.title ? `, ${m.title}` : ""}{isQuiet(m) ? " · ☾ notifications paused" : ""}{isOutOfOffice(m) ? ` · out of office until ${fmtDate(m.prefs.ooo!.until)}` : ""}</p>
-        {/* Only what has no other way in. Assignments and Calendar open from Home, Drafts from Posts, Reminders and
-            Reactions from Updates and each item, Help and Switch accounts from the footer. */}
-        <ul>
-          <li><a href="/my/profile">Profile</a></li>
-          <li><a href="/my/notifications">Notification settings</a></li>
-          <li><a href="/my/out-of-office">Out of office</a></li>
-          <li><a href="/my/appearance">Appearance</a></li>
-          <li><a href="/my/security">Login & security</a></li>
-          <li><a href="/my/agents">Agents</a></li>
-          {isAdmin(m) && <li><a href="/admin">Admin</a></li>}
-        </ul>
-        <p><a href="/my/bookmarks">Bookmarks</a> · <a href="/my/activity">Your activity</a></p>
-        <Form action="/signout"><button>Sign out</button></Form>
+        <h1 {...sx(kit.srOnly)}>Me</h1>
+        <div {...sx(kit.head)}>
+          <p {...sx(mys.who)}>
+            <Face p={m} px={48} />
+            <span {...sx(mys.whoText)}>
+              <b>{m.name}</b>
+              <small>{[m.title, isQuiet(m) && "☾ notifications paused", isOutOfOffice(m) && `out of office until ${fmtDate(m.prefs.ooo!.until)}`].filter(Boolean).join(" · ") || m.email}</small>
+            </span>
+          </p>
+          <a href="/my/profile" data-button>Edit profile</a>
+        </div>
+        <menu.Wrap>
+          <menu.Group label="You" items={[
+            <menu.Setting label="Appearance">
+              <menu.Choices action="/my/appearance" name="appearance" label="Appearance" value={appearance} options={APPEARANCES}
+                optimistic={(fd) => db.people.set(String(m.id), { ...m, appearance: String(fd.get("appearance")) })} />
+            </menu.Setting>,
+            (accounts?.length ?? 0) > 1 && (
+              <menu.Setting label="Account">
+                <menu.Choices action="/accounts" name="person_id" label="Switch accounts" value={String(m.id)}
+                  options={accounts!.map((a) => [String(a.id), a.account_name] as const)} />
+              </menu.Setting>
+            ),
+          ]} />
+          <menu.Group label="Settings" items={[
+            <menu.Link href="/my/notifications">Notification settings</menu.Link>,
+            <menu.Link href="/my/out-of-office">Out of office</menu.Link>,
+            <menu.Link href="/my/security">Login & security</menu.Link>,
+            <menu.Link href="/my/agents">Agents</menu.Link>,
+            isAdmin(m) && <menu.Link href="/admin">Admin</menu.Link>,
+          ]} />
+        </menu.Wrap>
+        <p {...sx(kit.links)}>
+          <a href="/my/bookmarks">Bookmarks</a><a href="/my/activity">Your activity</a><a href="/shortcuts">Keyboard shortcuts</a><a href="/help">Help</a>
+          {import.meta.env.DEV && <a href="/inbox">Dev inbox (emails we'd send)</a>}
+        </p>
+        <Form action="/signout" {...sx(mys.signOut)}><button>Sign out</button></Form>
       </Page>
     )
   }),
@@ -316,27 +353,8 @@ export const routes = [
     )
   }),
 
-  page("/my/appearance", () => {
-    const m = me()
-    const a = m.appearance
-    return (
-      <Page title="Appearance" crumbs={MY}>
-        <h1>Appearance</h1>
-        {/* Re-themes right away: the layout reads me().appearance. */}
-        <Form action="/my/appearance" optimistic={(fd) => {
-          const v = String(fd.get("appearance") ?? "")
-          db.people.set(String(m.id), { ...m, appearance: ["light", "dark"].includes(v) ? v : "system" })
-        }}>
-          <p>
-            <label><input type="radio" name="appearance" value="light" defaultChecked={a === "light"} /> Light</label><br />
-            <label><input type="radio" name="appearance" value="dark" defaultChecked={a === "dark"} /> Dark</label><br />
-            <label><input type="radio" name="appearance" value="system" defaultChecked={a !== "light" && a !== "dark"} /> Match my system</label>
-          </p>
-          <button>Save</button>
-        </Form>
-      </Page>
-    )
-  }),
+  // Appearance is picked on Me now.
+  page("/my/appearance", () => <Navigate to="/my" replace />),
 
   page("/my/security", () => {
     const m = me()

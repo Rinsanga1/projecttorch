@@ -1229,7 +1229,6 @@ const BlogPost = () => {
 
 export const routes = [
   page("/marketing", Marketing, { pub: true, bare: true }),
-  page("/marketting", () => <Navigate to="/marketing" replace />, { pub: true, bare: true }),
   page("/startups", Startups, { pub: true, bare: true }),
   page("/blog", BlogIndex, { pub: true, bare: true }),
   page("/blog/:slug", BlogPost, { pub: true, bare: true }),

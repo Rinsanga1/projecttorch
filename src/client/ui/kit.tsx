@@ -11,7 +11,7 @@ export const sx = (...styles: ReadonlyArray<stylex.StyleXStyles | stylex.Theme<a
   stylex.props(...(styles as any[]))
 
 // ---------- themes ----------
-// Without a theme the tokens follow the OS. These pin one when someone picks Light or Dark in /my/appearance.
+// Without a theme the tokens follow the OS. These pin one when someone picks Light or Dark on Me.
 const lightTheme = stylex.createTheme(color, {
   ground: light.ground, sheet: light.sheet, tile: light.tile, tileHover: light.tileHover, ink: light.ink, muted: light.muted,
   line: light.line, control: light.control, slab: light.slab, slabTile: light.slabTile, slabInk: light.slabInk,
@@ -173,6 +173,15 @@ const mn = stylex.create({
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.dangerSoft }, ":active": color.dangerSoft } },
   still: { cursor: "default", backgroundColor: "transparent" },
   input: { flexGrow: 1, minWidth: 0, width: "auto", margin: 0, fontFamily: font.mono, fontSize: text.sm },
+  setting: { flexWrap: "wrap", rowGap: space.s2 },
+  control: { marginLeft: "auto" },
+  // A few choices in one pill; the one in effect is a white pill inside it.
+  choices: { display: "inline-flex", flexWrap: "wrap", gap: 2, margin: 0, padding: 3, borderRadius: radius.pill, backgroundColor: color.tileHover },
+  choice: {
+    minHeight: 30, paddingBlock: 4, paddingInline: space.s3, fontSize: text.sm, fontWeight: 500, color: color.muted,
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: `color-mix(in srgb, ${color.sheet} 60%, transparent)` } },
+  },
+  chosen: { color: color.ink, fontWeight: 600, cursor: "default", backgroundColor: { default: color.sheet, ":hover": { default: null, [media.hover]: color.sheet } } },
 })
 export const menu = {
   /** The column the groups sit in. */
@@ -187,6 +196,19 @@ export const menu = {
   /** A row that posts to `action` (an /api route, written without /api). */
   Post: ({ action, children, danger = false, optimistic }: { action: string; children: ReactNode; danger?: boolean; optimistic?: () => void }) =>
     <Form action={action} optimistic={optimistic} {...sx(mn.form)}><button {...sx(mn.row, danger && mn.danger)}>{children}</button></Form>,
+  /** A setting on its row: its name, then the control that changes it, at the end. */
+  Setting: ({ label, children }: { label: string; children: ReactNode }) =>
+    <div {...sx(mn.row, mn.still, mn.setting)}>{label}<span {...sx(mn.control)}>{children}</span></div>,
+  /** Pick one of a few, right away: each choice is a button posting `name=value` to `action`; the one in effect can't be pressed. */
+  Choices: ({ action, name, label, value, options, optimistic }: {
+    action: string; name: string; label: string; value: string; options: ReadonlyArray<readonly [value: string, text: string]>; optimistic?: (fd: FormData) => void
+  }) => (
+    <Form action={action} optimistic={optimistic} reset={false} role="group" aria-label={label} {...sx(mn.choices)}>
+      {options.map(([v, t]) => v === value
+        ? <button key={v} type="button" aria-pressed="true" data-quiet {...sx(mn.choice, mn.chosen)}>{t}</button>
+        : <button key={v} name={name} value={v} aria-pressed="false" data-quiet {...sx(mn.choice)}>{t}</button>)}
+    </Form>
+  ),
   /** A read-only value to copy (a link), on its row. */
   Copy: ({ label, value }: { label: string; value: string }) =>
     <label {...sx(mn.row, mn.still)}>{label} <input readOnly value={value} onClick={(e) => e.currentTarget.select()} {...sx(mn.input)} /></label>,

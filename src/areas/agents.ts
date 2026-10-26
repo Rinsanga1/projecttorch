@@ -41,7 +41,7 @@ const abs = (c: Ctx, u: string) => (u.startsWith("/") ? origin(c.req) + u : u)
 const excerpt = (s: string, n = 200) => (s.length > n ? s.slice(0, n).trimEnd() + "…" : s).replace(/\s+/g, " ")
 const windowsOf = (p: Project) => p.tools.map((t: Tool) => ({ id: t.id, type: t.type, name: t.name, enabled: t.enabled }))
 const summary = (c: Ctx, p: Project) => ({
-  id: p.id, name: p.name, description: p.description, status: p.status, is_hq: p.is_hq, starts_on: p.starts_on, ends_on: p.ends_on,
+  id: p.id, name: p.name, description: p.description, status: p.status, starts_on: p.starts_on, ends_on: p.ends_on,
   url: abs(c, projectUrl(p)), windows: windowsOf(p),
 })
 const KIND_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, review: 3, done: 4 }
@@ -353,7 +353,7 @@ export const routes = [
     Effect.gen(function* () {
       const t = yield* copyFor(c)
       const status = c.query.get("status") || "active"
-      return json(t.projects.filter((p) => p.kind === "project" && p.status === status).sort((a, b) => Number(b.is_hq) - Number(a.is_hq) || a.name.localeCompare(b.name)).map((p) => summary(c, p)))
+      return json(t.projects.filter((p) => p.kind === "project" && p.status === status).sort((a, b) => a.name.localeCompare(b.name)).map((p) => summary(c, p)))
     })),
 
   get("/agent/projects/:id", (c) =>

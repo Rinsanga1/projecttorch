@@ -2,7 +2,7 @@
 // The pages are client/areas/mystuff.tsx; these are their posts.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { post, redirect, invalid, json, str } from "../lib/web.ts"
+import { post, redirect, back, invalid, json, str } from "../lib/web.ts"
 import { findRecording, updateRecording, logEvent, notify, titleOf, urlFor } from "../lib/core.ts"
 import { savePrefs } from "./hey.ts"
 import { checkPassword, loginFor, setPassword } from "./frontdoor.ts"
@@ -65,7 +65,8 @@ export const routes = [
       const sql = yield* SqlClient.SqlClient
       const a = str(yield* c.form, "appearance")
       yield* sql`update people set appearance = ${["light", "dark"].includes(a) ? a : "system"} where id = ${c.me.id}`
-      return redirect("/my/appearance", "Saved.")
+      // Picked on Me, where the page re-themes at once: nothing to say.
+      return back(c, "/my")
     })),
 
   post("/my/security/email", (c) =>

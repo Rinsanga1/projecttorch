@@ -197,7 +197,7 @@ type Notify = "nobody" | "everyone" | Id[]
 type Window = { id: string; type: WindowType; name: string; enabled: boolean }
 // To-dos and tasks are cards on the Board (sf.cards). The Compass window (sf.goals) holds the project's goals, each split
 // into subgoals that give the detail (and the context an agent works from). Never put a to-do in Compass.
-type ProjectSummary = { id: Id; name: string; description: string | null; status: string; is_hq: boolean; starts_on: Day | null; ends_on: Day | null; url: Url; windows: Window[] }
+type ProjectSummary = { id: Id; name: string; description: string | null; status: string; starts_on: Day | null; ends_on: Day | null; url: Url; windows: Window[] }
 type Person = { id: Id; name: string; email: string; role: "owner" | "admin" | "member" | "client"; title: string | null }
 type Goal = { id: Id; title: string; done: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; starts_on: Day | null; window: string; url: Url; subgoals: Goal[] }
 type Card = { id: Id; title: string; done: boolean; golden: boolean; assignee_ids: Id[]; assignees: string[]; due_on: Day | null; steps: string; url: Url }
