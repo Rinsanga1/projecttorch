@@ -63,14 +63,25 @@ const wipe = stylex.keyframes({ from: { clipPath: "inset(0 100% 0 0)" } })
 // The strike-through draws across, left to right, like a pen.
 const strikeDraw = stylex.keyframes({ from: { backgroundSize: "0% 1.5px" } })
 const surface = stylex.keyframes({ from: { transform: "translateY(45%)" } })
-// After kargul.studio: a live dot that rings, a layer of the drawing that drifts, a card that keeps landing in Review.
+// After kargul.studio: a live dot that rings, and parts of the drawings that drift.
 // The ring is a copy of the dot behind it that grows and fades (transform and opacity only, so it never repaints).
 const ring = stylex.keyframes({ "0%": { transform: "scale(1)", opacity: 0.55 }, "100%": { transform: "scale(3.25)", opacity: 0 } })
 const drift = stylex.keyframes({ to: { transform: "translateY(-12px)" } })
-const hop = stylex.keyframes({
-  "0%": { transform: "translateY(0)", opacity: 0 }, "8%": { transform: "translateY(0)", opacity: 1 }, "30%": { transform: "translateY(0)" },
-  "55%": { transform: "translateY(90px)" }, "88%": { transform: "translateY(90px)", opacity: 1 }, "100%": { transform: "translateY(90px)", opacity: 0 },
+
+// The hero's drawing: its lines draw themselves in once (each shape has pathLength 1, so one dash is the whole line) while
+// the faces fade up; the dots on the arcs march toward the board, slowly; one card keeps hopping from Running to Review.
+const draw = stylex.keyframes({ from: { strokeDashoffset: "1", fillOpacity: 0 } })
+const march = stylex.keyframes({ to: { strokeDashoffset: "-24" } })
+const arcFill = stylex.keyframes({ from: { strokeDasharray: "0 1" } })
+// One column across the board is 2.3 units: 60px right and 35px down in the drawing; the lift is one unit, 30px.
+const hopAcross = stylex.keyframes({
+  "0%": { transform: "translate(0, 0)", opacity: 0 }, "8%": { transform: "translate(0, 0)", opacity: 1 },
+  "22%": { transform: "translate(0, -30px)" }, "50%": { transform: "translate(60px, 5px)" }, "62%": { transform: "translate(60px, 35px)" },
+  "90%": { transform: "translate(60px, 35px)", opacity: 1 }, "100%": { transform: "translate(60px, 35px)", opacity: 0 },
 })
+
+// The drawings' lines are ink mixed into the ground. A drawing on the dark slab swaps both (and its faces) for slab colors.
+const artInk = (pct: number) => `color-mix(in srgb, var(--art-ink, ${color.ink}) ${pct}%, var(--art-bg, ${color.ground}))`
 
 const DESKTOP = "@media (min-width: 900px)"
 const PHONE = "@media (max-width: 640px)"
@@ -126,6 +137,51 @@ const s = stylex.create({
     lineHeight: 1.55, color: color.muted, textWrap: "pretty",
   },
   ctas: { display: "flex", flexWrap: "wrap", justifyContent: "center", gap: space.s2, marginTop: space.s6, marginBottom: 0, maxWidth: "none" },
+
+  // The hero's drawing. On a phone it stays at a readable size and its edges are cropped (they fade out anyway).
+  art: { marginTop: { default: space.s6, [DESKTOP]: space.s7 }, overflowX: "clip" },
+  artSvg: { display: "block", width: "max(100%, 760px)", height: "auto", marginInline: "calc(50% - max(50%, 380px))" },
+  artGrid: { fill: "none", stroke: artInk(9), strokeWidth: 1 },
+  artHatch: { stroke: artInk(22), strokeWidth: 0.75 },
+  artGuide: { fill: "none", stroke: artInk(30), strokeWidth: 1, strokeDasharray: "3 4" },
+  artFlow: {
+    fill: "none", stroke: artInk(45), strokeWidth: 2, strokeLinecap: "round", strokeDasharray: "0 6",
+    animationName: march, animationDuration: "2400ms", animationTimingFunction: "linear", animationIterationCount: "infinite",
+  },
+  artNode: { fill: artInk(45) },
+  artFace: { stroke: artInk(26), strokeWidth: 1, strokeLinejoin: "round" },
+  artTop: { fill: `var(--art-top, ${color.sheet})` },
+  artSide: { fill: `var(--art-side, ${color.tile})` },
+  artFront: { fill: `var(--art-front, ${color.ground})` },
+  artAccent: { fill: color.accent, stroke: color.accentText },
+  artDraw: { strokeDasharray: "1", animationName: draw, animationDuration: "1600ms", animationTimingFunction: motion.inOut, animationFillMode: "both" },
+  // The windows' drawings, on the dark slab: the same drawing, recolored, drawn in as the tile scrolls into view.
+  toolArt: {
+    "--art-ink": color.slabInk, "--art-bg": color.slabTile, "--art-top": `color-mix(in srgb, ${color.slabInk} 8%, ${color.slabTile})`,
+    "--art-side": color.slabTile, "--art-front": `color-mix(in srgb, ${color.slab} 50%, ${color.slabTile})`,
+    display: "block", marginBlock: `calc(-1 * ${space.s2})`, marginInline: "auto", maxWidth: 340,
+    maskImage: "radial-gradient(closest-side, #000 60%, transparent)",
+    // Shapes inside an SVG have no box of their own to track, so they follow the drawing's.
+    viewTimelineName: "--tool-art",
+  },
+  artDrawScroll: {
+    strokeDasharray: "1",
+    animationName: { default: null, [SCROLL]: draw }, animationDuration: { default: null, [SCROLL]: "auto" },
+    animationTimeline: { default: null, [SCROLL]: "--tool-art" }, animationRange: { default: null, [SCROLL]: "entry 20% cover 45%" },
+    animationTimingFunction: motion.inOut, animationFillMode: "both",
+  },
+  artArcScroll: {
+    fill: "none", stroke: color.accent, strokeWidth: 2.5, strokeLinecap: "round", strokeDasharray: "0.68 1",
+    animationName: { default: null, [SCROLL]: arcFill }, animationDuration: { default: null, [SCROLL]: "auto" },
+    animationTimeline: { default: null, [SCROLL]: "--tool-art" }, animationRange: { default: null, [SCROLL]: "cover 30% cover 55%" },
+    animationTimingFunction: motion.out, animationFillMode: "both",
+  },
+  artHopLoop: { animationName: hopAcross, animationDuration: "5200ms", animationTimingFunction: motion.inOut, animationIterationCount: "infinite" },
+  artArc: {
+    fill: "none", stroke: color.accent, strokeWidth: 2.5, strokeLinecap: "round", strokeDasharray: "0.68 1",
+    animationName: arcFill, animationDuration: "1400ms", animationDelay: "1600ms", animationTimingFunction: motion.out, animationFillMode: "both",
+  },
+  artHop: { animationName: hopAcross, animationDuration: "5200ms", animationDelay: "2400ms", animationTimingFunction: motion.inOut, animationIterationCount: "infinite", animationFillMode: "backwards" },
 
   // The example project, drawn as the app draws it.
   demo: {
@@ -261,13 +317,7 @@ const s = stylex.create({
     paddingBlock: 6, paddingInline: 12, borderRadius: radius.pill, backgroundColor: color.slabTile, color: color.slabInk,
     fontSize: text.sm, fontWeight: 600, borderTopWidth: 0,
   },
-  // The drawing: line art on the slab, after kargul.studio's isometric plates.
-  iso: { display: "block", width: "100%", maxWidth: 440, marginInline: "auto", color: color.slabInk },
-  isoGuide: { stroke: color.slabMuted, opacity: 0.45 },
-  isoPlate: { fill: color.slab, stroke: color.slabInk, strokeWidth: 1.25, strokeLinejoin: "round" },
-  isoLabel: { fill: color.slabMuted, fontSize: 12, fontWeight: 600, letterSpacing: "0.02em" },
   isoDrift: { animationName: drift, animationDuration: "3600ms", animationTimingFunction: motion.inOut, animationIterationCount: "infinite", animationDirection: "alternate" },
-  isoCard: { fill: color.accent, animationName: hop, animationDuration: "5200ms", animationTimingFunction: motion.inOut, animationIterationCount: "infinite" },
 
   // Startups: three steps, and the questions people ask.
   steps: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "repeat(3, 1fr)" }, gap: space.s3, margin: 0, padding: 0, listStyle: "none" },
@@ -317,8 +367,11 @@ const s = stylex.create({
   },
   footerLinks: { display: "flex", flexWrap: "wrap", gap: space.s5, margin: 0 },
   giant: {
-    display: "block", marginTop: space.s4, marginBottom: "-0.2em", fontSize: "clamp(3.5rem, 15.5vw, 14rem)", lineHeight: 0.8, fontWeight: 800,
-    letterSpacing: "-0.06em", color: color.ink, textAlign: "center", userSelect: "none", whiteSpace: "nowrap",
+    // A ghost, edge to edge: a hair off the ground, drawn by a faint outline, running off the right side.
+    display: "block", marginTop: space.s6, marginBottom: "-0.2em", fontSize: "20vw", lineHeight: 0.8, fontWeight: 800,
+    // Looser than the headlines: outlined letters that touch draw lines through each other.
+    marginLeft: "-0.03em", letterSpacing: "-0.015em", userSelect: "none", whiteSpace: "nowrap",
+    color: `color-mix(in srgb, ${color.ink} 2.5%, ${color.ground})`, WebkitTextStroke: `1px color-mix(in srgb, ${color.ink} 9%, ${color.ground})`,
     // Rises out of the page's bottom edge (the footer crops it) as you reach the end.
     animationName: { default: null, [SCROLL]: surface }, animationDuration: { default: null, [SCROLL]: "auto" },
     animationTimeline: { default: null, [SCROLL]: "view()" }, animationRange: { default: null, [SCROLL]: "entry 0% entry 70%" },
@@ -580,21 +633,226 @@ const Goals = () => {
   )
 }
 
-// The agents section's drawing, after kargul.studio's line art: a board as three plates (Triage, Running, Review), the
-// top one drifting, and a card that keeps going from Running to Review. Under reduced motion it rests on Running.
-const plate = (y: number) => `200,${y} 340,${y + 70} 200,${y + 140} 60,${y + 70}`
-const Handoff = () => (
-  <svg viewBox="0 0 400 370" role="img" aria-label="A card moving from Running to Review" {...sx(s.iso)}>
-    <g fill="none" strokeDasharray="2 6" {...sx(s.isoGuide)}>
-      <line x1="60" y1="70" x2="60" y2="300" /><line x1="340" y1="70" x2="340" y2="300" /><line x1="200" y1="0" x2="200" y2="370" />
+// The hero's drawing, after kargul.studio's: a whole project as isometric line art on a grid floor that fades into
+// the page. The board in the middle; files, chat and the calendar around it, each sending work along a dotted arc;
+// Compass's dial filling up in front. `iso` turns a point on the floor (x, y) at height z into a point in the drawing.
+type V3 = [x: number, y: number, z: number]
+const U = 30
+const iso = (x: number, y: number, z = 0): [number, number] => [600 + (x - y) * U * 0.866, 330 + (x + y) * U * 0.5 - z * U]
+const pts = (...ps: V3[]) => ps.map((p) => iso(...p).map((n) => n.toFixed(1)).join(",")).join(" ")
+// A dotted arc from one point to another, bowed up by `lift` px.
+const arc = (a: V3, b: V3, lift: number) => {
+  const [x1, y1] = iso(...a), [x2, y2] = iso(...b)
+  return `M${x1.toFixed(1)} ${y1.toFixed(1)} Q${((x1 + x2) / 2).toFixed(1)} ${(Math.min(y1, y2) - lift).toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`
+}
+const FLOOR = Array.from({ length: 29 }, (_, i) => i - 14)
+  .map((i) => `M${pts([-14, i, 0])}L${pts([14, i, 0])}M${pts([i, -14, 0])}L${pts([i, 14, 0])}`).join("")
+
+/** A box sitting at `at`, `size` units wide (x), deep (y) and tall (z): the three faces you can see. `paper`: all three light. */
+const Box = ({ at: [x, y, z], size: [w, d, h], hatch, accent, paper }: { at: V3; size: V3; hatch?: boolean; accent?: boolean; paper?: boolean }) => (
+  <g>
+    <polygon pathLength={1} points={pts([x + w, y, z], [x + w, y + d, z], [x + w, y + d, z + h], [x + w, y, z + h])} {...sx(s.artFace, s.artSide, paper && s.artTop, accent && s.artAccent)} />
+    <polygon pathLength={1} points={pts([x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h])} {...sx(s.artFace, s.artFront, paper && s.artTop, accent && s.artAccent)}
+      style={hatch ? { fill: "url(#art-hatch)" } : undefined} />
+    <polygon pathLength={1} points={pts([x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h])} {...sx(s.artFace, s.artTop, accent && s.artAccent)} />
+  </g>
+)
+/** A drum standing at (x, y): chat, `r` units round and `h` tall. */
+const Drum = ({ x, y, r, h }: { x: number; y: number; r: number; h: number }) => {
+  const [bx, by] = iso(x, y), [, ty] = iso(x, y, h), rx = r * U * 1.2247, ry = r * U * 0.7071
+  return (
+    <g>
+      <path pathLength={1} d={`M${bx - rx} ${ty}L${bx - rx} ${by}A${rx} ${ry} 0 0 0 ${bx + rx} ${by}L${bx + rx} ${ty}`} {...sx(s.artFace, s.artSide)} />
+      <ellipse pathLength={1} cx={bx} cy={ty} rx={rx} ry={ry} {...sx(s.artFace, s.artTop)} />
     </g>
-    {(["Triage", "Running", "Review"] as const).map((name, i) => (
-      <g key={name} {...sx(i === 0 && s.isoDrift)}>
-        <polygon points={plate(20 + i * 90)} {...sx(s.isoPlate)} />
-        <text x="84" y={98 + i * 90} {...sx(s.isoLabel)}>{name}</text>
+  )
+}
+const Dot = ({ at }: { at: V3 }) => { const [x, y] = iso(...at); return <rect x={x - 3} y={y - 3} width={6} height={6} transform={`rotate(45 ${x} ${y})`} {...sx(s.artNode)} /> }
+
+const PLATES = [-2.7, -0.4, 1.9] // Triage, Running, Review
+const Scene = () => {
+  const [dx, dy] = iso(5.5, 3.5), dial = { rx: 1.7 * U * 1.2247, ry: 1.7 * U * 0.7071 }
+  return (
+    <div aria-hidden="true" {...sx(s.art)}>
+      <svg viewBox="0 50 1200 540" {...sx(s.artSvg)}>
+        <defs>
+          <pattern id="art-hatch" width="4" height="4" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="4" {...sx(s.artHatch)} /></pattern>
+          <radialGradient id="art-fade"><stop offset="0.35" stopColor="#fff" /><stop offset="1" stopColor="#000" /></radialGradient>
+          <mask id="art-floor"><rect x="0" y="50" width="1200" height="540" fill="url(#art-fade)" /></mask>
+        </defs>
+        <g mask="url(#art-floor)" {...sx(s.settle, s.delay(200))}>
+          <path d={FLOOR} {...sx(s.artGrid)} />
+          <line x1="0" y1="330" x2="1200" y2="330" {...sx(s.artGuide)} />
+        </g>
+        <path d={arc([-8, 8, 0], [8, -8, 0], 300)} {...sx(s.artGuide, s.settle, s.delay(1300))} />
+
+        {/* Behind the board: chat and the calendar. */}
+        <g {...sx(s.artDraw, s.delay(500))}><Drum x={-5} y={-7} r={1.1} h={1.5} /></g>
+        <g {...sx(s.artDraw, s.delay(600))}>
+          <Box at={[4.4, -7.4, 0]} size={[2.6, 2.6, 1.4]} hatch />
+          {[0.65, 1.3, 1.95].map((t) => <polyline key={t} pathLength={1} points={pts([4.4 + t, -7.4, 1.4], [4.4 + t, -4.8, 1.4])} {...sx(s.artFace)} fill="none" />)}
+        </g>
+
+        {/* The board: a slab with three columns on it, and their cards. */}
+        <g {...sx(s.artDraw, s.delay(350))}>
+          <Box at={[-3, -2.5, 0]} size={[7, 5, 0.35]} hatch />
+          {PLATES.map((x) => <Box key={x} at={[x, -2, 0.35]} size={[2, 4, 0.12]} />)}
+          <Box at={[-2.45, -1.7, 0.47]} size={[1.5, 0.9, 0.12]} /><Box at={[-2.45, -0.5, 0.47]} size={[1.5, 0.9, 0.12]} />
+          <Box at={[-0.15, -0.5, 0.47]} size={[1.5, 0.9, 0.12]} /><Box at={[2.15, -0.5, 0.47]} size={[1.5, 0.9, 0.12]} />
+        </g>
+        <path d={arc([0.6, -1.25, 0.6], [2.9, -1.25, 0.6], 42)} {...sx(s.artGuide, s.settle, s.delay(1600))} />
+        <g {...sx(s.artHop)}><g {...sx(s.artDraw, s.delay(900))}><Box at={[-0.15, -1.7, 0.47]} size={[1.5, 0.9, 0.12]} accent /></g></g>
+
+        {/* Files, stacked to the left; the top sheet floats. */}
+        <g {...sx(s.artDraw, s.delay(700))}>
+          <Box at={[-9.4, -0.6, 0]} size={[2.4, 1.8, 0.25]} /><Box at={[-9.3, -0.7, 0.35]} size={[2.4, 1.8, 0.25]} />
+        </g>
+        <g {...sx(s.isoDrift)}><g {...sx(s.artDraw, s.delay(800))}><Box at={[-9.2, -0.8, 1]} size={[2.4, 1.8, 0.25]} /></g></g>
+
+        {/* Compass, in front: a dial that fills to where the project is, inside a dashed square. */}
+        <polygon points={pts([3.3, 1.3, 0], [7.7, 1.3, 0], [7.7, 5.7, 0], [3.3, 5.7, 0])} {...sx(s.artGuide, s.settle, s.delay(900))} fill="none" />
+        <g {...sx(s.artDraw, s.delay(1000))}>
+          <ellipse pathLength={1} cx={dx} cy={dy} rx={dial.rx} ry={dial.ry} {...sx(s.artFace, s.artTop)} />
+          <ellipse pathLength={1} cx={dx} cy={dy} rx={dial.rx * 0.55} ry={dial.ry * 0.55} {...sx(s.artFace, s.artFront)} />
+        </g>
+        <ellipse pathLength={1} cx={dx} cy={dy} rx={dial.rx * 0.78} ry={dial.ry * 0.78} {...sx(s.artArc)} />
+
+        {/* Small blocks hanging in the air, drifting out of step with each other. */}
+        {([[-0.8, 10.8, 2, -900], [10, -7.2, 2.4, -2200], [1, -8.5, 3.4, -400]] as const).map(([x, y, z, phase]) => (
+          <g key={x} {...sx(s.isoDrift)} style={{ animationDelay: `${phase}ms` }}>
+            <g {...sx(s.artDraw, s.delay(1100))}><Box at={[x, y, z]} size={[0.6, 0.6, 0.6]} /></g>
+          </g>
+        ))}
+
+        {/* Work flowing to the board: from files, chat and the calendar. */}
+        <g {...sx(s.settle, s.delay(1500))}>
+          {([[[-7.9, 0.2, 1.1], [-2, 0.3, 0.6], 88], [[-5, -7, 1.5], [-1.6, -1.6, 0.6], 75], [[5.7, -6.1, 1.4], [3.6, -1.6, 0.6], 62]] as const).map(([a, b, lift]) => (
+            <g key={a[0]}><path d={arc([...a], [...b], lift)} {...sx(s.artFlow)} /><Dot at={[...a]} /><Dot at={[...b]} /></g>
+          ))}
+        </g>
+      </svg>
+    </div>
+  )
+}
+
+// The project windows and the agent points, one small drawing each, after kargul.studio's service tiles. Orange marks the one thing that
+// matters in each: the answer in Chat, the due day, how far along Compass is, the card heading to Review.
+const line = (a: V3, b: V3) => <polyline pathLength={1} points={pts(a, b)} fill="none" {...sx(s.artFace)} />
+const shadow = (x: number, y: number, w: number, d: number) => <polygon points={pts([x, y, 0], [x + w, y, 0], [x + w, y + d, 0], [x, y + d, 0])} {...sx(s.artGuide)} />
+const TOOL_ART: Record<string, () => ReactNode> = {
+  Posts: () => (
+    <>
+      <g {...sx(s.artDrawScroll)}><Box at={[-1.7, -1.1, 0]} size={[3.2, 2.4, 0.1]} /><Box at={[-1.6, -1.2, 0.35]} size={[3.2, 2.4, 0.1]} /></g>
+      <g {...sx(s.isoDrift)}>
+        <g {...sx(s.artDrawScroll)}>
+          <Box at={[-1.5, -1.3, 0.75]} size={[3.2, 2.4, 0.1]} />
+          {[0, 1, 2].map((i) => <g key={i}>{line([-1.1, -0.8 + i * 0.55, 0.85], [1.2 - i * 0.7, -0.8 + i * 0.55, 0.85])}</g>)}
+        </g>
       </g>
-    ))}
-    <polygon points="200,166 232,182 200,198 168,182" {...sx(s.isoCard)} />
+    </>
+  ),
+  Compass: () => {
+    const [cx, cy] = iso(0, 0, 0.25), rx = 2.1 * U * 1.2247, ry = 2.1 * U * 0.7071
+    return (
+      <>
+        {shadow(-2.7, -2.7, 5.4, 5.4)}
+        <g {...sx(s.artDrawScroll)}>
+          <Drum x={0} y={0} r={2.1} h={0.25} />
+          <ellipse pathLength={1} cx={cx} cy={cy} rx={rx * 0.5} ry={ry * 0.5} {...sx(s.artFace, s.artFront)} />
+        </g>
+        <ellipse pathLength={1} cx={cx} cy={cy} rx={rx * 0.75} ry={ry * 0.75} {...sx(s.artArcScroll)} />
+        {([[-2.7, -2.7], [2.7, -2.7], [2.7, 2.7], [-2.7, 2.7]] as const).map(([x, y]) => <Dot key={`${x}${y}`} at={[x, y, 0]} />)}
+      </>
+    )
+  },
+  // A folder with its old versions standing in it, the newest one lifting out.
+  Files: () => (
+    <>
+      <g {...sx(s.artDrawScroll)}>
+        <Box at={[-1.8, -1.2, 0]} size={[3.6, 2.4, 0.9]} /><Box at={[-1.8, -1.2, 0.9]} size={[1.2, 0.4, 0.15]} />
+        <Box at={[-1.3, -0.9, 0.6]} size={[2.4, 0.06, 1.1]} paper /><Box at={[-1.3, -0.4, 0.6]} size={[2.4, 0.06, 1.1]} paper />
+      </g>
+      <g {...sx(s.isoDrift)}><g {...sx(s.artDrawScroll)}><Box at={[-1.3, 0.1, 0.9]} size={[2.4, 0.06, 1.1]} paper /></g></g>
+    </>
+  ),
+  // A question, and the answer floating up out of it.
+  Chat: () => (
+    <>
+      {shadow(-2.4, -0.3, 2.2, 1.3)}{shadow(0.1, -1.6, 2.2, 1.3)}
+      <g {...sx(s.artDrawScroll)}><Box at={[-2.4, -0.3, 0.6]} size={[2.2, 1.3, 0.12]} /></g>
+      <g {...sx(s.isoDrift)}><g {...sx(s.artDrawScroll)}><Box at={[0.1, -1.6, 1.6]} size={[2.2, 1.3, 0.12]} accent /></g></g>
+      <path d={arc([-1.3, 0.35, 0.72], [1.2, -0.95, 1.72], 30)} {...sx(s.artFlow)} /><Dot at={[-1.3, 0.35, 0.72]} />
+    </>
+  ),
+  Calendar: () => (
+    <>
+      <g {...sx(s.artDrawScroll)}>
+        <Box at={[-2, -2, 0]} size={[4, 4, 0.35]} />
+        {[-1, 0, 1].map((t) => <g key={t}>{line([t, -2, 0.35], [t, 2, 0.35])}{line([-2, t, 0.35], [2, t, 0.35])}</g>)}
+      </g>
+      <g {...sx(s.isoDrift)}><g {...sx(s.artDrawScroll)}><Box at={[1.08, 0.08, 0.45]} size={[0.84, 0.84, 0.12]} accent /></g></g>
+    </>
+  ),
+  Boards: () => (
+    <>
+      <g {...sx(s.artDrawScroll)}>
+        {[-3.4, -1.1, 1.2].map((x) => <Box key={x} at={[x, -1.6, 0]} size={[2, 3.2, 0.12]} />)}
+        <Box at={[-3.15, -1.3, 0.12]} size={[1.5, 0.8, 0.1]} /><Box at={[-3.15, -0.2, 0.12]} size={[1.5, 0.8, 0.1]} /><Box at={[1.45, -0.2, 0.12]} size={[1.5, 0.8, 0.1]} />
+      </g>
+      <g {...sx(s.artHopLoop)}><g {...sx(s.artDrawScroll)}><Box at={[-0.85, -1.3, 0.12]} size={[1.5, 0.8, 0.1]} accent /></g></g>
+    </>
+  ),
+
+  // Bring your own agent. Your agent (the drum) plugged into your projects: dots run along the cable to an orange socket.
+  "Connect in a minute": () => (
+    <>
+      <g {...sx(s.artDrawScroll)}>
+        <Drum x={-2.2} y={0.6} r={0.9} h={1.2} />
+        <Box at={[0.4, -1.8, 0]} size={[2.4, 2.4, 0.3]} /><Box at={[1.2, -1, 0.3]} size={[0.8, 0.8, 0.1]} accent />
+      </g>
+      <path d={arc([-2.2, 0.6, 1.2], [1.6, -0.6, 0.4], 40)} {...sx(s.artFlow)} /><Dot at={[-2.2, 0.6, 1.2]} />
+    </>
+  ),
+  // Filtered down to the agent's work: the rest are dashed outlines; the one left wears its orange "via" label.
+  "You can always tell": () => (
+    <>
+      {[-3.2, -1.6, 1.6].map((x) => <g key={x}>{shadow(x, -0.4, 1.4, 0.9)}</g>)}
+      <g {...sx(s.artDrawScroll)}><Box at={[0, -0.4, 0]} size={[1.4, 0.9, 0.1]} /></g>
+      <path d={`M${pts([0.7, 0.05, 0.1])}L${pts([0.7, -0.375, 0.8])}`} {...sx(s.artGuide)} />
+      <g {...sx(s.isoDrift)}><g {...sx(s.artDrawScroll)}><Box at={[0.2, -0.4, 0.8]} size={[1, 0.05, 0.45]} accent /></g></g>
+    </>
+  ),
+  // Running and Review, and the finished card crossing over.
+  "It hands work back": () => (
+    <>
+      <g {...sx(s.artDrawScroll)}>
+        <Box at={[-2.4, -1.6, 0]} size={[2, 3.2, 0.12]} /><Box at={[-0.1, -1.6, 0]} size={[2, 3.2, 0.12]} />
+        <Box at={[-2.15, -0.2, 0.12]} size={[1.5, 0.8, 0.1]} /><Box at={[0.15, -0.2, 0.12]} size={[1.5, 0.8, 0.1]} />
+      </g>
+      <g {...sx(s.artHopLoop)}><g {...sx(s.artDrawScroll)}><Box at={[-2.15, -1.3, 0.12]} size={[1.5, 0.8, 0.1]} accent /></g></g>
+    </>
+  ),
+  // Your phone lies dark (the ring over it stays dashed: no ping), while the agents' work piles up in a tray for later.
+  "It never pings": () => {
+    const [rx, ry] = iso(-1.95, -0.1, 1.1)
+    return (
+      <>
+        <g {...sx(s.artDrawScroll)}>
+          <Box at={[-2.6, -1.4, 0]} size={[1.3, 2.6, 0.15]} />
+          <polygon pathLength={1} points={pts([-2.5, -1.2, 0.15], [-1.4, -1.2, 0.15], [-1.4, 1, 0.15], [-2.5, 1, 0.15])} {...sx(s.artFace, s.artFront)} />
+          <Box at={[0.2, -1.2, 0]} size={[2.4, 2, 0.45]} />
+          <Box at={[0.4, -1, 0.45]} size={[2, 1.6, 0.06]} paper /><Box at={[0.45, -1.05, 0.55]} size={[2, 1.6, 0.06]} paper />
+        </g>
+        <ellipse cx={rx} cy={ry} rx={U * 0.9} ry={U * 0.52} {...sx(s.artGuide)} />
+        <g {...sx(s.isoDrift)}><g {...sx(s.artDrawScroll)}><Box at={[0.5, -1.1, 0.75]} size={[2, 1.6, 0.06]} accent /></g></g>
+      </>
+    )
+  },
+}
+const ToolArt = ({ name }: { name: string }) => (
+  <svg viewBox="430 230 340 190" aria-hidden="true" {...sx(s.toolArt)}>
+    <path d={FLOOR} {...sx(s.artGrid)} />
+    {TOOL_ART[name]?.()}
   </svg>
 )
 
@@ -623,16 +881,18 @@ const Chrome = ({ children }: { children: ReactNode }) => {
         </div>
       </header>
       <main>{children}</main>
-      <footer {...sx(s.wrap, s.footer)}>
-        <div {...sx(s.footerRow)}>
-          <span>Saintsflow · in beta</span>
-          <p {...sx(s.footerLinks)}>
-            <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
-            <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
-            <a href="/startups" {...sx(s.navLink)}>For startups</a>
+      <footer {...sx(s.footer)}>
+        <div {...sx(s.wrap)}>
+          <div {...sx(s.footerRow)}>
+            <span>Saintsflow · in beta</span>
+            <p {...sx(s.footerLinks)}>
+              <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
+              <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
+              <a href="/startups" {...sx(s.navLink)}>For startups</a>
               <a href="/blog" {...sx(s.navLink)}>Blog</a>
-            {me ? <a href="/" {...sx(s.navLink)}>Go to Saintsflow</a> : <><a href="/signin" {...sx(s.navLink)}>Log in</a><a href="/signup" {...sx(s.navLink)}>Sign up</a></>}
-          </p>
+              {me ? <a href="/" {...sx(s.navLink)}>Go to Saintsflow</a> : <><a href="/signin" {...sx(s.navLink)}>Log in</a><a href="/signup" {...sx(s.navLink)}>Sign up</a></>}
+            </p>
+          </div>
         </div>
         <span aria-hidden="true" {...sx(s.giant)}>Saintsflow</span>
       </footer>
@@ -662,10 +922,9 @@ const Agents = () => (
           <ul aria-label="Works with" {...sx(s.works)}>
             {AGENTS.map((a, i) => <li key={a} {...sx(s.chip, s.reveal)} style={stagger(i, 8)}>{a}</li>)}
           </ul>
-          <div {...sx(s.reveal)} style={{ marginTop: 40 }}><Handoff /></div>
         </div>
         <dl {...sx(s.agentCards)}>
-          {AGENT_POINTS.map(([t, d], i) => <div key={t} {...sx(s.tool, s.reveal)} style={stagger(i % 2)}><dt {...sx(s.toolName)}>{t}</dt><dd {...sx(s.toolText)}>{d}</dd></div>)}
+          {AGENT_POINTS.map(([t, d], i) => <div key={t} {...sx(s.tool, s.reveal)} style={stagger(i % 2)}><dt {...sx(s.toolName)}>{t}</dt><dd {...sx(s.toolText)}><ToolArt name={t!} />{d}</dd></div>)}
         </dl>
       </div>
     </div>
@@ -714,6 +973,7 @@ const Marketing = () => (
       <h1 {...sx(s.h1, s.enter, s.delay(60))}>We keep your flow state.</h1>
       <p {...sx(s.lede, s.enter, s.delay(140))}>Saintsflow is calm project software for small teams and the AI agents that help them. Every project's posts, board, files and chat in one place. Your agent does the busywork, and never pings you about it.</p>
       <p {...sx(s.ctas, s.enter, s.delay(220))}><Ctas second={["See how it works", "#product"]} /></p>
+      <Scene />
     </section>
 
     <Demo />
@@ -725,8 +985,8 @@ const Marketing = () => (
             <h2 {...sx(s.h2)}>Each project gets its own space</h2>
             <p {...sx(s.sub, s.slabSub)}>No more chat in one app, tasks in another, and choices lost in email. Give a project only the windows it needs, name them, and put them in order. Two chats? Add two.</p>
           </div>
-          <dl {...sx(s.tools)}>
-            {TOOLS.map(([t, d], i) => <div key={t} {...sx(s.tool, s.reveal)} style={stagger(i % 4)}><dt {...sx(s.toolName)}>{t}</dt><dd {...sx(s.toolText)}>{d}</dd></div>)}
+          <dl {...sx(s.tools, s.tools3)}>
+            {TOOLS.map(([t, d], i) => <div key={t} {...sx(s.tool, s.reveal)} style={stagger(i % 3)}><dt {...sx(s.toolName)}>{t}</dt><dd {...sx(s.toolText)}><ToolArt name={t!} />{d}</dd></div>)}
           </dl>
         </div>
       </div>
