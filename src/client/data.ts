@@ -56,7 +56,7 @@ export const peopleByIds = (ids: ReadonlyArray<number>) =>
 // ---------- projects ----------
 export type ProjectRow = Project & { member_names: string | null; pinned: boolean }
 
-/** Projects this person can see, by status and kind; HQ first, then by name. Mirrors core.ts visibleProjects. */
+/** Projects this person can see, by status and kind, by name. Mirrors core.ts visibleProjects. */
 export const visibleProjects = (opts: { status?: Project["status"]; kind?: Project["kind"] } = {}): ProjectRow[] => {
   const m = me()
   return [...db.projects.values()]
@@ -66,7 +66,7 @@ export const visibleProjects = (opts: { status?: Project["status"]; kind?: Proje
       member_names: peopleByIds(memberIds(p.id)).filter((x) => !x.removed_at).map((x) => x.name).join(", ") || null,
       pinned: db.pins.has(`${m.id}:${p.id}`),
     }))
-    .sort((a, b) => Number(b.is_hq) - Number(a.is_hq) || a.name.localeCompare(b.name))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** A project this person can see, or throw NotFound. Trashed projects only for admins unless `allowTrashed`. */

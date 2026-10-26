@@ -230,7 +230,6 @@ export const seed = (s: Seed) =>
       [dan, "Looks great from our side too."],
     ] as const)
       yield* postLine(s.as(who), web, body)
-    yield* postLine(s.as(cara), s.projects.hq, "Who's in for lunch at noon?")
 
     const [bot] = yield* sql<Chatbot>`insert into chatbots ${sql.insert({ account_id: s.account.id, name: "deploybot", command_url: null, token: crypto.randomUUID().replace(/-/g, "") })} returning *`
     yield* postBotLine(bot!, web, "Deployed staging build #42 ✅")

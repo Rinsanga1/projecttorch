@@ -27,7 +27,6 @@ export type Project = {
   id: number
   account_id: number
   kind: "project" | "template" | "ping"
-  is_hq: boolean
   name: string
   description: string | null
   all_access: boolean
@@ -341,7 +340,7 @@ export const visibleProjects = (c: Ctx, opts: { status?: string; kind?: string }
         and (exists (select 1 from project_people pp where pp.project_id = p.id and pp.person_id = ${c.me.id})
              ${isClient(c.me) ? sql`` : sql`or p.all_access`}
              ${isAdmin(c.me) && (opts.kind ?? "project") !== "ping" ? sql`or true` : sql``})
-      order by p.is_hq desc, p.name`
+      order by p.name`
   })
 
 /** Remember the last pages someone visited (Go to, Home's "recently visited"), and when they last saw each project and window. */

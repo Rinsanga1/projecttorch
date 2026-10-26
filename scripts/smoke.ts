@@ -9,7 +9,7 @@ const LIMIT = Number(process.env.LIMIT ?? 400)
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
 const executablePath = process.env.BROWSER ?? (process.platform === "win32" ? EDGE : undefined)
 // Links that change something when opened, or leave the app (the dev inbox is everyone's mail, linking to their pages).
-const SKIP = /\/(undo-trash|open|download|raw)(\/|$|\?)|^\/api\/|^\/(signout|marketting|inbox)/
+const SKIP = /\/(undo-trash|open|download|raw)(\/|$|\?)|^\/api\/|^\/(signout|inbox)/
 
 const people = ((await (await fetch(`${BASE}/api/dev/people`)).json()) as { data: { id: number; name: string }[] }).data
 // PEOPLE="Cara Wu,Dan Client" crawls only those people.

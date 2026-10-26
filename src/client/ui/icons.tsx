@@ -1,7 +1,9 @@
 // Line icons for the project's tools and the window controls: a 20-unit grid, 1.5px stroke, round caps, currentColor.
 import type { ToolType } from "../../shared/domain.ts"
 
-const PATHS: Record<ToolType | "full" | "shrink" | "close" | "back" | "plus" | "panel" | "attach", string> = {
+const PATHS: Record<ToolType | "full" | "shrink" | "close" | "back" | "plus" | "panel" | "attach" | "pin" | "search", string> = {
+  search: "M9 14.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11ZM13 13l3.5 3.5",
+  pin: "M7.5 3.5h5l-.75 4.5 2.75 2.75v1.25h-9v-1.25L8.25 8zM10 12v4.5",
   message_board: "M4 4.5h12v8.5H9l-4 3v-3H4z",
   todos: "M4 10.5 7.5 14 16 5.5",
   vault: "M5 2.75h6.5L15 6.25v11H5zM11.25 2.75v3.5H15",

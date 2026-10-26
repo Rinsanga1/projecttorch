@@ -4,12 +4,14 @@
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
 import { runInAction } from "mobx"
-import { useEffect, useLayoutEffect } from "react"
+import { useEffect, useLayoutEffect, type MouseEvent as ReactMouseEvent } from "react"
 import { Navigate, Outlet, useLocation, useMatches, useNavigate } from "react-router"
 import { db, state } from "./store.ts"
 import { meOrNull } from "./data.ts"
 import { isQuiet } from "../shared/domain.ts"
 import { Face, sx, theme } from "./ui/kit.tsx"
+import { Icon } from "./ui/icons.tsx"
+import { InboxTray, inboxCount, openTray, tray } from "./areas/hey.tsx"
 import type { Handle } from "./ui/page.tsx"
 import { color, media, motion, radius, space, text } from "./ui/tokens.stylex.ts"
 
@@ -27,12 +29,6 @@ const s = stylex.create({
   wordmark: {
     fontSize: text.md, fontWeight: 750, letterSpacing: "-0.035em", color: color.ink, textDecoration: "none", whiteSpace: "nowrap",
   },
-  // On a phone: wordmark and Find/Go to on one row, the main nav below as one row that scrolls sideways.
-  nav: {
-    display: "flex", alignItems: "center", gap: 2, marginInline: -6, flexGrow: 1,
-    flexWrap: { default: "nowrap", [DESKTOP]: "wrap" }, overflowX: { default: "auto", [DESKTOP]: "visible" },
-    order: { default: 3, [DESKTOP]: 0 }, flexBasis: { default: "100%", [DESKTOP]: "auto" }, scrollbarWidth: "none",
-  },
   navEnd: { display: "flex", alignItems: "center", gap: 2, marginLeft: "auto" },
   link: {
     display: "inline-flex", alignItems: "center", gap: 6, paddingBlock: 7, paddingInline: 12, borderRadius: radius.pill,
@@ -42,6 +38,7 @@ const s = stylex.create({
     backgroundColor: { default: null, ":hover": { default: null, [media.hover]: `color-mix(in srgb, ${color.sheet} 60%, transparent)` } },
   },
   current: { color: color.ink, fontWeight: 600, backgroundColor: color.sheet },
+  icon: { paddingInline: 8 },
   // You, as a face: Me (your assignments, schedule, settings). On your own pages it carries a ring.
   me: { display: "inline-flex", marginLeft: space.s2, borderRadius: radius.pill, textDecoration: "none" },
   meCurrent: { boxShadow: `0 0 0 2px ${color.ground}, 0 0 0 4px ${color.ink}` },
@@ -60,21 +57,10 @@ const s = stylex.create({
     width: "100%", maxWidth: 1200, marginInline: "auto", paddingInline: { default: space.s2, [DESKTOP]: space.s6 },
     paddingBottom: space.s8, flexGrow: 1,
   },
-  footer: {
-    backgroundColor: color.slab, color: color.slabMuted, fontSize: text.sm,
-    borderTopLeftRadius: { default: radius.xl, [DESKTOP]: radius.slab }, borderTopRightRadius: { default: radius.xl, [DESKTOP]: radius.slab },
-  },
-  footerInner: {
-    maxWidth: 1200, marginInline: "auto", paddingInline: { default: 20, [DESKTOP]: space.s6 }, paddingBlock: space.s6,
-    display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: space.s4,
-  },
-  footerLinks: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, margin: 0, maxWidth: "none" },
-  footerLink: { color: color.slabInk, textDecoration: "none", ":hover": { textDecoration: "underline" } },
 })
 
-// Half a bar, on purpose: the wordmark is Home (which now holds the Timeline and a link to Activity), your face is Me,
-// and Go to lives on its shortcut (Ctrl/⌘ + K).
-const NAV: ReadonlyArray<readonly [href: string, label: string]> = [["/chats", "Private chats"], ["/updates", "Updates"]]
+// Less than half a bar, on purpose: the wordmark is Home, then at the end Find, the Inbox (private chats and updates,
+// one count; it opens as a tray over the page) and your face, which is Me. Go to lives on its shortcut (Ctrl/⌘ + K).
 const isCurrent = (path: string, href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"))
 
 /** Paths that keep working while an account is on hold or cancelled. Matches ON_HOLD_OK in src/lib/web.ts. */
@@ -85,45 +71,26 @@ const Header = observer(() => {
   const path = useLocation().pathname
   const account = me ? db.accounts.get(String(me.account_id)) : undefined
   if (!me || !account) return <header {...sx(s.header)}><a href="/marketing" {...sx(s.wordmark)}>Saintsflow</a></header>
-  const unread = { pings: 0, hey: 0 }
-  for (const n of db.notifications.values()) if (n.person_id === me.id && !n.read_at) n.kind === "ping" ? unread.pings++ : unread.hey++
-  const counts: Record<string, number> = { "/chats": unread.pings, "/updates": unread.hey }
-  const link = (href: string, label: string, title?: string) => {
-    const cur = isCurrent(path, href)
-    const n = counts[href] ?? 0
-    return (
-      <a key={href} href={href} title={title} aria-current={cur ? "page" : undefined} aria-label={n ? `${label}, ${n} unread` : undefined} {...sx(s.link, cur && s.current)}>
-        {label}{n > 0 && <span {...sx(s.count)} aria-hidden="true">{n}</span>}
-      </a>
-    )
+  const n = inboxCount(me.id)
+  const inInbox = tray.open || isCurrent(path, "/updates") || isCurrent(path, "/chats")
+  // The Inbox is a link to its page; a plain click opens it as a tray instead (a new tab still gets the page).
+  const toggle = (e: ReactMouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    e.preventDefault()
+    openTray()
   }
   return (
     <header {...sx(s.header)}>
       <a href="/" {...sx(s.wordmark)}>{account.name}</a>
-      <nav aria-label="Main" {...sx(s.nav)}>{NAV.map(([h, l]) => link(h, l))}</nav>
-      <div {...sx(s.navEnd)}>
+      <nav aria-label="Main" {...sx(s.navEnd)}>
         {isQuiet(me) && <a href="/my/quiet-hours" {...sx(s.quiet)}><span {...sx(s.dot, s.quietDot)} />Notifications paused</a>}
-        {link("/find", "Find", "Find, or go to anything with Ctrl/⌘ + K")}
+        <a href="/find" aria-label="Find" title="Find, or go to anything with Ctrl/⌘ + K" aria-current={isCurrent(path, "/find") ? "page" : undefined}
+          {...sx(s.link, s.icon, isCurrent(path, "/find") && s.current)}><Icon name="search" size={18} /></a>
+        <a href="/updates" onClick={toggle} data-inbox-toggle aria-controls="inbox-tray" aria-expanded={tray.open} aria-label={n ? `Inbox, ${n} unread` : "Inbox"}
+          {...sx(s.link, inInbox && s.current)}>Inbox{n > 0 && <span {...sx(s.count)} aria-hidden="true">{n}</span>}</a>
         <a href="/my" aria-label={`Me: ${me.name}`} title="Your assignments, schedule and settings" aria-current={isCurrent(path, "/my") ? "page" : undefined} {...sx(s.me, isCurrent(path, "/my") && s.meCurrent)}><Face p={me} px={30} /></a>
-      </div>
+      </nav>
     </header>
-  )
-})
-
-const Footer = observer(() => {
-  const me = meOrNull()
-  if (!me) return null
-  return (
-    <footer {...sx(s.footer)}>
-      <div {...sx(s.footerInner)}>
-        <p {...sx(s.footerLinks)}>
-          <a href="/accounts" {...sx(s.footerLink)}>Switch accounts</a>
-          {import.meta.env.DEV && <a href="/inbox" {...sx(s.footerLink)}>Dev inbox (emails we'd send)</a>}
-          <a href="/shortcuts" {...sx(s.footerLink)}>Keyboard shortcuts</a>
-          <a href="/help" {...sx(s.footerLink)}>Help</a>
-        </p>
-      </div>
-    </footer>
   )
 })
 
@@ -187,7 +154,7 @@ export const App = observer(() => {
       <p id="offline" role="alert" hidden={state.online} {...sx(s.strip)}><b>You're offline.</b> You can keep reading. Quick changes wait here and sync when you reconnect.</p>
       <Header />
       <div {...sx(s.frame)}><Outlet /></div>
-      <Footer />
+      {me && <InboxTray />}
     </div>
   )
 })

@@ -52,3 +52,6 @@
 
 /* A comment box is one line until you're writing: its hints and button show while it's focused or has text in it. */
 [data-composer]:not(:focus-within):has(textarea:placeholder-shown) [data-composer-more] { display: none; }
+
+/* In the Inbox tray a chat's composer sits at the tray's bottom edge (there's no taskbar under it, even on a phone). */
+[data-tray] #say { bottom: 0; }

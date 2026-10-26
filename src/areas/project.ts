@@ -116,7 +116,7 @@ export const routes = [
         return invalid(["If you remove yourself you'll lose access to this project. Tick “Yes, remove me” to do it anyway."])
       yield* sql`delete from project_people where project_id = ${p.id}`
       for (const id of keep) yield* sql`insert into project_people (project_id, person_id) values (${p.id}, ${id}) on conflict do nothing`
-      if (!p.is_hq) yield* sql`update projects set all_access = ${str(fd, "access") === "all"} where id = ${p.id}`
+      yield* sql`update projects set all_access = ${str(fd, "access") === "all"} where id = ${p.id}`
       yield* logEvent(c, { project_id: p.id, action: "edited", summary: `changed who's on ${p.name}` })
       return redirect(keep.includes(c.me.id) || str(fd, "access") === "all" ? projectUrl(p) : "/", "People updated.")
     })),
@@ -129,7 +129,7 @@ export const routes = [
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const p = yield* findProject(c, c.params.id)
-      if (isClient(c.me) || p.is_hq) return yield* new NoAccess()
+      if (isClient(c.me)) return yield* new NoAccess()
       yield* sql`update projects set status = 'trashed', trashed_at = now() where id = ${p.id}`
       yield* logEvent(c, { project_id: p.id, action: "trashed", summary: `put the project ${p.name} in the trash` })
       return redirect("/", "Project moved to the trash.")
@@ -189,7 +189,7 @@ const setProjectStatus = (c: Ctx, status: "active" | "archived", msg: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const p = yield* findProject(c, c.params.id, { allowTrashed: true })
-    if (isClient(c.me) || (p.is_hq && status !== "active")) return yield* new NoAccess()
+    if (isClient(c.me)) return yield* new NoAccess()
     yield* sql`update projects set status = ${status}, trashed_at = null where id = ${p.id}`
     yield* logEvent(c, { project_id: p.id, action: status === "archived" ? "archived" : "restored", summary: `${status === "archived" ? "archived" : "reactivated"} the project ${p.name}` })
     return redirect(projectUrl(p), msg)

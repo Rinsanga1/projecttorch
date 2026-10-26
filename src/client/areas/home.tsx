@@ -1,151 +1,260 @@
-// Home: Home, All projects, Archived projects, New project, Who's on this project?, Templates. Posts: src/areas/home.ts.
+// Home: Home, Archived projects, New project, Who's on this project?, Templates. Posts: src/areas/home.ts.
 import * as stylex from "@stylexjs/stylex"
+import { useState, type DragEvent, type KeyboardEvent } from "react"
 import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
 import { db } from "../store.ts"
 import { observer } from "mobx-react-lite"
 import { me, account, findProject, visibleProjects, accountPeople, canCreateProjects, canInvite, projectPeople, recordings, NoAccess, type ProjectRow } from "../data.ts"
 import { isClient, projectUrl, urlFor, type Recording } from "../../shared/domain.ts"
-import { addDays, ago, fmtDate, excerpt, ms, plural, today } from "../../shared/format.ts"
-import { kit, ProgressBar, sx } from "../ui/kit.tsx"
+import { addDays, ago, fmtDate, excerpt, ms, today } from "../../shared/format.ts"
+import { Face, kit, ProgressBar, sx } from "../ui/kit.tsx"
+import { Icon } from "../ui/icons.tsx"
 import { lateTasks, progressOf, seenOf, windowNews } from "../news.ts"
-import { Form, PeopleCheckboxes } from "../ui/forms.tsx"
+import { Form, PeopleCheckboxes, usePost } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { TeamLink } from "./people.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
 
 const DESKTOP = "@media (min-width: 768px)"
+// Past this many projects Home offers a filter, and past DENSE its cards get shorter.
+const FILTER_AT = 9
+const DENSE_AT = 12
 const hs = stylex.create({
-  head: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s4, marginBottom: space.s6 },
-  title: { margin: 0 },
-  actions: { display: "flex", flexWrap: "wrap", gap: space.s2, margin: 0 },
-  group: { fontSize: text.xs, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: color.muted, marginTop: space.s6, marginBottom: space.s3 },
-  cards: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: space.s4, marginBottom: space.s2 },
+  // The day in one line: what needs you, each number a jump to its list.
+  today: { display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: space.s2, margin: 0, marginBottom: space.s5, maxWidth: "none", fontSize: text.md, color: color.muted },
+  todayDate: { color: color.ink, fontWeight: 650, letterSpacing: "-0.01em" },
+  todayLink: { color: color.ink, textDecorationLine: "none", ":hover": { textDecorationLine: { default: null, [media.hover]: "underline" } } },
+  todayLate: { color: color.accentText, fontWeight: 650 },
+  head: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s4, marginTop: space.s7, marginBottom: space.s4 },
+  title: { margin: 0, fontSize: text.lg },
+  count: { color: color.muted, fontWeight: 400 },
+  filter: { marginTop: 0, marginBottom: space.s4 },
+  cards: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: space.s3, margin: 0 },
+  // The name link covers the whole card, so the card is the click target; the pin sits above it.
   card: {
-    position: "relative", display: "flex", flexDirection: "column", gap: 6, minHeight: 168, paddingBlock: space.s5, paddingInline: space.s5,
-    borderRadius: radius.xl, borderTopWidth: 0, transitionProperty: "background-color", transitionDuration: motion.fast,
+    position: "relative", display: "flex", flexDirection: "column", gap: 6, minHeight: 176, padding: space.s5, borderRadius: radius.xl, borderTopWidth: 0,
+    transitionProperty: "background-color, opacity", transitionDuration: motion.fast,
     backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
   },
-  // The name link covers the whole card, so the card is the click target; the Pin button sits above it.
+  cardDense: { minHeight: 0, paddingBlock: space.s4 },
+  // Dragging a pinned card: it fades, and an orange edge shows where it lands.
+  dragging: { opacity: 0.45 },
+  dropBefore: { boxShadow: `inset 3px 0 0 ${color.accent}` },
+  dropAfter: { boxShadow: `inset -3px 0 0 ${color.accent}` },
   cardName: {
     fontSize: text.md, fontWeight: 650, letterSpacing: "-0.02em", textDecoration: "none", color: color.ink, paddingRight: space.s6,
     "::after": { content: "\"\"", position: "absolute", inset: 0, borderRadius: "inherit" },
   },
-  cardDesc: { fontSize: text.sm, color: color.muted, margin: 0, flexGrow: 1 },
   tag: {
     alignSelf: "flex-start", paddingBlock: 4, paddingInline: 9, borderRadius: radius.pill, backgroundColor: color.primary, color: color.onPrimary,
     fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1,
   },
-  pin: { position: "absolute", zIndex: 1, top: 14, right: 14, minHeight: 28, paddingBlock: 4, paddingInline: 10, fontSize: text.xs, backgroundColor: color.sheet },
-  columns: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, gap: space.s4, marginTop: space.s6 },
-  panel: { backgroundColor: color.tile, borderRadius: radius.xl, paddingBlock: space.s5, paddingInline: space.s5 },
-  panelTitle: { marginTop: 0, fontSize: text.md },
-  row: { display: "flex", gap: space.s3, alignItems: "baseline", borderTopColor: color.line },
-  when: { flexShrink: 0, width: "4.5em", fontSize: text.sm, fontWeight: 600, fontVariantNumeric: "tabular-nums" },
-  // Home: the projects first, each card saying what moved since you last looked.
-  homeHead: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space.s4, marginBottom: space.s4 },
-  homeTitle: { margin: 0, fontSize: text.lg },
-  homeCards: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: space.s3, margin: 0 },
-  hcard: {
-    position: "relative", display: "flex", flexDirection: "column", gap: 6, minHeight: 148, padding: space.s5, borderRadius: radius.xl, borderTopWidth: 0,
-    transitionProperty: "background-color", transitionDuration: motion.fast,
-    backgroundColor: { default: color.tile, ":hover": { default: null, [media.hover]: color.tileHover } },
-  },
-  hdesc: { margin: 0, fontSize: text.sm, color: color.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  hdates: { fontSize: text.xs, color: color.muted, fontVariantNumeric: "tabular-nums" },
-  // How far along: a thin bar and the share of the tasks done.
-  hprogress: { display: "flex", alignItems: "center", gap: space.s2, margin: 0, fontSize: text.xs, color: color.muted, fontVariantNumeric: "tabular-nums" },
-  hprogressName: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: color.ink, fontWeight: 600 },
-  // The card's news, the same as the project's window row: "Chat 5 · Files 2", and what's late, outlined.
-  hnews: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: 0, marginTop: "auto", paddingTop: space.s2, fontSize: text.sm, fontWeight: 600 },
-  hnewsItem: { display: "inline-flex", alignItems: "center", gap: 5 },
-  hnum: {
+  desc: { margin: 0, fontSize: text.sm, color: color.muted, overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 },
+  descDense: { WebkitLineClamp: 1 },
+  dates: { fontSize: text.xs, color: color.muted, fontVariantNumeric: "tabular-nums" },
+  progress: { display: "flex", alignItems: "center", gap: space.s2, margin: 0, fontSize: text.xs, color: color.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" },
+  // What needs you here (Review, late), then what people added since you last looked: the same counts as the project's rail.
+  news: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: 0, marginTop: "auto", paddingTop: space.s2, fontSize: text.sm, fontWeight: 600 },
+  newsItem: { display: "inline-flex", alignItems: "center", gap: 5 },
+  num: {
     display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, paddingInline: 5, borderRadius: radius.pill,
     backgroundColor: color.accent, color: color.onAccent, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
   },
-  hlate: { paddingBlock: 1, paddingInline: 8, borderRadius: radius.pill, color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
-  hcalm: { fontWeight: 400, color: color.muted },
-  hmore: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s3, marginBottom: 0, fontSize: text.sm },
-  // Two short lists under the projects: what's due for you, what's coming up.
-  waiting: { marginTop: space.s7 },
-  waitingCount: { color: color.muted, fontWeight: 400 },
-  // Each list as tall as what it holds: a short one leaves no empty gray box beside a long one.
+  review: { paddingBlock: 2, paddingInline: 9, borderRadius: radius.pill, backgroundColor: color.accent, color: color.onAccent },
+  late: { paddingBlock: 1, paddingInline: 8, borderRadius: radius.pill, color: color.accentText, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.accent} 55%, transparent)` },
+  calm: { fontWeight: 400, color: color.muted },
+  faces: { display: "flex", alignItems: "center", gap: 3, marginTop: space.s1 },
+  face: { display: "inline-flex" },
+  more: { marginLeft: space.s2, fontSize: text.xs, fontWeight: 600, color: color.muted },
+  // Pinned cards show their pin; the rest show it on hover (always on touch).
+  pin: {
+    position: "absolute", zIndex: 1, top: 12, right: 12, width: 32, minHeight: 32, padding: 0, color: color.muted,
+    backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.sheet } },
+  },
+  pinned: { color: color.ink },
+  links: { display: "flex", flexWrap: "wrap", columnGap: space.s4, rowGap: space.s1, marginTop: space.s3, marginBottom: 0, fontSize: text.sm, maxWidth: "none" },
+  // A tile holding a list: Waiting for you, Mine, Coming up.
+  panel: { backgroundColor: color.tile, borderRadius: radius.xl, padding: space.s5 },
+  panelTitle: { marginTop: 0, marginBottom: space.s3, fontSize: text.md },
+  list: { marginBottom: 0 },
+  // Mine and Coming up, side by side, each as tall as what it holds.
   lists: { display: "grid", gridTemplateColumns: { default: "1fr", [DESKTOP]: "1fr 1fr" }, alignItems: "start", gap: space.s3, marginTop: space.s7 },
+  // A list row: the title, then where it's from on a second line; a date or time beside it.
+  item: { display: "grid", gridTemplateColumns: "1fr auto", columnGap: space.s4, alignItems: "baseline", borderTopColor: color.line },
+  dated: { gridTemplateColumns: "4.5em 1fr" },
+  itemTitle: {
+    display: "block", fontWeight: 550, color: color.ink, textDecorationLine: "none",
+    ":hover": { textDecorationLine: { default: null, [media.hover]: "underline" } },
+  },
+  itemMeta: { display: "block", marginTop: 2 },
+  when: { fontSize: text.sm, fontWeight: 600, fontVariantNumeric: "tabular-nums" },
+  whenLate: { color: color.accentText },
+  quiet: { margin: 0, color: color.muted },
   foot: { marginTop: space.s6 },
   // A template: its name and what it is, and the button to use it at the end of the row.
   trow: { display: "flex", alignItems: "center", gap: space.s4, justifyContent: "space-between" },
   tuse: { flexShrink: 0 },
-  listTitle: { marginTop: 0, marginBottom: space.s2, fontSize: text.md },
-  late: { color: color.accentText, fontWeight: 650 },
-  quiet: { margin: 0, color: color.muted },
 })
 
-/** Pin or unpin a project for me, right away (the project menu uses it too). */
+const pinOf = (projectId: number) => db.pins.get(`${me().id}:${projectId}`)
+
+/** Pin or unpin a project for me, right away (the project menu uses it too). A new pin goes after the pinned ones. */
 export const togglePin = (projectId: number) => () => {
-  const k = `${me().id}:${projectId}`
-  if (db.pins.has(k)) db.pins.delete(k)
-  else db.pins.set(k, { person_id: me().id, project_id: projectId })
+  const m = me()
+  const k = `${m.id}:${projectId}`
+  if (db.pins.has(k)) return void db.pins.delete(k)
+  const last = Math.max(0, ...[...db.pins.values()].filter((x) => x.person_id === m.id).map((x) => x.position ?? 0))
+  db.pins.set(k, { person_id: m.id, project_id: projectId, position: last + 1 })
+}
+
+/** Every `pos_<project id>` field becomes that pin's position, right away. */
+const reorderPins = (fd: FormData) => {
+  for (const [k, v] of fd.entries()) {
+    const pin = k.startsWith("pos_") ? pinOf(Number(k.slice(4))) : undefined
+    if (pin) db.pins.set(`${pin.person_id}:${pin.project_id}`, { ...pin, position: Number(v) || 0 })
+  }
 }
 
 const PinButton = ({ p }: { p: ProjectRow }) => (
-  <Form action={`/projects/${p.id}/pin`} style={{ display: "inline" }} optimistic={togglePin(p.id)}><button data-row-action {...sx(hs.pin)}>{p.pinned ? "Unpin" : "Pin"}</button></Form>
+  <Form action={`/projects/${p.id}/pin`} style={{ display: "inline" }} optimistic={togglePin(p.id)}>
+    <button data-quiet data-row-action={p.pinned ? undefined : true} aria-label={p.pinned ? `Unpin ${p.name}` : `Pin ${p.name} to the top`}
+      title={p.pinned ? "Unpin" : "Pin to the top"} {...sx(hs.pin, p.pinned && hs.pinned)}><Icon name="pin" size={18} /></button>
+  </Form>
 )
 
-const Cards = ({ ps, pin = true }: { ps: ReadonlyArray<ProjectRow>; pin?: boolean }) => (
-  <ul {...sx(hs.cards)}>
-    {ps.map((p) => (
-      <li key={p.id} {...sx(hs.card)}>
-        <a href={projectUrl(p)} {...sx(hs.cardName)}>{p.name}</a>
-        {p.is_hq && <span {...sx(hs.tag)}>HQ</span>}{p.all_access && !p.is_hq && <span {...sx(hs.tag)}>All-access</span>}
-        {p.description && <p {...sx(hs.cardDesc)}>{excerpt(p.description, 100)}</p>}
-        {p.member_names && <small>{p.member_names}</small>}
-        {pin && p.kind === "project" && <PinButton p={p} />}
-      </li>
-    ))}
-  </ul>
-)
-
-/** A project on Home: its name, a line of description, its dates, what moved since you last looked, and its people. */
-const HomeCard = observer(({ p }: { p: ProjectRow }) => {
+/** A project on Home: its name, a line or two of description, its dates and progress, what needs you there, what's new, and its people. */
+const HomeCard = observer(({ p, review, dense }: { p: ProjectRow; review: number; dense: boolean }) => {
   const m = me()
   const since = m.prefs.project_seen?.[String(p.id)] ?? null
-  // The same counts as the project's window row: per window, since you last opened that window.
+  // The same counts as the project's rail: per window, since you last opened that window.
   const shown = p.tools.filter((t) => t.enabled)
   const nameOf = new Map(shown.map((t) => [t.id, t.name]))
   const news = [...windowNews(p.id, m.id, seenOf(m.prefs, p.id)).counts].filter(([id]) => nameOf.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 3)
   const late = shown.some((t) => t.type === "todos") ? lateTasks(p.id) : 0
   const pr = progressOf(p)
+  const people = projectPeople(p)
   return (
-    <li {...sx(hs.hcard)}>
-      <a href={projectUrl(p)} {...sx(hs.cardName)}>{p.name}</a>
-      {p.is_hq && <span {...sx(hs.tag)}>HQ</span>}
-      {p.description && <p {...sx(hs.hdesc)}>{excerpt(p.description, 120)}</p>}
-      {(p.starts_on || p.ends_on) && <small {...sx(hs.hdates)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</small>}
-      {pr.total > 0 && (
-        <p {...sx(hs.hprogress)} title={`${pr.done} of ${pr.total} done`}>
-          <ProgressBar pct={pr.pct} width={56} /><span {...sx(hs.hprogressName)}>{pr.pct}% done</span>
-        </p>
-      )}
-      <p {...sx(hs.hnews)}>
-        {news.map(([id, n]) => <span key={id} {...sx(hs.hnewsItem)}>{nameOf.get(id)}<span {...sx(hs.hnum)} aria-label={`${n} new`}>{n}</span></span>)}
-        {late > 0 && <span {...sx(hs.hlate)}>{late} late</span>}
-        {!news.length && !late && since && <span {...sx(hs.hcalm)}>All caught up.</span>}
+    <>
+      <a href={projectUrl(p)} draggable={false} {...sx(hs.cardName)}>{p.name}</a>
+      {p.all_access && <span {...sx(hs.tag)}>All-access</span>}
+      {p.description && <p {...sx(hs.desc, dense && hs.descDense)}>{excerpt(p.description, 160)}</p>}
+      {(p.starts_on || p.ends_on) && <small {...sx(hs.dates)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</small>}
+      {pr.done > 0 && <p {...sx(hs.progress)} title={`${pr.done} of ${pr.total} done`}><ProgressBar pct={pr.pct} width={56} />{pr.pct}% done</p>}
+      <p {...sx(hs.news)}>
+        {review > 0 && <span {...sx(hs.review)}>Review {review}</span>}
+        {late > 0 && <span {...sx(hs.late)}>{late} late</span>}
+        {news.map(([id, n]) => <span key={id} {...sx(hs.newsItem)}>{nameOf.get(id)}<span {...sx(hs.num)} aria-label={`${n} new`}>{n}</span></span>)}
+        {!review && !late && !news.length && since && <span {...sx(hs.calm)}>All caught up.</span>}
       </p>
-      {p.kind === "project" && !p.is_hq && <PinButton p={p} />}
-    </li>
+      {!dense && people.length > 0 && (
+        <span {...sx(hs.faces)} title={people.map((x) => x.name).join(", ")}>
+          {people.slice(0, 4).map((x) => <span key={x.id} {...sx(hs.face)}><Face p={x} px={24} /></span>)}
+          {people.length > 4 && <span {...sx(hs.more)}>+{people.length - 4}</span>}
+        </span>
+      )}
+      {p.kind === "project" && <PinButton p={p} />}
+    </>
   )
 })
 
+/** Every project: pinned ones first, in the order you dragged them into, then the rest by name. Nothing moves
+ * on its own, so your hand learns where each project is; what needs you shows on the card instead. */
+const Projects = observer(({ all, reviewBy }: { all: ProjectRow[]; reviewBy: Map<number, number> }) => {
+  const [q, setQ] = useState("")
+  const pinned = all.filter((p) => p.pinned).sort((a, b) => (pinOf(a.id)?.position ?? 0) - (pinOf(b.id)?.position ?? 0) || a.name.localeCompare(b.name))
+  const rest = all.filter((p) => !p.pinned)
+  const needle = q.trim().toLowerCase()
+  const shown = [...pinned, ...rest].filter((p) => !needle || p.name.toLowerCase().includes(needle))
+  const dense = all.length > DENSE_AT
+
+  // Pinned cards reorder by dragging (or Alt+←/→ on a card). The order saves at once.
+  const post = usePost()
+  const ids = pinned.map((p) => p.id)
+  const [dragId, setDragId] = useState<number | null>(null)
+  const [drop, setDrop] = useState<number | null>(null)
+  const moveTo = (id: number, to: number) => {
+    const next = ids.filter((x) => x !== id)
+    next.splice(to, 0, id)
+    if (next.join() === ids.join()) return
+    const fd = new FormData()
+    next.forEach((x, i) => fd.set(`pos_${x}`, String(i + 1)))
+    post("/pins/reorder", fd, () => reorderPins(fd))
+  }
+  const dragProps = (id: number) => {
+    const i = ids.indexOf(id)
+    if (i < 0 || ids.length < 2 || needle) return {}
+    return {
+      draggable: true,
+      "aria-keyshortcuts": "Alt+ArrowLeft Alt+ArrowRight",
+      onDragStart: (e: DragEvent) => { setDragId(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(id)) },
+      onDragOver: (e: DragEvent<HTMLLIElement>) => {
+        if (dragId === null) return
+        e.preventDefault()
+        const r = e.currentTarget.getBoundingClientRect()
+        setDrop(e.clientX < r.left + r.width / 2 ? i : i + 1)
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault()
+        if (dragId !== null && drop !== null) moveTo(dragId, drop > ids.indexOf(dragId) ? drop - 1 : drop)
+        setDragId(null); setDrop(null)
+      },
+      onDragEnd: () => { setDragId(null); setDrop(null) },
+      onKeyDown: (e: KeyboardEvent) => {
+        if (!e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return
+        e.preventDefault()
+        const to = i + (e.key === "ArrowLeft" ? -1 : 1)
+        if (to >= 0 && to < ids.length) moveTo(id, to)
+      },
+    }
+  }
+
+  return (
+    <section aria-labelledby="projects">
+      <div {...sx(hs.head)}>
+        <h2 id="projects" {...sx(hs.title)}>Projects</h2>
+        {canCreateProjects() && <a href="/projects/new" data-button>Make a new project</a>}
+      </div>
+      {all.length > FILTER_AT && (
+        <p {...sx(hs.filter)}><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter projects…" aria-label="Filter projects" /></p>
+      )}
+      {shown.length ? (
+        <ul {...sx(hs.cards)}>
+          {shown.map((p) => {
+            const i = ids.indexOf(p.id)
+            return (
+              <li key={p.id} {...dragProps(p.id)}
+                {...sx(hs.card, dense && hs.cardDense, dragId === p.id && hs.dragging, dragId !== null && drop === i && hs.dropBefore,
+                  dragId !== null && i === ids.length - 1 && drop === i + 1 && hs.dropAfter)}>
+                <HomeCard p={p} review={reviewBy.get(p.id) ?? 0} dense={dense} />
+              </li>
+            )
+          })}
+        </ul>
+      ) : <p {...sx(hs.quiet)}>No projects match “{q.trim()}”.</p>}
+      <p {...sx(hs.links)}><a href="/projects/archived">Archived projects</a>{!isClient(me()) && <a href="/templates">Templates</a>}</p>
+    </section>
+  )
+})
+
+/** The column a card sits in (a step's card's column), if it's on a board. */
+const columnOf = (r: Recording) => {
+  const card = r.type === "step" ? db.recordings.get(String(r.parent_id)) : r
+  return card?.type === "card" ? db.recordings.get(String(card.parent_id)) : undefined
+}
+/** Waiting in Review, parked in Not now, or finished: not yours to work on today. */
+const PARKED = new Set(["review", "not_now", "done"])
+
 type Upcoming = Recording & { project_name: string; on_date?: string }
 
-/** What's on my plate (soonest due first, so late leads) and my events in the next two weeks, for Home's two lists. */
+/** Mine (open goals, cards and steps assigned to me, soonest due first, so late leads; not what's in Review, which is
+ * Waiting for you, or parked in Not now), and my events in the next two weeks. */
 const myUpcoming = (limit = 5) => {
   const m = me()
   const live = (r: Recording) => r.status === "active" && db.projects.get(String(r.project_id))?.status === "active"
-  const mine = (r: Recording) => ((r.data.assignee_ids ?? []) as number[]).includes(m.id) && !r.data.completed_at
+  const mine = (r: Recording) => ((r.data.assignee_ids ?? []) as number[]).includes(m.id) && !r.data.completed_at && !PARKED.has(columnOf(r)?.data.kind)
   const named = (r: Recording, extra: Partial<Upcoming> = {}): Upcoming => ({ ...r, project_name: db.projects.get(String(r.project_id))?.name ?? "", ...extra })
   const allAssigned = recordings((r) => ["todo", "card", "step"].includes(r.type) && live(r) && mine(r))
     .sort((a, b) => (a.data.due_on ? (b.data.due_on ? a.data.due_on.localeCompare(b.data.due_on) : -1) : b.data.due_on ? 1 : 0) || a.id - b.id)
-  const assigned = allAssigned.slice(0, limit).map((r) => named(r))
   const t = today()
   const until = addDays(t, 14)
   const dates = recordings((r) => live(r) && r.type === "event" && (((r.data.participant_ids ?? []) as number[]).includes(m.id) || r.creator_id === m.id)
@@ -153,7 +262,10 @@ const myUpcoming = (limit = 5) => {
     .map((r) => named(r, { on_date: r.data.starts_at ?? r.data.due_on }))
     .sort((a, b) => a.on_date!.localeCompare(b.on_date!))
     .slice(0, limit)
-  return { assigned, dates, assignedTotal: allAssigned.length }
+  return {
+    assigned: allAssigned.slice(0, limit).map((r) => named(r)), dates, assignedTotal: allAssigned.length,
+    dueToday: allAssigned.filter((r) => r.data.due_on === t).length, late: allAssigned.filter((r) => r.data.due_on && r.data.due_on < t).length,
+  }
 }
 
 /** Cards waiting in Review on projects I'm on, oldest first: what a sweep works through. */
@@ -167,28 +279,26 @@ const waitingForMe = () => {
     .sort((a, b) => ms(at(a)) - ms(at(b)) || a.id - b.id)
 }
 
-/** Waiting for you: shown while something's waiting, or once you've connected an agent ("All caught up"). */
-const WaitingForYou = observer(() => {
+/** Waiting for you: the review queue, at the top of Home, where a sweep starts. Agents never ping, so this is their inbox. */
+const WaitingForYou = observer(({ cards }: { cards: Recording[] }) => {
   const m = me()
-  const cards = waitingForMe()
-  const hasAgents = [...db.connected_apps.values()].some((a) => a.person_id === m.id)
-  if (!cards.length && !hasAgents) return null
   return (
-    <section aria-labelledby="waiting" {...sx(hs.panel, hs.waiting)}>
-      <h2 id="waiting" {...sx(hs.listTitle)}>Waiting for you{cards.length > 0 && <span {...sx(hs.waitingCount)}> ({cards.length})</span>}</h2>
+    <section id="waiting" aria-labelledby="waiting-title" {...sx(hs.panel)}>
+      <h2 id="waiting-title" {...sx(hs.panelTitle)}>Waiting for you{cards.length > 0 && <span {...sx(hs.count)}> ({cards.length})</span>}</h2>
       {cards.length ? (
-        <ul>{cards.slice(0, 10).map((r) => {
+        <ul {...sx(hs.list)}>{cards.slice(0, 10).map((r) => {
           const rv = r.data.review as { at?: string; by?: number; via?: string | null } | undefined
           const who = rv?.via ? `via ${rv.via}` : rv?.by && rv.by !== m.id ? `from ${db.people.get(String(rv.by))?.name ?? "someone"}` : ""
           return (
-            <li key={r.id} {...sx(hs.row)}><span>
-              <a href={`${urlFor(r)}?from=home`}>{r.title}</a>{" "}
-              <small>{[db.projects.get(String(r.project_id))?.name, who, ago(rv?.at ?? r.updated_at, m.time_zone)].filter(Boolean).join(" · ")}</small>
-            </span></li>
+            <li key={r.id} {...sx(hs.item)}>
+              <span><a href={`${urlFor(r)}?from=home`} {...sx(hs.itemTitle)}>{r.title}</a>
+                <small {...sx(hs.itemMeta)}>{[db.projects.get(String(r.project_id))?.name, who].filter(Boolean).join(" · ")}</small></span>
+              <small>{ago(rv?.at ?? r.updated_at, m.time_zone)}</small>
+            </li>
           )
         })}</ul>
-      ) : <p {...sx(hs.quiet)}>All caught up. Nothing new from your agents.</p>}
-      {cards.length > 10 && <p {...sx(hs.hmore)}>And {cards.length - 10} more. Open them from each project's Board.</p>}
+      ) : <p {...sx(hs.quiet)}>Nothing to review. Back to Mine.</p>}
+      {cards.length > 10 && <p {...sx(hs.links)}>And {cards.length - 10} more. Open them from each project's Board.</p>}
     </section>
   )
 })
@@ -216,107 +326,77 @@ const NewProjectForm = ({ templateId }: { templateId: string }) => {
 }
 
 export const routes = [
+  // Home answers "where do I need to be today?": the day in a line, what's waiting for your verdict, every project, then
+  // your own work and what's coming up.
   page("/", () => {
-    const m = me()
     const all = visibleProjects()
-    // Late work first, then pinned, then recently visited, then the rest: up to 8, so a project with late work never hides.
-    const recent = m.prefs.recent_projects ?? []
-    const rank = (p: ProjectRow) => lateTasks(p.id) > 0 ? 0 : p.pinned ? 1 : recent.includes(p.id) ? 2 : 3
-    const shown = [...all].sort((a, b) => rank(a) - rank(b) || (recent.indexOf(a.id) + 1 || 999) - (recent.indexOf(b.id) + 1 || 999)).slice(0, 8)
-    const { assigned, dates, assignedTotal } = myUpcoming()
+    const waiting = waitingForMe()
+    const reviewBy = new Map<number, number>()
+    for (const r of waiting) reviewBy.set(r.project_id, (reviewBy.get(r.project_id) ?? 0) + 1)
+    const { assigned, dates, assignedTotal, dueToday, late } = myUpcoming()
     const t = today()
+    const day = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
     return (
       <Page title="Home">
         <h1 {...sx(kit.srOnly)}>Home</h1>
+        <p {...sx(hs.today)}>
+          <span {...sx(hs.todayDate)}>{day}</span>
+          {waiting.length > 0 && <>· <a href="#waiting" {...sx(hs.todayLink)}>{waiting.length} to review</a></>}
+          {dueToday > 0 && <>· <a href="#mine" {...sx(hs.todayLink)}>{dueToday} due today</a></>}
+          {late > 0 && <>· <a href="#mine" {...sx(hs.todayLink, hs.todayLate)}>{late} late</a></>}
+          {!waiting.length && !dueToday && !late && <>· Nothing due today.</>}
+        </p>
+        <WaitingForYou cards={waiting} />
         {all.length === 0 ? (
-          <div {...sx(kit.empty)}>
+          <div {...sx(kit.empty, hs.foot)}>
             <p>Welcome. Make your first project, then invite the people working on it.</p>
             {canCreateProjects() && <p><a href="/projects/new" data-button>Make a new project</a></p>}
             <TeamLink />
           </div>
-        ) : (
-          <section aria-labelledby="projects">
-            <div {...sx(hs.homeHead)}>
-              <h2 id="projects" {...sx(hs.homeTitle)}>Projects</h2>
-              {canCreateProjects() && <a href="/projects/new" data-button>Make a new project</a>}
-            </div>
-            <ul {...sx(hs.homeCards)}>{shown.map((p) => <HomeCard key={p.id} p={p} />)}</ul>
-            <p {...sx(hs.hmore)}><a href="/projects">All projects ({all.length})</a>{!isClient(m) && <a href="/templates">Templates</a>}</p>
-          </section>
-        )}
-        <WaitingForYou />
+        ) : <Projects all={all} reviewBy={reviewBy} />}
         <div {...sx(hs.lists)}>
-          <section aria-labelledby="due" {...sx(hs.panel)}>
-            <h2 id="due" {...sx(hs.listTitle)}><a href="/my/assignments">On your plate</a></h2>
+          <section id="mine" aria-labelledby="mine-title" {...sx(hs.panel)}>
+            <h2 id="mine-title" {...sx(hs.panelTitle)}>Mine</h2>
             {assigned.length ? (
-              <ul>{assigned.map((r) => {
-                const late = r.data.due_on && r.data.due_on < t
-                return <li key={r.id} {...sx(hs.row)}><span><a href={`/r/${r.id}/go`}>{r.title}</a> <small>{r.project_name}{r.data.due_on && <>, <span {...sx(late && hs.late)}>{late ? `was due ${fmtDate(r.data.due_on)}` : `due ${fmtDate(r.data.due_on)}`}</span></>}</small></span></li>
+              <ul {...sx(hs.list)}>{assigned.map((r) => {
+                const isLate = r.data.due_on && r.data.due_on < t
+                return (
+                  <li key={r.id} {...sx(hs.item, hs.dated)}>
+                    <span {...sx(hs.when, isLate && hs.whenLate)} title={isLate ? `Was due ${fmtDate(r.data.due_on)}` : undefined}>{r.data.due_on ? fmtDate(r.data.due_on) : ""}</span>
+                    <span><a href={`/r/${r.id}/go`} {...sx(hs.itemTitle)}>{r.title}</a><small {...sx(hs.itemMeta)}>{r.project_name}</small></span>
+                  </li>
+                )
               })}</ul>
-            ) : <p {...sx(hs.quiet)}>Nothing on your plate. Enjoy it.</p>}
-            {assignedTotal > assigned.length && <p {...sx(hs.hmore)}><a href="/my/assignments">See all {assignedTotal}</a></p>}
+            ) : <p {...sx(hs.quiet)}>Nothing's yours right now. Enjoy it.</p>}
+            {assignedTotal > assigned.length && <p {...sx(hs.links)}><a href="/my/assignments">See all {assignedTotal}</a></p>}
           </section>
           <section aria-labelledby="coming" {...sx(hs.panel)}>
-            <h2 id="coming" {...sx(hs.listTitle)}><a href="/my/calendar">Coming up</a></h2>
+            <h2 id="coming" {...sx(hs.panelTitle)}>Coming up</h2>
             {dates.length
-              ? <ul>{dates.map((r) => <li key={r.id} {...sx(hs.row)}><span {...sx(hs.when)}>{fmtDate(r.on_date)}</span><span><a href={`/r/${r.id}/go`}>{r.title}</a> <small>{r.project_name}</small></span></li>)}</ul>
+              ? <ul {...sx(hs.list)}>{dates.map((r) => (
+                  <li key={r.id} {...sx(hs.item, hs.dated)}>
+                    <span {...sx(hs.when)}>{fmtDate(r.on_date)}</span>
+                    <span><a href={`/r/${r.id}/go`} {...sx(hs.itemTitle)}>{r.title}</a><small {...sx(hs.itemMeta)}>{r.project_name}</small></span>
+                  </li>
+                ))}</ul>
               : <p {...sx(hs.quiet)}>Nothing on your calendar in the next two weeks.</p>}
+            <p {...sx(hs.links)}><a href="/my/calendar">Your calendar</a></p>
           </section>
         </div>
-        <p {...sx(hs.hmore, hs.foot)}><a href="/timeline">Timeline</a><a href="/activity">See all activity</a>{canInvite() && <a href="/people/invite">Invite people</a>}</p>
+        <p {...sx(hs.links, hs.foot)}><a href="/timeline">Timeline</a><a href="/activity">See all activity</a>{canInvite() && <a href="/people/invite">Invite people</a>}</p>
       </Page>
     )
   }),
 
-  page("/projects", () => {
-    const [query] = useSearchParams()
-    const m = me()
-    const q = (query.get("q") ?? "").trim().toLowerCase()
-    const view = query.get("view") === "list" ? "list" : "cards"
-    const sort = query.get("sort") ?? "recent"
-    let ps = visibleProjects()
-    if (q) ps = ps.filter((p) => p.name.toLowerCase().includes(q))
-    const recent = m.prefs.recent_projects ?? []
-    if (sort === "recent") ps = [...ps].sort((a, b) => (recent.indexOf(a.id) + 1 || 999) - (recent.indexOf(b.id) + 1 || 999))
-    if (sort === "newest") ps = [...ps].sort((a, b) => ms(b.created_at) - ms(a.created_at))
-    return (
-      <Page title="All projects">
-        <h1>All projects</h1>
-        <GetForm method="get" action="/projects">
-          <label>Filter by name… <input type="search" name="q" defaultValue={query.get("q") ?? ""} /></label>
-          <label>Sort <select name="sort" defaultValue={sort}>
-            <option value="recent">Recently visited</option>
-            <option value="alpha">Alphabetical</option>
-            <option value="newest">Newest</option>
-          </select></label>
-          <label>View <select name="view" defaultValue={view}><option value="cards">Cards</option><option value="list">List</option></select></label>
-          <button>Apply</button>
-        </GetForm>
-        {canCreateProjects() && <p><a href="/projects/new" data-button>Make a new project</a></p>}
-        {ps.length === 0
-          ? q ? <p>No projects match “{q}”.</p> : <p>No projects yet. Make one to get started.</p>
-          : view === "list"
-            ? (
-              <table><thead><tr><th>Project</th><th>People</th><th>Dates</th><th></th></tr></thead><tbody>{ps.map((p) => (
-                <tr key={p.id}>
-                  <td><a href={projectUrl(p)}>{p.name}</a></td><td>{p.member_names ?? ""}</td>
-                  <td>{p.starts_on && <>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</>}</td>
-                  <td><Form action={`/projects/${p.id}/pin`} optimistic={togglePin(p.id)}><button>{p.pinned ? "Unpin" : "Pin"}</button></Form></td>
-                </tr>
-              ))}</tbody></table>
-            )
-            : <Cards ps={ps} />}
-        <p><a href="/projects/archived">Archived projects</a> · <a href="/templates">Templates</a></p>
-      </Page>
-    )
-  }),
+  // Every project is on Home now.
+  page("/projects", () => <Navigate to="/" replace />),
 
   page("/projects/archived", () => {
     const [query] = useSearchParams()
     const q = (query.get("q") ?? "").trim().toLowerCase()
     const ps = visibleProjects({ status: "archived" }).filter((p) => !q || p.name.toLowerCase().includes(q))
     return (
-      <Page title="Archived projects" crumbs={[["All projects", "/projects"]]}>
+      <Page title="Archived projects" crumbs={[["Home", "/"]]}>
         <h1>Archived projects</h1>
         <GetForm method="get"><label>Filter by name <input type="search" name="q" defaultValue={query.get("q") ?? ""} /></label> <button>Filter</button></GetForm>
         {ps.length

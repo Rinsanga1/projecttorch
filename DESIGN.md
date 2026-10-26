@@ -297,7 +297,7 @@ One orange does all the signaling. It marks what needs your attention or what ha
 The world is a neutral grayscale with one warm orange signal. Apart from that orange, hue appears only in status colors and the small label dots people pick for board columns.
 
 ### Primary
-- **Pill Black** (`primary`): the primary action. It fills dark pill buttons, the HQ / All-access tags, the hero CTA and face discs. Hover deepens to **True Black** (`primary-hover`), and text on it is **Sheet White** (`on-primary`). In the dark theme it flips to near-white (#f2f2f2) with dark text (#121212), so the primary stays the highest-contrast object.
+- **Pill Black** (`primary`): the primary action. It fills dark pill buttons, the All-access tag, the hero CTA and face discs. Hover deepens to **True Black** (`primary-hover`), and text on it is **Sheet White** (`on-primary`). In the dark theme it flips to near-white (#f2f2f2) with dark text (#121212), so the primary stays the highest-contrast object.
 
 ### Secondary
 - **Kargul Orange** (`accent`): the only accent. It is used for:
@@ -321,7 +321,7 @@ The orange is identical in both themes.
 - **Muted Graphite** (`muted`): secondary text, dates, group labels, bylines, quiet links, inactive nav links, placeholders. Dark: #a3a3a3.
 - **Hairline** (`line`): 1px rules between rows, table and calendar cells, day dividers, fieldsets and `<hr>`. Dark: #2d2d2d.
 - **Control Gray** (`control`): input borders, unchecked check strokes, breadcrumb separators, a finished list's bar, and the scrollbar thumb. Dark: #6b6b6b.
-- **Slab Charcoal** (`slab`) with **Slab Tile** (`slab-tile`), **Slab Ink** (`slab-ink`) and **Slab Muted** (`slab-muted`): the dark slab family, for marketing slabs and their rules, the offline strip, the marketing promo strip, and the app footer. Dark: slab goes to pure #000000 and slab-tile to #1a1a1a.
+- **Slab Charcoal** (`slab`) with **Slab Tile** (`slab-tile`), **Slab Ink** (`slab-ink`) and **Slab Muted** (`slab-muted`): the dark slab family, for marketing slabs and their rules, the offline strip, and the marketing promo strip. Dark: slab goes to pure #000000 and slab-tile to #1a1a1a.
 
 ### Status
 - **Alert Red** (`danger`) on **Alert Blush** (`danger-soft`): `[role=alert]` validation boxes only. Dark: #ff7b6e on #3a1714.
@@ -357,7 +357,7 @@ The orange is identical in both themes.
 - **Body, small** (400, 0.84375rem): card descriptions, row meta, bylines, tables, breadcrumbs, toolbars and `<small>`.
 - **Label** (600, 0.84375rem): buttons, nav links and summary pills.
 - **Group label** (600, 0.75rem, +0.05em, uppercase, muted): table headers, nested fieldset legends, group headings above card grids, day dividers in chat.
-- **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (HQ, All-access, Pinned, a category, Today).
+- **Tag** (700, 11px, +0.04em, uppercase, line-height 1; 11px is the floor for functional text): text inside small pills (All-access, Pinned, a category, Today).
 
 ### Named Rules
 **The Two Volumes Rule.** The app uses only the fixed rem steps (0.75 to 2rem, plus 2.5rem for a project title). The fluid `clamp()` steps (display, headline, giant wordmark) belong to marketing and signup.
@@ -383,7 +383,7 @@ Tables become horizontally scrollable blocks under 640px. Pages work without Jav
 
 ## Elevation & Depth
 
-The system is flat. Depth is tonal: the Studio Gray ground, then the Sheet White page, then Tile Gray tiles, each a few points lighter or darker than the last. Where something sits inside a tile (a board card, a composer's field, a thumbnail, a progress track), it steps back up to Sheet White. Hover deepens a tile to Tile Pressed instead of lifting it. The dark Slab family is the inverse layer, used for emphasis blocks and the footer. The one exception is the framed example project on marketing, which floats on a soft ambient shadow so it reads as a screenshot of the app set on the page.
+The system is flat. Depth is tonal: the Studio Gray ground, then the Sheet White page, then Tile Gray tiles, each a few points lighter or darker than the last. Where something sits inside a tile (a board card, a composer's field, a thumbnail, a progress track), it steps back up to Sheet White. Hover deepens a tile to Tile Pressed instead of lifting it. The dark Slab family is the inverse layer, used for emphasis blocks on marketing. The one exception is the framed example project on marketing, which floats on a soft ambient shadow so it reads as a screenshot of the app set on the page.
 
 ### Shadow Vocabulary
 - **Demo Float** (`box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 24px 60px -24px rgba(0,0,0,.18)`): the marketing example-project frame only.
@@ -402,7 +402,7 @@ Containers are generously rounded rectangles:
 - 24px for the sheet on desktop and every tile, card, panel, composer, empty state and board column (the sheet drops to 16px on phones);
 - 16px for anything nested one level inside a tile (board cards, file thumbnails), for the month calendar, and for fieldsets;
 - 32px for the marketing demo and Compass frames on desktop;
-- 40px for slabs and the top corners of the app footer.
+- 40px for slabs.
 
 Smaller radii are functional, a fixed inline step set:
 - 12px for icon squares, images, notes, alerts, chat file chips, `pre` and blockquotes;
@@ -432,9 +432,9 @@ Soft, small and confident; pills that press in slightly.
 - **Marketing pills:** 44px by default, 40px small, 54px large (26px padding, 1.0625rem, weight 650). The dark pill (Pill Black) and the light pill (Sheet White, hovering to Tile Gray) always appear as a pair in the hero and closing CTAs.
 
 ### Chips and Tags
-- **Status tag:** Pill Black pill, 4px 9px, tag type. It marks a project's standing (HQ, All-access).
+- **Status tag:** Pill Black pill, 4px 9px, tag type. It marks a project everyone at the company can see (All-access).
 - **Record tag:** Tile Gray pill, 5px 10px, tag type, in a row above a record's title (category, "Answer to"). The **accent variant** fills it with Peach Wash for Pinned.
-- **Count badge:** an 18px Kargul Orange pill with 11px Burnt Ink tabular numerals, inside a nav link, for unread Pings and Hey!. Board columns show their card count as a Sheet White version of the same pill.
+- **Count badge:** an 18px Kargul Orange pill with 11px Burnt Ink tabular numerals, inside the Inbox nav link, for unread private chat lines and updates together. Board columns show their card count as a Sheet White version of the same pill.
 - **Boost:** a 32px Tile Gray pill holding a short reaction and the booster's name in muted xs. Your own boost carries a 24px Sheet White round remove button.
 - **Quiet chip:** Sheet White pill with a 7px dot and xs muted text ("Notifications paused").
 
@@ -461,7 +461,10 @@ A person is their photo, or else up to two initials on a Pill Black disc (650 we
 - **Settings you change once** live out of the way and save as soon as you pick. Chat's ("Notify me about" as a small select, and "Set up bots") sit in the conversation's start line, above its oldest message: "**This is the start of Chat.** Quick questions, quick answers."
 
 ### Navigation
-- **App nav:** half a bar, on purpose: `Acme · Private chats · Updates · Find · (your face)`. The account name is a 750-weight wordmark on the ground and it is Home; Private chats and Updates are pill links (muted, 500 weight, 7px 12px) with their unread counts inside. On fine pointers, hover tints the pill toward white (sheet at 60%); the current page is a solid Sheet White pill with Ink 600 text. At the right end, Find (its title names Ctrl/⌘ + K for Go to), then your face (30px) linking to Me, ringed in Ink on your own pages. Timeline and Activity are reached from Home. The nav wraps on narrow screens rather than collapsing.
+- **App nav:** less than half a bar, on purpose: `Acme ··· (search) · Inbox ⑪ · (your face)`. The account name is a 750-weight wordmark on the ground and it is Home. At the right end: Find as an 18px search icon (its title names Ctrl/⌘ + K for Go to), the Inbox as a pill link (muted, 500 weight, 7px 12px) with one count, and your face (30px) linking to Me, ringed in Ink on your own pages. On fine pointers, hover tints a pill toward white (sheet at 60%); the current page (and the Inbox while its tray is open) is a solid Sheet White pill with Ink 600 text. Timeline and Activity are reached from Home.
+- **Inbox:** private chats and updates (notifications and reminders) in one place, with one count. It is a link to its page (`/updates`); a plain click opens it as a **tray** instead: a 400px Sheet White card floating at the right, from under the nav to 8px above the bottom (24px corners, the one floating shadow `0 16px 40px rgba(0,0,0,.18)`), over the page without moving it. On a phone it is the whole screen and slides up. It slides in on the drawer curve (cubic-bezier(0.32, 0.72, 0, 1)) in 240ms and out in 180ms; reduced motion: no slide. Esc, ✕, a click outside it, the Inbox link again, or going to another page close it. Inside: **Private chats** (group-label heading with "+ New"; five, newest and unread first: faces, the names, the last line, how long ago, an orange dot while unread; "See all private chats"), then **New for you** ("Mark all read"; each update with its person's face, or a calendar disc for a reminder, the summary, the project, how long ago, an orange dot while unread), then **Seen**, then quiet links: Your reminders, Notification settings, Quiet hours. A private chat opens inside the tray (a back arrow returns to the list; "Full page" goes to its page), with the composer pinned at the bottom; an update opens its page and the tray closes. Empty: "**No private chats yet.** For a quick question that doesn't belong in a project." and "**You're all caught up.** New comments, mentions and assignments show up here."
+- **One bar, no footer:** the app has the nav above and nothing below; the sheet ends the page, so the project page's windows fit the screen with nothing under them. What a footer would hold lives on Me.
+- **Me** (your face): your 48px face, name and title, with Edit profile beside them; then menu groups. "You" holds the settings you change in a click, right on their rows: Appearance as a choice pill (`Light · Dark · Match my system`, Tile Pressed with the one in effect a Sheet White pill; it re-themes at once) and, for someone in more than one account, Account (the same pill, one account per choice; picking one switches). "Settings" holds rows to Notification settings, Out of office, Login & security, Agents and Admin. Then a quiet row: Bookmarks, Your activity, Keyboard shortcuts, Help (and in development, the Dev inbox), and Sign out.
 - **Breadcrumbs:** small muted links on the ground, separated by Control Gray slashes.
 - **Quiet link row:** a wrapping row of small links at the foot of a tool page.
 - **Marketing nav:** the text links are hidden under 900px; the Log in text link and a small light Sign up pill stay visible.
@@ -489,13 +492,15 @@ The Compass window holds the project's goals and their subgoals (to-dos and task
 Each dated project is a 34px Tile Gray pill positioned on one shared track, with left and width set as percentages of the date range. The name is 600 weight and the dates muted 400. A 2px Kargul Orange vertical line marks today, topped by an orange "Today" pill in tag type.
 
 ### Home
-Home is the dashboard, and it answers "where do I need to be today?" There is no visible title (the wordmark says where you are).
-- **Projects first:** "Projects" (lg) with "Make a new project" beside it, then one grid of cards (260px min, 12px gaps): HQ first, then pinned, then recently visited, up to 8, then "All projects (N)" and Templates.
-- **A project card** (Tile Gray, 24px corners, the whole card is the link): the name, HQ's tag, one line of description, the dates, then the card's news, like the project's news but window by window: up to three windows by name with an 18px orange count ("Files 6 · Chat 5 · Posts 3"), "N late" outlined in orange, or "All caught up." in muted text. A row of 24px faces sits under it, and "Pin" shows only while the card is hovered or focused (always on touch).
-- **Two lists under the projects:** "Due for you" (your tasks and cards, soonest due first, so late leads, its date in Accent Text 650: "was due Oct 20") and "Coming up" (your events in the next two weeks, never the tasks that are already due for you). Five each, with "See all N".
-- **Then the Timeline** (the Lineup), and a quiet row: "See all activity", "Invite people".
-- **States:** no projects yet: "Welcome. Make your first project, then invite the people working on it." Nothing due: "Nothing's due for you. Enjoy it." Nothing coming up: "Nothing on your calendar in the next two weeks."
-- There is no separate "What's new" list: the cards are what's new, and Updates has the rest.
+Home is the dashboard, and it answers "where do I need to be today?" It is where a sweep starts (the GTO workflow in `docs/user_agents/`): first what's waiting for your verdict, then every project, then your own work. There is no visible title (the wordmark says where you are).
+- **The day in one line** (md, muted): the date in Ink 650 ("Monday, Oct 26"), then "3 to review · 2 due today · 1 late", each a link to its list, late in Accent Text 650. With nothing to do: "· Nothing due today."
+- **Waiting for you** (always shown, a Tile Gray panel): the cards in Review on every project you're on, oldest first. Each row is the title (550, no underline until hovered), then the project and who handed it back ("via Claude", "from Ann Lee") muted on a second line, and how long ago at the end. Ten at most, then "And N more". Empty: "Nothing to review. Back to Mine."
+- **Projects, all of them:** "Projects" (lg) with "Make a new project" beside it, then one grid of cards (260px min, 12px gaps). Pinned projects come first, in the order you drag them into (Alt+←/→ on a card does the same; the order is `pins.position`), then the rest by name. Nothing reorders on its own, so a hand learns where each project is; what needs you shows on the card instead. Past 9 projects a "Filter projects…" field narrows the grid as you type; past 12 the cards get shorter (one line of description, no faces). Under the grid: Archived projects, Templates. `/projects` redirects here.
+- **A project card** (Tile Gray, 24px corners, the whole card is the link): the name, an All-access tag when everyone at the company can see it, up to two lines of description, the dates, the progress bar once something's done (no bar at 0%), then what needs you and what's new: a solid Kargul Orange "Review 3" pill, "N late" outlined in orange, then up to three windows by name with an 18px orange count ("Files 6 · Chat 5"), or "All caught up." in muted text. The counts are people's work only: what an agent made (`via`) reaches you through Review, and counting its work in progress would pull you in between sweeps. Then up to four 24px faces, "+N" past four. A pinned card shows its pin icon in Ink at the top-right; on the others it shows on hover or focus (always on touch).
+- **Two lists under the projects, side by side:** "Mine" (goals, cards and steps assigned to you that aren't waiting in Review, parked in Not now or done; soonest due first, so late leads) and "Coming up" (your events in the next two weeks). Each row has a 4.5em date column (Accent Text when late), the title, and the project muted on a second line. Five each, then "See all N" and "Your calendar".
+- **Then a quiet row:** Timeline, See all activity, Invite people.
+- **States:** no projects yet: "Welcome. Make your first project, then invite the people working on it." Nothing yours: "Nothing's yours right now. Enjoy it." Nothing coming up: "Nothing on your calendar in the next two weeks."
+- There is no activity feed or separate "What's new" list: the cards are what's new, and Updates has the rest.
 
 ### Project Windows
 The project page shows its tools as windows, not a grid of tiles. The decision and the exploration behind it are in `docs/project_ui_explore/`.
@@ -549,7 +554,7 @@ The month calendar is a fixed-layout table inside a 1px Hairline frame with 16px
 Vault rows lead with a 40px Tile Gray square (12px radius) holding a 20-unit line icon drawn in currentColor at a 1.5px stroke with round caps and joins. Grid view shows 200px file cards with a 4:3 Sheet White thumbnail at 16px corners.
 
 ### Slabs
-Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "each project gets its own space", "bring your own agent" and startups sections. The app footer is the same material with only its top corners rounded. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
+Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px vertical padding. They hold Slab Tile cards, Slab Tile rules, and Slab Ink / Slab Muted text. They are used for the marketing "each project gets its own space", "bring your own agent" and startups sections. Full-width one-line slab strips (no radius) carry the offline notice and the marketing promo.
 
 ### Compass on marketing
 The marketing "progress" section shows a project's goals the way the app does: the percentage in 3rem 750, "done · 7 of 11", one 10px bar, then each goal with its check and its subgoals' count. Once scrolled into view the bar fills from the left (transform: scaleX, 1.1s strong ease-out); under reduced motion or without JavaScript it's simply full.

@@ -16,13 +16,15 @@ export const seenOf = (prefs: Prefs, projectId: number) => (key: string): string
   prefs.window_seen?.[`${projectId}:${key}`] ?? prefs.project_seen?.[String(projectId)] ?? null
 
 /** What other people added to each window since you last opened it. Comments count in the window of what they comment
- * on. `oldest` is the earliest of those "last opened" times among the windows with news, for "Since Tuesday". */
+ * on. What an agent made (`via`) isn't news: its finished work reaches you through Review, and counting its work in
+ * progress would pull you in between sweeps. `oldest` is the earliest of those "last opened" times among the windows
+ * with news, for "Since Tuesday". */
 export const windowNews = (projectId: number, meId: number, seen: (key: string) => string | null) => {
   const counts = new Map<string, number>()
   let oldest: string | null = null
   const p = db.projects.get(String(projectId))
   if (!p) return { counts, oldest }
-  for (const r of recordings((r) => r.project_id === projectId && r.status === "active" && r.creator_id !== meId && !NOT_NEWS.has(r.type))) {
+  for (const r of recordings((r) => r.project_id === projectId && r.status === "active" && r.creator_id !== meId && !r.via && !NOT_NEWS.has(r.type))) {
     const on = r.type === "comment" ? db.recordings.get(String(r.parent_id)) : r
     const tool = on && windowIdOf(p, topOf(on))
     const since = tool && seen(tool)

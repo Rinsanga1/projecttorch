@@ -2,7 +2,7 @@
 // The pages are client/areas/home.tsx; these are their posts.
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
-import { post, redirect, back, invalid, str, ids, bool, isClient, NoAccess, type Ctx } from "../lib/web.ts"
+import { post, redirect, back, invalid, str, num, ids, bool, isClient, NoAccess, type Ctx } from "../lib/web.ts"
 import { findProject, projectUrl, canCreateProjects, logEvent, sendEmail, createRecording, defaultTools, type Project, type Recording } from "../lib/core.ts"
 
 export const routes = [
@@ -11,8 +11,22 @@ export const routes = [
       const sql = yield* SqlClient.SqlClient
       const p = yield* findProject(c, c.params.id)
       const del = yield* sql`delete from pins where person_id = ${c.me.id} and project_id = ${p.id} returning 1`
-      if (!del.length) yield* sql`insert into pins (person_id, project_id) values (${c.me.id}, ${p.id})`
+      // A new pin goes after the ones already pinned.
+      if (!del.length) yield* sql`insert into pins (person_id, project_id, position)
+        select ${c.me.id}, ${p.id}, coalesce(max(position), 0) + 1 from pins where person_id = ${c.me.id}`
       return back(c, "/", del.length ? `Unpinned ${p.name}.` : `Pinned ${p.name} to Home.`)
+    })),
+
+  // Home's pinned projects, dragged into a new order: every `pos_<project id>` field is that pin's position.
+  post("/pins/reorder", (c) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const fd = yield* c.form
+      for (const [k, v] of fd.entries()) {
+        const id = num(k.replace(/^pos_/, ""))
+        if (k.startsWith("pos_") && id) yield* sql`update pins set position = ${Number(v) || 0} where person_id = ${c.me.id} and project_id = ${id}`
+      }
+      return back(c, "/")
     })),
 
   post("/projects", (c) =>

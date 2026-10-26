@@ -341,6 +341,36 @@ const Ping = observer(({ p }: { p: Project }) => {
   )
 })
 
+/** My private chats: unread first, then newest. Each with the other people in it, its unread count and its last line. */
+export const privateChats = () => {
+  const m = me()
+  const mine = new Set([...db.project_people.values()].filter((pp) => pp.person_id === m.id).map((pp) => pp.project_id))
+  return [...db.projects.values()]
+    .filter((p) => p.kind === "ping" && p.account_id === m.account_id && mine.has(p.id))
+    .map((p) => {
+      const people = projectPeople(p).filter((x) => x.id !== m.id).sort((a, b) => a.name.localeCompare(b.name))
+      const unread = [...db.notifications.values()].filter((n) => n.project_id === p.id && n.person_id === m.id && n.kind === "ping" && !n.read_at).length
+      const last = linesOf(p.id).at(-1)
+      return { p, people, names: people.map((x) => x.name).join(", ") || null, unread, last, at: last?.created_at ?? p.created_at }
+    })
+    .sort((a, b) => Number(b.unread > 0) - Number(a.unread > 0) || ms(b.at) - ms(a.at))
+}
+
+/** Who wrote a chat line, for a one-line preview ("Bob Diaz", or a bot's name). */
+export const writerOf = (l: Recording) => whoWrote(l).name
+
+/** A private chat in the Inbox tray: the same conversation as its page, without the page around it. */
+export const TrayChat = observer(({ p }: { p: Project }) => {
+  const m = me()
+  const others = projectPeople(p).filter((x) => x.id !== m.id)
+  useMarkRead(p, "ping")
+  return (
+    <Conversation p={p} placeholder={`Message ${others.length ? others.map((x) => x.name.split(" ")[0]).join(", ") : "yourself"}`} start={
+      <div {...sx(cs.start)}><p {...sx(cs.startTitle)}><b>This is the start of your private chat{others.length ? ` with ${others.map((x) => x.name).join(", ")}` : ""}.</b> Only the people here can see it.</p></div>
+    } />
+  )
+})
+
 const EditLine = () => {
   const { r, project } = findRecording(useParams().lid, "line")
   if (r.creator_id !== me().id) throw new NotFound()
@@ -407,30 +437,17 @@ export const routes = [
   // Pings
   page("/chats", () => {
     const m = me()
-    const mine = new Set([...db.project_people.values()].filter((pp) => pp.person_id === m.id).map((pp) => pp.project_id))
-    const pings = [...db.projects.values()]
-      .filter((p) => p.kind === "ping" && p.account_id === m.account_id && mine.has(p.id))
-      .map((p) => {
-        const names = [...db.project_people.values()]
-          .filter((pp) => pp.project_id === p.id && pp.person_id !== m.id)
-          .flatMap((pp) => db.people.get(String(pp.person_id))?.name ?? [])
-          .sort((a, b) => a.localeCompare(b))
-          .join(", ") || null
-        const unread = [...db.notifications.values()].filter((n) => n.project_id === p.id && n.person_id === m.id && n.kind === "ping" && !n.read_at).length
-        const last = linesOf(p.id).at(-1)
-        return { id: p.id, names, unread, last, at: last?.created_at ?? p.created_at }
-      })
-      .sort((a, b) => Number(b.unread > 0) - Number(a.unread > 0) || ms(b.at) - ms(a.at))
+    const pings = privateChats()
     return (
-      <Page title="Private chats">
+      <Page title="Private chats" crumbs={[["Inbox", "/updates"]]}>
         <h1>Private chats</h1>
         <p><a href="/chats/new" data-button>Start a private chat</a></p>
         {pings.length ? (
           <ul>
             {pings.map((g) => (
-              <li key={g.id}>
-                <a href={`/chats/${g.id}`}>{g.unread ? <b>{g.names ?? "Just you"}</b> : g.names ?? "Just you"}</a>{g.unread ? ` (${plural(g.unread, "new message")})` : ""}
-                {g.last && <><br /><small>{db.people.get(String(g.last.creator_id))?.name ?? g.last.data.chatbot_name ?? "Someone"}: {excerpt(g.last.body, 80)} · {fmtDate(g.last.created_at, m.time_zone)}</small></>}
+              <li key={g.p.id}>
+                <a href={`/chats/${g.p.id}`}>{g.unread ? <b>{g.names ?? "Just you"}</b> : g.names ?? "Just you"}</a>{g.unread ? ` (${plural(g.unread, "new message")})` : ""}
+                {g.last && <><br /><small>{writerOf(g.last)}: {excerpt(g.last.body, 80)} · {fmtDate(g.last.created_at, m.time_zone)}</small></>}
               </li>
             ))}
           </ul>

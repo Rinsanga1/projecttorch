@@ -95,7 +95,6 @@ export type Project = {
   id: number
   account_id: number
   kind: "project" | "template" | "ping"
-  is_hq: boolean
   name: string
   description: string | null
   all_access: boolean
@@ -131,7 +130,7 @@ export type Recording = {
 }
 
 export type ProjectPerson = { project_id: number; person_id: number; added_at: Stamp }
-export type Pin = { person_id: number; project_id: number }
+export type Pin = { person_id: number; project_id: number; position: number }
 export type Subscription = { recording_id: number; person_id: number }
 export type Boost = { id: number; recording_id: number; person_id: number; content: string; created_at: Stamp }
 export type Bookmark = { id: number; person_id: number; project_id: number | null; recording_id: number | null; created_at: Stamp }

@@ -95,9 +95,5 @@ export const seed = (s: Seed) =>
       body: "Their content changes twice a year. Static pages are faster and cheaper. Thoughts?",
       data: { category_id: pitch!.id }, notifyIds: [maya.id, ann.id], verb: "shared a post",
     })
-    yield* createRecording(s.as(maya), {
-      project: s.projects.hq, type: "message", title: "Office closed Monday",
-      body: "It's a holiday. See you all on Tuesday.", data: { category_id: announce!.id }, notifyIds: [ann.id, bob.id, s.people.cara.id],
-    })
     yield* createRecording(s.as(maya), { project: s.projects.website, type: "message", title: "Half-finished thoughts on pricing", body: "Not ready yet…", status: "drafted" })
   })

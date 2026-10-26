@@ -47,12 +47,11 @@ create table people (
   unique (account_id, email)
 );
 
--- A "project" row is any bucket of recordings: a project, a template, HQ, or a Ping conversation.
+-- A "project" row is any bucket of recordings: a project, a template, or a Ping conversation.
 create table projects (
   id          serial primary key,
   account_id  int not null references accounts on delete cascade,
   kind        text not null default 'project',             -- project | template | ping
-  is_hq       boolean not null default false,
   name        text not null default '',
   description text,
   all_access  boolean not null default false,
@@ -76,6 +75,7 @@ create table project_people (
 create table pins (
   person_id   int not null references people on delete cascade,
   project_id  int not null references projects on delete cascade,
+  position    int not null default 0,                       -- the order on Home, which the person drags
   primary key (person_id, project_id)
 );
 
