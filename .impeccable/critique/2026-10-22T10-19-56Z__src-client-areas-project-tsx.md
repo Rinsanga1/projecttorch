@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 0
 p1_count: 3
-target_identity: "file:C:\\Users\\katto\\Documents\\software\\saintsflow\\src\\client\\areas\\project.tsx"
+target_identity: "file:C:\\Users\\katto\\Documents\\software\\projecttorch\\src\\client\\areas\\project.tsx"
 target_fingerprint: "sha256:0a1cc7436692a9b5428b8624a32a3134ac442ec65e297e31472f0755ae1fb57f"
-target_path: "C:\\Users\\katto\\Documents\\software\\saintsflow\\src\\client\\areas\\project.tsx"
+target_path: "C:\\Users\\katto\\Documents\\software\\projecttorch\\src\\client\\areas\\project.tsx"
 timestamp: 2026-10-22T10-19-56Z
 slug: src-client-areas-project-tsx
 ---

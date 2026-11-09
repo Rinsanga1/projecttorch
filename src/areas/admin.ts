@@ -13,7 +13,7 @@ const requireAdmin = (c: Ctx) => (isAdmin(c.me) ? Effect.void : Effect.fail(new 
 const requireOwner = (c: Ctx) => (isOwner(c.me) ? Effect.void : Effect.fail(new NoAccess()))
 
 // ponytail: illustrative plans, no real payment processor. Prices live with the page (client/areas/admin.tsx).
-const PLANS = { standard: { name: "Saintsflow" }, pro_unlimited: { name: "Saintsflow Unlimited" } } as const
+const PLANS = { standard: { name: "ProjectTorch" }, pro_unlimited: { name: "ProjectTorch Unlimited" } } as const
 type PlanKey = keyof typeof PLANS
 
 const ownerCount = (accountId: number) =>

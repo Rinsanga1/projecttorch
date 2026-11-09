@@ -1,4 +1,4 @@
-# Saintsflow
+# ProjectTorch
 
 Project software, built from a breadboard: every place, affordance and wire, as a working app.
 A React app (Vite on Rolldown, React Router, StyleX) on a Bun + TypeScript + Effect 4 + Postgres API, local-first
@@ -6,7 +6,7 @@ after Linear: the browser keeps a copy of everything you can see and renders fro
 
 ## Run it
 
-Needs Bun, Node (Vite runs on it in dev) and a local Postgres (user `postgres` / password `postgres`, database `saintsflow_dev`).
+Needs Bun, Node (Vite runs on it in dev) and a local Postgres (user `postgres` / password `postgres`, database `projecttorch_dev`).
 
     bun install
     bun run db:reset     # drop everything, apply db/schema.sql, load sample data
@@ -15,7 +15,7 @@ Needs Bun, Node (Vite runs on it in dev) and a local Postgres (user `postgres` /
 Production: `bun run build`, then `bun run start` serves the built app and the API on `PORT` (default 3000).
 
 Sign in with a password or Google (sessions in `sessions`, passwords and Google ids in `logins`). Everyone in the sample data
-has the password `saintsflow`. Signed out, `/` is the marketing page (`/marketing`; `/startups` too). Under `bun run dev` (it sets
+has the password `projecttorch`. Signed out, `/` is the marketing page (`/marketing`; `/startups` too). Under `bun run dev` (it sets
 `DEV=1`) a `pid` cookie acts as anyone (`scripts/smoke.ts` uses it), and every email the app would send lands in `/inbox`;
 without `DEV=1` those are off.
 
@@ -40,11 +40,11 @@ redirect URI `<app>/api/auth/google/callback`), `APP_URL` (the public address, b
 - **The copy** lives in MobX maps, saved to IndexedDB, so a reload paints instantly and reading works offline.
   Quick changes (toggles, reactions) apply optimistically and queue in IndexedDB while offline.
 - **Agents** (`src/areas/agents.ts`): someone's own AI agent works as them. `/mcp` is an MCP server in Code Mode: the
-  agent gets the `sf` API (`src/lib/agent-api.ts`) from `describe` and runs scripts with `execute`, in a QuickJS
+  agent gets the `pt` API (`src/lib/agent-api.ts`) from `describe` and runs scripts with `execute`, in a QuickJS
   sandbox (`src/lib/sandbox.ts`) whose every call is one of the app's own `/api` routes with the agent's key. Agents
   connect over OAuth (register, approve on `/oauth/authorize`, swap the code for keys) or with a key made on
   `/my/agents`. `loadMe` turns a key into the person; Read only keys can't post; what an agent makes and does is marked `via` (bylines read "Maya · via Claude Code"); agents never notify, except @mentions and Pings; finished cards wait in each board's Review column, listed on Home as "Waiting for you".
-  Claude Code: `claude mcp add --transport http saintsflow http://localhost:3000/mcp`.
+  Claude Code: `claude mcp add --transport http projecttorch http://localhost:3000/mcp`.
 
 ## Layout
 
@@ -59,4 +59,4 @@ redirect URI `<app>/api/auth/google/callback`), `APP_URL` (the public address, b
 - Styling: `src/client/ui/tokens.stylex.ts` (colors, type, spacing), `ui/kit.tsx` (themes, `sx()`, shared styles),
   `ui/base.ts` (styles for plain semantic HTML). Write `<div {...sx(styles.box)}>`.
 - `scripts/`: `dev.ts` (API with --watch + Vite), `reset.ts`, `smoke.ts`.
-# Saintsflow
+# ProjectTorch

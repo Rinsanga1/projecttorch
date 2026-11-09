@@ -1,4 +1,4 @@
--- Saintsflow schema. One file, applied fresh by `bun run db:reset`.
+-- ProjectTorch schema. One file, applied fresh by `bun run db:reset`.
 -- Almost everything a person posts is a row in `recordings`:
 -- comments, boosts, trash, history, move/copy, bookmarks and search work the same for every type.
 

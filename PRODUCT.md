@@ -25,7 +25,7 @@ Every project gets one home: Message Board, Compass (the project's goals and the
 
 ## Positioning
 
-Calm, opinionated project software that leaves features out on purpose (no Gantt charts, custom fields, read receipts, online dots, sprints, automation builders). Work Can Wait holds notifications outside working hours.
+A tool for getting things done, by a team and its AI agents: people bring the agent they already use (over MCP), hand it work on the Board, and ship, send back or kill what it puts in Review. Calm, opinionated project software that leaves features out on purpose (no Gantt charts, custom fields, read receipts, online dots, sprints, automation builders). Work Can Wait holds notifications outside working hours.
 
 ## Operating Context
 
@@ -40,13 +40,13 @@ Used all day in a desktop browser alongside email and chat; checked on phones. K
 
 ## Brand Commitments
 
-- Name: Saintsflow. No logo yet; the wordmark is set as text.
+- Name: ProjectTorch. No logo yet; the wordmark is set as text.
 - Visual reference pinned by the user: kargul.studio. Full expression on marketing and signup; the app stays calm and dense.
 - Accent: kargul orange `#f99c00`.
 
 ## Evidence on Hand
 
-Sample data only (Website Redesign for Northwind, Marketing Plan). No customers, testimonials, metrics or pricing exist; never invent them. Saintsflow is in beta and free while it is (sign-ups start active, no trial).
+Sample data only (Website Redesign for Northwind, Marketing Plan). No customers, testimonials, metrics or pricing exist; never invent them. ProjectTorch is in beta and free while it is (sign-ups start active, no trial).
 
 ## Product Principles
 

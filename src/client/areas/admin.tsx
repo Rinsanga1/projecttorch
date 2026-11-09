@@ -15,8 +15,8 @@ const crumbs: Crumb[] = [["Admin", "/admin"]]
 
 // ponytail: illustrative prices, no real payment processor. Wire Stripe in where the card is saved.
 const PLANS = {
-  standard: { name: "Saintsflow", price: (seats: number) => 15 * seats, label: "$15 per user per month" },
-  pro_unlimited: { name: "Saintsflow Unlimited", price: (_: number) => 299, label: "$299 a month for any number of users" },
+  standard: { name: "ProjectTorch", price: (seats: number) => 15 * seats, label: "$15 per user per month" },
+  pro_unlimited: { name: "ProjectTorch Unlimited", price: (_: number) => 299, label: "$299 a month for any number of users" },
 } as const
 type PlanKey = keyof typeof PLANS
 const plan = (a: Account) => PLANS[(a.plan in PLANS ? a.plan : "standard") as PlanKey]
@@ -351,7 +351,7 @@ export const routes = [
               <Form action={`/admin/integrations/apps/${a.id}/disconnect`} onDone={reload} style={{ display: "inline" }}><button>Disconnect</button></Form></li>
           ))}</ul>
         ) : <p>No connected apps.</p>)}
-        <p>Looking for more? Apps that work with Saintsflow connect through its API. A directory is coming later.</p>
+        <p>Looking for more? Apps that work with ProjectTorch connect through its API. A directory is coming later.</p>
       </Page>
     )
   }),

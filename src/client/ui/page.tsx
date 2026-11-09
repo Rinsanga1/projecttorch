@@ -44,7 +44,7 @@ export type Crumb = readonly [label: string, href: string]
 export const Page = observer(({ title, crumbs, flush, children }: { title: string; crumbs?: ReadonlyArray<Crumb>; flush?: boolean; children: ReactNode }) => {
   // In a project window the window is the frame: no crumbs, sheet or flash of its own, and the tab keeps the project's title.
   const inWindow = useContext(InWindow)
-  useEffect(() => { if (!inWindow) document.title = `${title} · Saintsflow` }, [title, inWindow])
+  useEffect(() => { if (!inWindow) document.title = `${title} · ProjectTorch` }, [title, inWindow])
   const f = state.flash
   if (inWindow) return <>{children}</>
   return (

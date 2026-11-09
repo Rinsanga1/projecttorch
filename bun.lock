@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "saintsflow",
+      "name": "projecttorch",
       "dependencies": {
         "@effect/platform-bun": "4.0.5",
         "@effect/sql-pg": "4.0.5",

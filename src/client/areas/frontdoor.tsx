@@ -20,7 +20,7 @@ const AlreadyIn = ({ title }: { title: string }) => {
     <Page title={title}>
       <h1>You're already signed in</h1>
       <p>You're signed in as <b>{m.name}</b> ({m.email}).</p>
-      <p><a href="/" data-button>Go to Saintsflow</a></p>
+      <p><a href="/" data-button>Go to ProjectTorch</a></p>
       <Form action="/signout"><button>Sign out, then {title === "Sign up" ? "sign up" : "sign in"} as someone else</button></Form>
     </Page>
   )
@@ -97,14 +97,14 @@ const JoinTeam = ({ code, t }: { code: string; t: Extract<Invite, { state: "team
   return (
     <Page title={`Join ${t.account}`}>
       <h1>Join {t.account}</h1>
-      <p>Someone at {t.account} shared this link so you can join them on Saintsflow.</p>
+      <p>Someone at {t.account} shared this link so you can join them on ProjectTorch.</p>
       <Form action={`/join/${code}`}>
         <p><label>Your name<br /><input name="name" defaultValue={t.name} required autoFocus /></label></p>
         {t.google
           ? <p><input type="hidden" name="google" value="1" />Joining with Google as <b>{t.google}</b></p>
           : <>
             <p><label>Email address<br /><input type="email" name="email" defaultValue={t.email} required /></label></p>
-            <p><label>Password (8 characters or more, or your Saintsflow password if you have one)<br /><input type="password" name="password" required minLength={8} /></label></p>
+            <p><label>Password (8 characters or more, or your ProjectTorch password if you have one)<br /><input type="password" name="password" required minLength={8} /></label></p>
           </>}
         <input type="hidden" name="time_zone" value={browserTz() ?? ""} />
         <p><button>Join {t.account}</button></p>
@@ -263,7 +263,7 @@ export const routes = [
     return (
       <Page title={`Join ${inv.account}`}>
         <h1>Join {inv.account}</h1>
-        <p>{inv.inviter ?? "Someone"} invited you to join {inv.account} on Saintsflow.</p>
+        <p>{inv.inviter ?? "Someone"} invited you to join {inv.account} on ProjectTorch.</p>
         <Form action={`/join/${token}`}>
           <p><label>Your name<br /><input name="name" defaultValue={inv.name} required autoFocus /></label></p>
           <p>Email: {inv.email}</p>
@@ -274,7 +274,7 @@ export const routes = [
           <p><button>Join {inv.account}</button></p>
         </Form>
         {!inv.google && <GoogleLink then={`join:${token}`}>Join with Google</GoogleLink>}
-        <p><a href="/signin">Already have a Saintsflow login? Sign in to accept</a></p>
+        <p><a href="/signin">Already have a ProjectTorch login? Sign in to accept</a></p>
       </Page>
     )
   }, { pub: true }),

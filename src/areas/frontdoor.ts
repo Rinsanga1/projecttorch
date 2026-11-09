@@ -374,7 +374,7 @@ export const routes = [
       } else if (login) {
         // The address already has a login (from another account): it has to be them, so its password, not a new one.
         if (!(yield* checkPassword(email, password)))
-          return invalid(["You already have a Saintsflow login with this email. Use that password, or join with Google."])
+          return invalid(["You already have a ProjectTorch login with this email. Use that password, or join with Google."])
       } else yield* setPassword(email, password)
       yield* sql`update people set name = ${name}, time_zone = ${validTz(str(fd, "time_zone")) ?? inv.person.time_zone}, joined_at = now(), invite_token = null,
         prefs = prefs || ${JSON.stringify({ used_invite_token: c.params.token, google: !!google })}::jsonb where id = ${inv.person.id}`
@@ -485,7 +485,7 @@ const joinTeam = (c: PubCtx, account: Account) =>
     if (google) yield* setGoogle(v.email, google.sub)
     else if (yield* loginFor(v.email)) {
       if (!(yield* checkPassword(v.email, v.password)))
-        return invalid(["You already have a Saintsflow login with this email. Use that password, or join with Google."])
+        return invalid(["You already have a ProjectTorch login with this email. Use that password, or join with Google."])
     } else yield* setPassword(v.email, v.password)
     const tz = validTz(str(fd, "time_zone")) ?? "UTC"
     const [company] = yield* sql<{ id: number }>`select id from companies where account_id = ${account.id} and name = ${account.name} limit 1`
@@ -508,11 +508,11 @@ export const seed = (s: Seed) =>
     yield* sql`insert into project_people (project_id, person_id) values (${s.projects.website.id}, ${eve!.id})`
     yield* sendEmail(eve!, {
       subject: `${s.people.maya.name} invited you to ${s.account.name}`, kind: "invite", link: "/join/welcome-frank",
-      body: `${s.people.maya.name} invited you to join ${s.account.name} on Saintsflow, to work on ${s.projects.website.name}.\n\nWe'd love your help on the homepage copy.`,
+      body: `${s.people.maya.name} invited you to join ${s.account.name} on ProjectTorch, to work on ${s.projects.website.name}.\n\nWe'd love your help on the homepage copy.`,
     }, true)
     // Ann uses two-step verification, so signing in as ann@acme.test shows the code step.
     yield* sql`update people set prefs = prefs || '{"two_factor": true}'::jsonb where id = ${s.people.ann.id}`
-    // Everyone in the sample data signs in with the password "saintsflow".
-    const hash = yield* Effect.promise(() => Bun.password.hash("saintsflow"))
+    // Everyone in the sample data signs in with the password "projecttorch".
+    const hash = yield* Effect.promise(() => Bun.password.hash("projecttorch"))
     yield* sql`insert into logins (email, password_hash) select distinct lower(email), ${hash} from people where joined_at is not null on conflict do nothing`
   })

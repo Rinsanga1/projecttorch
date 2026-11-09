@@ -1,5 +1,5 @@
 ---
-name: Saintsflow
+name: ProjectTorch
 description: Calm, opinionated project software; kargul.studio's world applied to a Basecamp-style app.
 colors:
   ground: "#efefef"
@@ -270,13 +270,13 @@ components:
     textColor: "{colors.on-accent}"
 ---
 
-# Design System: Saintsflow
+# Design System: ProjectTorch
 
 ## Overview
 
 **Creative North Star: "The Gray Studio Table"**
 
-Saintsflow borrows kargul.studio's world and puts a Basecamp-style app on it. Picture a light-gray table (the ground) with white sheets of paper lying on it. Softer gray tiles are grouped on each sheet, and near-black pills, discs and slabs are the only heavy objects. Everything is rounded, flat, and set in one typeface, Geist. Depth comes from the order of the layers, never from shadows.
+ProjectTorch borrows kargul.studio's world and puts a Basecamp-style app on it. Picture a light-gray table (the ground) with white sheets of paper lying on it. Softer gray tiles are grouped on each sheet, and near-black pills, discs and slabs are the only heavy objects. Everything is rounded, flat, and set in one typeface, Geist. Depth comes from the order of the layers, never from shadows.
 
 The same world has two volumes. In the app (Operate) it is calm and dense: fixed rem type steps topping out at 2rem, small pill controls, and plain semantic HTML styled by a classless base layer. Every tool page uses the same kit: a heading with its actions on the right, hairline-ruled record rows led by a face, tiles for anything grouped, and a tile for an empty state. On marketing (Persuade) it plays at full strength: clamp-scaled 750-weight headlines, 54px pill CTAs, 40px-round dark slabs running nearly the width of the page, a framed example project, and a giant cropped wordmark at the foot of the page. After kargul.studio, it also has a news pill above the headline with a Kargul Orange dot that rings, and line art on a slab (the Agents section's isometric board plates, one drifting, a card landing in Review); every motion rests in its final state, so reduced motion shows the still drawing.
 
@@ -518,7 +518,7 @@ The project page shows its tools as windows, not a grid of tiles. The decision a
 - **The rail** (desktop, 900px and up) is the one way around: every window as a 40px icon (12px corners), in project order, so a hand learns where Chat is. Nothing sorts, nothing is left out. The open one is Pill Black; one with news is Peach Wash with an 18px Kargul Orange count on its corner (ringed in Tile Gray); one with late work is outlined in orange at 55%. A quiet "+" at the end (for everyone but clients) goes to add or remove windows.
   - **One list, two looks.** The rail's top button (a panel icon, muted; Tile Hover fill while open) turns the icons into previews, in the same order, each in its icon's place, in a 300px column: a small card, as tall as what it says. Its name (the whole bar is the button; pressed, the card gives to 0.98), then the one thing worth knowing in that window, as a 600 title and a muted xs line, in whole lines (an ellipsis, never a fade that slices text), inert. Six fit a 900px screen; more scroll. The window in front has no preview: it's already open beside them (its rail icon fades as the others fly). A window with nothing in it yet is just its name and its summary ("No files yet"), no placeholder bars. A quiet "Add or remove windows" ends the list. Never two lists side by side: they'd never line up.
   - **Never over your work.** The rail widens and the master gives way in one slide (280ms open, 200ms close, the drawer curve cubic-bezier(0.32, 0.72, 0, 1)); each icon flies from the rail to its own preview’s title bar on the same curve and time, shrinking from 18px to 16px, while its fill, outline and count fade; the previews fade in 60ms behind and their own icons take over when the flight lands. Closing, the icons fly back. That flight is what ties an icon to its preview. Toggling mid-flight turns the icons around from where they are. The previews never move: their width is fixed, so the slide uncovers them and the icons know where to land. Reduced motion: no slide, no flight, the fades stay.
-  - It's a click, not a hover: the master changes width, and work shouldn't reflow because the pointer brushed the edge. Open or closed is remembered in this browser (`saintsflow:previews`).
+  - It's a click, not a hover: the master changes width, and work shouldn't reflow because the pointer brushed the edge. Open or closed is remembered in this browser (`projecttorch:previews`).
   - **Clicking an icon or a preview swaps them in place:** the picked window glides into the master, and the one you left glides into its spot in the list (the picked one leaves the list). Those two glide, and the previews between them slide a slot; the rest hold still.
   - A preview's name carries "N new" (an orange xs pill) when there's news. No summary beside it: the thing under it says it better.
   - What each shows (`leadOf`): Posts, the newest post (who, when, comments). Compass, a 4px bar, then what's late, earliest first, its line in Accent Text 650 ("Late, was due Oct 21 · Ann"), else the next goal. Files, the file touched last. Chat, the newest line, two lines at most. Calendar, the next event (when, how often). Board, what waits on people: the top card in Review ("2 waiting for review"), else in Triage, else the card touched last. Previews draw no checkboxes; they'd look tickable and aren't.
@@ -560,7 +560,7 @@ Slabs are Slab Charcoal blocks with 40px corners (28px on phones) and 64-120px v
 The marketing "progress" section shows a project's goals the way the app does: the percentage in 3rem 750, "done · 7 of 11", one 10px bar, then each goal with its check and its subgoals' count. Once scrolled into view the bar fills from the left (transform: scaleX, 1.1s strong ease-out); under reduced motion or without JavaScript it's simply full.
 
 ### Giant Wordmark
-The marketing footer ends with "Saintsflow" in the giant wordmark step, cropped by the page bottom and hidden from assistive tech. Marketing only.
+The marketing footer ends with "ProjectTorch" in the giant wordmark step, cropped by the page bottom and hidden from assistive tech. Marketing only.
 
 ## Do's and Don'ts
 
