@@ -75,7 +75,7 @@ export const routes = [
         const [np] = yield* sql<any>`insert into people ${sql.insert({ account_id: c.me.account_id, name: email.split("@")[0]!, email, invited_by: c.me.id, invite_token: token, invited_at: new Date(), prefs: JSON.stringify({ notify_email: true }) })} returning *`
         added.push(np.id)
         if (bool(fd, "send_email"))
-          yield* sendEmail(np, { subject: `${c.me.name} invited you to ${c.account.name}`, body: `${c.me.name} invited you to join ${c.account.name} on Saintsflow, to work on ${p.name}.\n\n${str(fd, "note")}`, kind: "invite", link: `/join/${token}` }, true)
+          yield* sendEmail(np, { subject: `${c.me.name} invited you to ${c.account.name}`, body: `${c.me.name} invited you to join ${c.account.name} on ProjectTorch, to work on ${p.name}.\n\n${str(fd, "note")}`, kind: "invite", link: `/join/${token}` }, true)
       }
       for (const id of added) yield* sql`insert into project_people (project_id, person_id) values (${p.id}, ${id}) on conflict do nothing`
       return redirect(projectUrl(p), added.length ? `Added ${added.length} ${added.length === 1 ? "person" : "people"}.` : undefined)

@@ -5,7 +5,8 @@ import { observer } from "mobx-react-lite"
 import { useEffect, useState, type ReactNode } from "react"
 import { Form as GetForm, Navigate, Outlet, useLocation, useNavigate, useParams, useSearchParams } from "react-router"
 import { db, temp } from "../store.ts"
-import { me, findProject, projectPeople, accountPeople, memberIds, recordings, commentCount, inWindow, topOf, useApi, useVisit, canInvite, NoAccess } from "../data.ts"
+import { MainNav } from "../app.tsx"
+import { me, account, findProject, projectPeople, accountPeople, memberIds, recordings, commentCount, inWindow, topOf, useApi, useVisit, canInvite, NoAccess } from "../data.ts"
 import { closeWindowsMenu, Desk, type DeskWindow } from "../ui/desk.tsx"
 import { Icon } from "../ui/icons.tsx"
 import { InWindow, WindowId, WindowSince } from "../ui/in-window.tsx"
@@ -139,8 +140,16 @@ const ps = stylex.create({
   // The title (the description is its tooltip: you know which project you are in), then the facts, which never shrink.
   name: { display: "flex", flexWrap: { default: "wrap", "@media (min-width: 900px)": "nowrap" }, alignItems: "center", columnGap: space.s4, rowGap: space.s1, minWidth: 0, flexGrow: 1 },
   title: { margin: 0, fontSize: "1.0625rem", fontWeight: 650, lineHeight: 1.3, letterSpacing: "-0.02em", flexShrink: 0, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  actions: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
-  faces: { display: "flex", paddingLeft: 2, marginRight: space.s1, textDecoration: "none" },
+  // The company, as the way Home: quieter than the project, with a slash between them.
+  home: {
+    fontSize: "1.0625rem", fontWeight: 650, letterSpacing: "-0.02em", color: color.muted, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
+    "::after": { content: '"/"', marginLeft: space.s4, opacity: 0.5 },
+  },
+  // On a phone the faces step aside (People is in the menu) and the row wraps rather than run off the edge.
+  actions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, flexShrink: 0, maxWidth: "100%", marginLeft: "auto" },
+  // Between the project's actions and the app's own (Find, Inbox, you).
+  rule: { width: 1, height: 20, marginInline: space.s2, backgroundColor: color.line },
+  faces: { display: { default: "none", "@media (min-width: 768px)": "flex" }, paddingLeft: 2, marginRight: space.s1, textDecoration: "none" },
   face: { marginLeft: -2, borderRadius: radius.pill, boxShadow: `0 0 0 2px ${color.sheet}`, display: "inline-flex" },
   // Compact buttons for a bar: 30px, not the page's 36.
   btn: { minHeight: 30, paddingBlock: 0, paddingInline: 12 },
@@ -296,7 +305,7 @@ const useProject = (opts?: { staff?: boolean }) => {
 
 /** Where you last were in each window ("2:vault" → "/projects/2/docs/5"), so picking a window takes you back there. */
 const lastIn = new Map<string, string>()
-const frontKey = (id: number) => `saintsflow:front:${id}`
+const frontKey = (id: number) => `projecttorch:front:${id}`
 const loadFront = (id: number) => { try { return localStorage.getItem(frontKey(id)) } catch { return null } }
 
 /** /projects/:id and every page inside one of its windows: the project head and its desk. The page the address names
@@ -388,6 +397,7 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
       {p.status === "trashed" && <div role="note"><p><b>This project is in the trash.</b></p><Form action={`/projects/${p.id}/restore`}><button>Put it back</button></Form></div>}
       <div {...sx(ps.head)}>
         <div {...sx(ps.name)}>
+          <a href="/" title="Home" {...sx(ps.home)}>{account().name}</a>
           <h1 title={p.description ? `${p.name}: ${excerpt(p.description, 1000)}` : p.name} {...sx(ps.title)}>{p.name}</h1>
           {(dates || progress || news) && (
             <span {...sx(ps.facts)}>
@@ -407,6 +417,8 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
           </a>
           {canInvite() && <a href={`/people/invite?project_id=${p.id}`} data-button {...sx(ps.btn)}>Invite</a>}
           <a href={`/projects/${p.id}/menu`} data-button aria-label="Project menu" title="Project menu" {...sx(ps.btn)}>•••</a>
+          <span aria-hidden="true" {...sx(ps.rule)} />
+          <MainNav />
         </div>
       </div>
     </div>

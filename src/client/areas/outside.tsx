@@ -19,9 +19,9 @@ const KIND_NAMES: Record<string, string> = {
 }
 
 const CTA: Record<string, string> = {
-  notification: "View it in Saintsflow",
+  notification: "View it in ProjectTorch",
   invite: "Accept the invitation",
-  signin: "Sign in to Saintsflow",
+  signin: "Sign in to ProjectTorch",
   reset: "Choose a new password",
   export: "Download your export",
   receipt: "See your receipts",
@@ -91,7 +91,7 @@ export const routes = [
           </Form>
         )}
         {rec?.replyable && <Form action={`/inbox/${e.id}/unsubscribe`}><button>Stop notifying me about this</button></Form>}
-        {rec && <p><a href={rec.href}>View “{rec.title}” in Saintsflow</a></p>}
+        {rec && <p><a href={rec.href}>View “{rec.title}” in ProjectTorch</a></p>}
       </Page>
     )
   }, { pub: true }),

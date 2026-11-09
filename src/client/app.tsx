@@ -26,9 +26,6 @@ const s = stylex.create({
     width: "100%", maxWidth: 1200, marginInline: "auto", paddingInline: { default: space.s4, [DESKTOP]: space.s6 },
     paddingBlock: space.s4, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s5, rowGap: space.s2,
   },
-  // On a wide page the bar spans the screen too, its ends in line with the page's own padding, and slims down: it's
-  // chrome over a place to work.
-  headerWide: { maxWidth: "none", paddingInline: { default: 20, [DESKTOP]: 28 }, paddingBlock: 6 },
   wordmark: {
     fontSize: text.md, fontWeight: 750, letterSpacing: "-0.035em", color: color.ink, textDecoration: "none", whiteSpace: "nowrap",
   },
@@ -71,11 +68,23 @@ const isCurrent = (path: string, href: string) => (href === "/" ? path === "/" :
 /** Paths that keep working while an account is on hold or cancelled. Matches ON_HOLD_OK in src/lib/web.ts. */
 const ON_HOLD_OK = /^\/(lockout|admin\/billing|admin\/export|inbox|dev|accounts|signin|signup|help|exports)/
 
-const Header = observer(({ wide }: { wide: boolean }) => {
+const Header = observer(() => {
+  const me = meOrNull()
+  const account = me ? db.accounts.get(String(me.account_id)) : undefined
+  if (!me || !account) return <header {...sx(s.header)}><a href="/marketing" {...sx(s.wordmark)}>ProjectTorch</a></header>
+  return (
+    <header {...sx(s.header)}>
+      <a href="/" {...sx(s.wordmark)}>{account.name}</a>
+      <MainNav />
+    </header>
+  )
+})
+
+/** Find, the Inbox and your face. The app bar ends with it; on a project page the project's own bar does instead. */
+export const MainNav = observer(() => {
   const me = meOrNull()
   const path = useLocation().pathname
-  const account = me ? db.accounts.get(String(me.account_id)) : undefined
-  if (!me || !account) return <header {...sx(s.header, wide && s.headerWide)}><a href="/marketing" {...sx(s.wordmark)}>Saintsflow</a></header>
+  if (!me) return null
   const n = inboxCount(me.id)
   const inInbox = tray.open || isCurrent(path, "/updates") || isCurrent(path, "/chats")
   // The Inbox is a link to its page; a plain click opens it as a tray instead (a new tab still gets the page).
@@ -85,17 +94,14 @@ const Header = observer(({ wide }: { wide: boolean }) => {
     openTray()
   }
   return (
-    <header {...sx(s.header, wide && s.headerWide)}>
-      <a href="/" {...sx(s.wordmark)}>{account.name}</a>
-      <nav aria-label="Main" {...sx(s.navEnd)}>
-        {isQuiet(me) && <a href="/my/quiet-hours" {...sx(s.quiet)}><span {...sx(s.dot, s.quietDot)} />Notifications paused</a>}
-        <a href="/find" aria-label="Find" title="Find, or go to anything with Ctrl/⌘ + K" aria-current={isCurrent(path, "/find") ? "page" : undefined}
-          {...sx(s.link, s.icon, isCurrent(path, "/find") && s.current)}><Icon name="search" size={18} /></a>
-        <a href="/updates" onClick={toggle} data-inbox-toggle aria-controls="inbox-tray" aria-expanded={tray.open} aria-label={n ? `Inbox, ${n} unread` : "Inbox"}
-          {...sx(s.link, inInbox && s.current)}>Inbox{n > 0 && <span {...sx(s.count)} aria-hidden="true">{n}</span>}</a>
-        <a href="/my" aria-label={`Me: ${me.name}`} title="Your assignments, schedule and settings" aria-current={isCurrent(path, "/my") ? "page" : undefined} {...sx(s.me, isCurrent(path, "/my") && s.meCurrent)}><Face p={me} px={30} /></a>
-      </nav>
-    </header>
+    <nav aria-label="Main" {...sx(s.navEnd)}>
+      {isQuiet(me) && <a href="/my/quiet-hours" {...sx(s.quiet)}><span {...sx(s.dot, s.quietDot)} />Notifications paused</a>}
+      <a href="/find" aria-label="Find" title="Find, or go to anything with Ctrl/⌘ + K" aria-current={isCurrent(path, "/find") ? "page" : undefined}
+        {...sx(s.link, s.icon, isCurrent(path, "/find") && s.current)}><Icon name="search" size={18} /></a>
+      <a href="/updates" onClick={toggle} data-inbox-toggle aria-controls="inbox-tray" aria-expanded={tray.open} aria-label={n ? `Inbox, ${n} unread` : "Inbox"}
+        {...sx(s.link, inInbox && s.current)}>Inbox{n > 0 && <span {...sx(s.count)} aria-hidden="true">{n}</span>}</a>
+      <a href="/my" aria-label={`Me: ${me.name}`} title="Your assignments, schedule and settings" aria-current={isCurrent(path, "/my") ? "page" : undefined} {...sx(s.me, isCurrent(path, "/my") && s.meCurrent)}><Face p={me} px={30} /></a>
+    </nav>
   )
 })
 
@@ -160,7 +166,8 @@ export const App = observer(() => {
   return (
     <div {...sx(s.body)}>
       <p id="offline" role="alert" hidden={state.online} {...sx(s.strip)}><b>You're offline.</b> You can keep reading. Quick changes wait here and sync when you reconnect.</p>
-      <Header wide={wide} />
+      {/* A project page has one bar, its own, which carries the app's nav too. */}
+      {!wide && <Header />}
       <div {...sx(s.frame, wide && s.frameWide)}><Outlet /></div>
       {me && <InboxTray />}
     </div>

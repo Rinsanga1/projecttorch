@@ -17,8 +17,8 @@ const companies = (c: Ctx) =>
 /** Send (or resend) the invitation email. */
 const sendInvite = (c: Ctx, p: Person, note: string, projectNames: ReadonlyArray<string>) =>
   sendEmail(p, {
-    subject: `${c.me.name} invited you to ${c.account.name}'s Saintsflow`,
-    body: `${c.me.name} invited you to join ${c.account.name} on Saintsflow${projectNames.length ? `, to work on ${projectNames.join(", ")}` : ""}.${note ? `\n\n“${note}”` : ""}\n\nAccept the invitation to set up your login.`,
+    subject: `${c.me.name} invited you to ${c.account.name}'s ProjectTorch`,
+    body: `${c.me.name} invited you to join ${c.account.name} on ProjectTorch${projectNames.length ? `, to work on ${projectNames.join(", ")}` : ""}.${note ? `\n\n“${note}”` : ""}\n\nAccept the invitation to set up your login.`,
     kind: "invite",
     link: `/join/${p.invite_token}`,
   }, true)
@@ -139,7 +139,7 @@ export const seed = (s: Seed) =>
     })} returning *`
     yield* sql`insert into project_people (project_id, person_id) values (${s.projects.marketing.id}, ${eve!.id})`
     yield* sql`insert into emails ${sql.insert({
-      to_email: eve!.email, subject: `Maya Ortiz invited you to Acme's Saintsflow`, kind: "invite", link: "/join/demo-invite-token",
-      body: "Maya Ortiz invited you to join Acme on Saintsflow, to work on Marketing Plan.\n\nAccept the invitation to set up your login.",
+      to_email: eve!.email, subject: `Maya Ortiz invited you to Acme's ProjectTorch`, kind: "invite", link: "/join/demo-invite-token",
+      body: "Maya Ortiz invited you to join Acme on ProjectTorch, to work on Marketing Plan.\n\nAccept the invitation to set up your login.",
     })}`
   })

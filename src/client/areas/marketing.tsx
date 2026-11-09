@@ -844,7 +844,7 @@ const Chrome = ({ children }: { children: ReactNode }) => {
       <header {...sx(s.wrap)}>
         <div {...sx(s.header)}>
           <div {...sx(s.brand)}>
-            <a href="/marketing" {...sx(s.wordmark)}>Saintsflow</a>
+            <a href="/marketing" {...sx(s.wordmark)}>ProjectTorch</a>
             <nav aria-label="Main" {...sx(s.nav)}>
               <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
               <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
@@ -854,7 +854,7 @@ const Chrome = ({ children }: { children: ReactNode }) => {
           </div>
           <div {...sx(s.headerEnd)}>
             {me
-              ? <a href="/" {...sx(s.pill, s.pillSmall, s.light)}>Go to Saintsflow</a>
+              ? <a href="/" {...sx(s.pill, s.pillSmall, s.light)}>Go to ProjectTorch</a>
               : <><a href="/signin" {...sx(s.textLink)}>Log in</a><a href="/signup" {...sx(s.pill, s.pillSmall, s.light)}>Sign up</a></>}
           </div>
         </div>
@@ -863,17 +863,17 @@ const Chrome = ({ children }: { children: ReactNode }) => {
       <footer {...sx(s.footer)}>
         <div {...sx(s.wrap)}>
           <div {...sx(s.footerRow)}>
-            <span>Saintsflow · in beta</span>
+            <span>ProjectTorch · in beta</span>
             <p {...sx(s.footerLinks)}>
               <a href="/marketing#product" {...sx(s.navLink)}>Product</a>
               <a href="/marketing#agents" {...sx(s.navLink)}>Agents</a>
               <a href="/startups" {...sx(s.navLink)}>For startups</a>
               <a href="/blog" {...sx(s.navLink)}>Blog</a>
-              {me ? <a href="/" {...sx(s.navLink)}>Go to Saintsflow</a> : <><a href="/signin" {...sx(s.navLink)}>Log in</a><a href="/signup" {...sx(s.navLink)}>Sign up</a></>}
+              {me ? <a href="/" {...sx(s.navLink)}>Go to ProjectTorch</a> : <><a href="/signin" {...sx(s.navLink)}>Log in</a><a href="/signup" {...sx(s.navLink)}>Sign up</a></>}
             </p>
           </div>
         </div>
-        <span aria-hidden="true" {...sx(s.giant)}>Saintsflow</span>
+        <span aria-hidden="true" {...sx(s.giant)}>ProjectTorch</span>
       </footer>
     </>
   )
@@ -897,7 +897,7 @@ const Agents = () => (
       <div {...sx(s.wrap, s.agentsGrid)}>
         <div {...sx(s.reveal)}>
           <h2 {...sx(s.h2)}>Bring your own agent</h2>
-          <p {...sx(s.sub, s.slabSub)}>Saintsflow doesn't come with a chatbot. It works with the one you already use: give it one address, and it works in your projects as you.</p>
+          <p {...sx(s.sub, s.slabSub)}>ProjectTorch doesn't come with a chatbot. It works with the one you already use: give it one address, and it works in your projects as you.</p>
           <ul aria-label="Works with" {...sx(s.works)}>
             {AGENTS.map((a, i) => <li key={a} {...sx(s.chip, s.reveal)} style={stagger(i, 8)}>{a}</li>)}
           </ul>
@@ -945,17 +945,19 @@ const stagger = (i: number, step = 6) => ({ animationRange: `entry ${i * step}% 
 
 const Marketing = () => (
   <Chrome>
-    <title>Saintsflow: we keep your flow state</title>
-    <meta name="description" content="Calm project software for small teams and the AI agents that help them. Every project in one place; agents that do the busywork and never ping you." />
+    <title>ProjectTorch: a tool for getting things done</title>
+    <meta name="description" content="A tool for getting things done, with your team and your AI agents. Hand off the work, ship what comes back. Every project in one place." />
     <section {...sx(s.wrap, s.hero)}>
-      <a href="#agents" {...sx(s.news, s.enter)}><span aria-hidden="true" {...sx(s.newsDot)} />New: bring your own AI agent <Arrow /></a>
-      <h1 {...sx(s.h1, s.enter, s.delay(60))}>We keep your flow state.</h1>
-      <p {...sx(s.lede, s.enter, s.delay(140))}>Saintsflow is calm project software for small teams and the AI agents that help them. Every project's posts, board, files and chat in one place. Your agent does the busywork, and never pings you about it.</p>
-      <p {...sx(s.ctas, s.enter, s.delay(220))}><Ctas second={["See how it works", "#product"]} /></p>
+      <a href="#agents" {...sx(s.news, s.enter)}><span aria-hidden="true" {...sx(s.newsDot)} />Works with Claude, ChatGPT and Cursor <Arrow /></a>
+      <h1 {...sx(s.h1, s.enter, s.delay(60))}>A tool for getting things done.</h1>
+      <p {...sx(s.lede, s.enter, s.delay(140))}>ProjectTorch is where you, your team and your agents get the work done. Connect the agent you already use and hand it a card. It does the work in your projects, as you, and puts each finished card in Review for you to ship, send back or kill. Posts, files, chat and the calendar sit right beside it.</p>
+      <p {...sx(s.ctas, s.enter, s.delay(220))}><Ctas second={["See how it works", "#agents"]} /></p>
       <Scene />
     </section>
 
     <Demo />
+
+    <Agents />
 
     <section {...sx(s.section)}>
       <div id="product" {...sx(s.slab)}>
@@ -970,8 +972,6 @@ const Marketing = () => (
         </div>
       </div>
     </section>
-
-    <Agents />
 
     <section id="calm" {...sx(s.wrap, s.section)}>
       <div {...sx(s.split)}>
@@ -1001,7 +1001,7 @@ const Marketing = () => (
     </section>
 
     <section {...sx(s.wrap, s.close, s.reveal)}>
-      <h2 {...sx(s.h2)}>Get into the flow</h2>
+      <h2 {...sx(s.h2)}>Put your agents to work</h2>
       <p {...sx(s.sub, s.centerP)}>Free while we're in beta. No card needed.</p>
       <p {...sx(s.ctas)}><Ctas second={["For startups", "/startups"]} /></p>
     </section>
@@ -1021,11 +1021,11 @@ const FOR_STARTUPS = [
 ]
 const STEPS = [
   ["Make a project", "Give it a name and the people on it. Add the windows it needs: a board, posts, files, chat."],
-  ["Connect your agent", "Paste Saintsflow's address into Claude, ChatGPT or Cursor and click Allow. Projects it starts come ready to work in."],
+  ["Connect your agent", "Paste ProjectTorch's address into Claude, ChatGPT or Cursor and click Allow. Projects it starts come ready to work in."],
   ["Sweep twice a day", "Look at what's waiting in Review: ship it, send it back, or kill it. Then get back to the work only you can do."],
 ]
 const FAQ = [
-  ["Do I need an agent to use it?", "No. Saintsflow is a whole project tool on its own: posts, a board, files, chat, a calendar and Compass for the project's goals. Agents are there when you want them."],
+  ["Do I need an agent to use it?", "No. ProjectTorch is a whole project tool on its own: posts, a board, files, chat, a calendar and Compass for the project's goals. Agents are there when you want them."],
   ["Which agents work?", "Anything that connects over MCP, the standard way AI apps plug into other apps: Claude, ChatGPT, Cursor, Claude Code and more. You paste one address and sign in."],
   ["Can an agent see everything?", "Only what you can see, and it can only do what you can do. Choose Read only when you connect it if you'd rather it just looked. Disconnect it any time."],
   ["Is it too early for a project tool?", "If your work lives in chat threads and someone's head, it isn't. Start with one project and see if it sticks."],
@@ -1034,12 +1034,12 @@ const FAQ = [
 
 const Startups = () => (
   <Chrome>
-    <title>Saintsflow for startups: project management that works with your agents</title>
+    <title>ProjectTorch for startups: project management that works with your agents</title>
     <meta name="description" content="Project management for startups that work with AI agents. One calm place for every project, and a built-in place for your agent to hand work back." />
     <section {...sx(s.wrap, s.hero)}>
       <a href="#how" {...sx(s.news, s.enter)}><span aria-hidden="true" {...sx(s.newsDot)} />For startups <Arrow /></a>
       <h1 {...sx(s.h1, s.h1Wide, s.enter, s.delay(60))}>Project management for startups that work with agents</h1>
-      <p {...sx(s.lede, s.enter, s.delay(140))}>Small team, lots to do, an agent or two helping. Saintsflow is one calm place to run it all, and to see exactly what your agents did.</p>
+      <p {...sx(s.lede, s.enter, s.delay(140))}>Small team, lots to do, an agent or two helping. ProjectTorch is one calm place to run it all, and to see exactly what your agents did.</p>
       <p {...sx(s.ctas, s.enter, s.delay(220))}><Ctas second={["How it works", "#how"]} /></p>
     </section>
 
@@ -1128,17 +1128,17 @@ const POSTS: ReadonlyArray<Post> = [
         <P>You picked yours. Maybe it's Claude, maybe ChatGPT, maybe whatever lives in your editor. It knows how you write. It's where you already think out loud. The last thing you need is a second one that only works in one app.</P>
 
         <H>Bring the one you have</H>
-        <P>So Saintsflow works the other way around. Paste one address into your agent, sign in, click Allow. From then on it works in your projects as you: the same projects you can see, and only what you're allowed to do. It doesn't get its own login, its own seat, or its own little avatar. It works for you, so it works as you.</P>
+        <P>So ProjectTorch works the other way around. Paste one address into your agent, sign in, click Allow. From then on it works in your projects as you: the same projects you can see, and only what you're allowed to do. It doesn't get its own login, its own seat, or its own little avatar. It works for you, so it works as you.</P>
         <P>But "as you" can't mean "invisibly". So everything it touches says so: <b>Maya · via Claude Code</b>. On the post, on the card, on the comment, in the activity. One click shows you just the agent's work. Nobody has to wonder who wrote that.</P>
 
         <H>Making things got cheap. Deciding didn't.</H>
         <P>Here's what we think most tools are missing. An agent can make ten drafts before lunch. Making things is the cheap part now. The expensive part, the part that's still yours, is deciding: is this good? Is this done? Is this what we meant?</P>
-        <P>So every board in Saintsflow has a column called Review. When your agent finishes something, it ticks its steps, leaves one note about what it did, and puts the card there. It shows up on your Home under <b>Waiting for you</b>, oldest first. You give it one of three answers: <b>Ship it</b>, <b>Send it back</b> with what should change, or <b>Kill it</b>.</P>
+        <P>So every board in ProjectTorch has a column called Review. When your agent finishes something, it ticks its steps, leaves one note about what it did, and puts the card there. It shows up on your Home under <b>Waiting for you</b>, oldest first. You give it one of three answers: <b>Ship it</b>, <b>Send it back</b> with what should change, or <b>Kill it</b>.</P>
         <P>That's the whole ritual. Look twice a day, decide, and get back to the work only you can do. The tool's job is to make that moment calm and quick, not to give you another dashboard to stare at.</P>
 
         <H>The quiet part</H>
         <P>Agents don't sleep. That's their whole appeal. It's also a problem, if every card they move turns into a notification on your phone at 11pm.</P>
-        <P>So agents in Saintsflow don't ping anyone. Ever. Their work goes into the project and waits. The only thing that gets through is a person who actually needs you: an @mention, a direct message. Everything else can wait for you to look.</P>
+        <P>So agents in ProjectTorch don't ping anyone. Ever. Their work goes into the project and waits. The only thing that gets through is a person who actually needs you: an @mention, a direct message. Everything else can wait for you to look.</P>
         <Pull>We keep your flow state. Yes, that's the pun. We're keeping it.</Pull>
         <P>A project tool should make it easier to stop thinking about work, not harder. That was true before agents. It's twice as true now, when the work never stops on its own.</P>
 
@@ -1148,7 +1148,7 @@ const POSTS: ReadonlyArray<Post> = [
         <H>What we're not doing</H>
         <P>We're not counting your agents as people. We're not renting you a coworker. We're not putting a chatbot in the corner of every screen. And we're not going to buzz your phone because something finished at 3am.</P>
         <P>We're building a calm place for a small team and the agents that help it. One home per project. A name on everything. A place for the work to come back to you. That's it, and we think that's plenty.</P>
-        <P>Saintsflow is in beta, and it's free while it is. Bring your agent. We'll keep the rest quiet.</P>
+        <P>ProjectTorch is in beta, and it's free while it is. Bring your agent. We'll keep the rest quiet.</P>
       </>
     ),
   },
@@ -1156,7 +1156,7 @@ const POSTS: ReadonlyArray<Post> = [
 
 const BlogIndex = () => (
   <Chrome>
-    <title>Blog · Saintsflow</title>
+    <title>Blog · ProjectTorch</title>
     <meta name="description" content="Notes on calm project software, working with agents, and keeping your flow state." />
     <section {...sx(s.wrap, s.hero)}>
       <h1 {...sx(s.h1, s.enter)}>Blog</h1>
@@ -1181,7 +1181,7 @@ const BlogPost = () => {
   if (!post) return <Navigate to="/blog" replace />
   return (
     <Chrome>
-      <title>{`${post.title} · Saintsflow`}</title>
+      <title>{`${post.title} · ProjectTorch`}</title>
       <meta name="description" content={post.dek} />
       <article {...sx(s.post)}>
         <header {...sx(s.postHead)}>

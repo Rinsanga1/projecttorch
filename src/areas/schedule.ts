@@ -80,7 +80,7 @@ const vevent = (e: Recording, origin: string) => {
   const tz = e.data.tz ?? "UTC"
   return [
     "BEGIN:VEVENT",
-    `UID:event-${e.id}@saintsflow`,
+    `UID:event-${e.id}@projecttorch`,
     `DTSTAMP:${stamp(new Date(e.updated_at))}`,
     ...(allDay
       ? [`DTSTART;VALUE=DATE:${icsDate(s.slice(0, 10))}`, `DTEND;VALUE=DATE:${icsDate(addDays(en.slice(0, 10), 1))}`]
@@ -94,7 +94,7 @@ const vevent = (e: Recording, origin: string) => {
 }
 const vdue = (t: Recording, origin: string) => [
   "BEGIN:VEVENT",
-  `UID:due-${t.id}@saintsflow`,
+  `UID:due-${t.id}@projecttorch`,
   `DTSTAMP:${stamp(new Date(t.updated_at))}`,
   `DTSTART;VALUE=DATE:${icsDate(t.data.due_on)}`,
   `DTEND;VALUE=DATE:${icsDate(addDays(t.data.due_on, 1))}`,
@@ -104,7 +104,7 @@ const vdue = (t: Recording, origin: string) => [
 ]
 const calendar = (name: string, events: ReadonlyArray<Recording>, dues: ReadonlyArray<Recording>, origin: string) =>
   HttpServerResponse.text(
-    ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Saintsflow//Calendar//EN", "CALSCALE:GREGORIAN", `X-WR-CALNAME:${icsEsc(name)}`,
+    ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//ProjectTorch//Calendar//EN", "CALSCALE:GREGORIAN", `X-WR-CALNAME:${icsEsc(name)}`,
       ...events.flatMap((e) => vevent(e, origin)), ...dues.flatMap((t) => vdue(t, origin)), "END:VCALENDAR"].map(fold).join("\r\n") + "\r\n",
     { contentType: "text/calendar; charset=utf-8" },
   )
