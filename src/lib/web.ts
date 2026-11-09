@@ -2,7 +2,7 @@
 // Every server route lives under /api. Pages are React (src/client); the server answers form posts with a Reply
 // ({ redirect, flash, errors }) and carries the sync changes the post made, so the browser's copy is current
 // before it navigates.
-import { Cause, Data, Effect } from "effect"
+import { Cause, Data, Effect, Schedule } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { SqlClient } from "effect/sql"
 import type { Prefs } from "../shared/domain.ts"
@@ -122,6 +122,19 @@ export const json = (data: unknown) => reply({ data })
 export const withCookie = (r: Reply, name: string, value: string | null, opts?: CookieOpts): Reply => ({ ...r, cookies: [...(r.cookies ?? []), [name, value, opts]] })
 /** Make the browser start over from a fresh bootstrap. */
 export const resync = (r: Reply): Reply => ({ ...r, resync: true })
+
+// ---------- background loops ----------
+/**
+ * Run `work` now, then again `ms` after each run finishes, forever, in the background.
+ * Runs never overlap, and a failure is logged instead of killing the loop.
+ */
+export const runEvery = <R>(ms: number, name: string, work: Effect.Effect<unknown, unknown, R>) =>
+  Effect.forkDetach(
+    work.pipe(
+      Effect.catchCause((cause) => Effect.logError(`${name} failed`, cause)),
+      Effect.repeat(Schedule.spaced(ms)),
+    ),
+  )
 
 // ---------- who's acting ----------
 /** `bun run dev` sets DEV=1: the `pid` cookie (act as anyone), the dev inbox and /dev routes. */
