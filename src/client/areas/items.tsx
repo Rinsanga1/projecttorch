@@ -2,6 +2,7 @@
 // bookmarks, bubble ups, trash, archive and client visibility, for any recording. Posts: src/areas/items.ts.
 import * as stylex from "@stylexjs/stylex"
 import { observer } from "mobx-react-lite"
+import type { ReactNode } from "react"
 import { Form as GetForm, Navigate, useParams, useSearchParams } from "react-router"
 import { db, temp } from "../store.ts"
 import { me, findRecording, findProject, projectPeople, peopleByIds, subscriberIds, comments, boostsOn, visibleProjects, recordings, NotFound, useApi } from "../data.ts"
@@ -49,10 +50,37 @@ export const ClientBanner = ({ r, hasClients }: { r: Recording; hasClients: bool
     ? <p {...sx(fs.vis)}><Svg d={r.visible_to_clients ? EYE : LOCK} /><span>{r.visible_to_clients ? "This is visible to clients." : "Clients can't see this."}</span> <a href={`/r/${r.id}/clients`}>Change</a></p>
     : null
 
+/** An item's title with what you do to it on the same line: who can see it (on projects with clients), Edit, and •••.
+ *  `vis` is whose visibility counts (a subgoal goes with its goal); `edit` is the button's word when you may edit. */
+export const ItemHead = observer(({ r, project, vis = r, edit, children }: { r: Recording; project: Project; vis?: Recording; edit?: string | false; children: ReactNode }) => {
+  const shown = vis.visible_to_clients
+  const clients = !isClient(me()) && projectPeople(project).some(isClient)
+  return (
+    <div {...sx(fs.head)}>
+      <h1 {...sx(fs.title)}>{children}</h1>
+      <span {...sx(fs.headActions)}>
+        {clients && (
+          <a href={`/r/${vis.id}/clients`} title={shown ? "Clients can see this. Change" : "Clients can't see this. Change"} {...sx(fs.vis, fs.visChip)}>
+            <Svg d={shown ? EYE : LOCK} />{shown ? "Clients see this" : "Hidden from clients"}
+          </a>
+        )}
+        {edit && r.status === "active" && EDIT_PATHS[r.type] && <a href={EDIT_PATHS[r.type]!(r)} data-button {...sx(fs.headBtn)}>{edit}</a>}
+        <a href={`/r/${r.id}/menu`} data-button aria-label={`More options for this ${TYPE_NAMES[r.type] ?? "item"}`} title="More options" {...sx(fs.headBtn)}>•••</a>
+      </span>
+    </div>
+  )
+})
+
 // The bottom of every item page, kept short so the record stays the biggest thing: the boost pills and a quiet "React",
 // the comment thread, a one-line comment box that opens as you write, and one line about who gets notified.
 const fs = stylex.create({
   vis: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, fontSize: text.sm, color: color.muted },
+  // The title line: the title, then its actions at the end (they wrap under it when there's no room).
+  head: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: space.s4, rowGap: space.s2, marginBottom: space.s2 },
+  title: { margin: 0, minWidth: 0 },
+  headActions: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
+  visChip: { textDecoration: "none", whiteSpace: "nowrap", paddingInline: 8, color: { default: color.muted, ":hover": { default: null, "@media (hover: hover) and (pointer: fine)": color.ink } } },
+  headBtn: { minHeight: 30, paddingBlock: 0, paddingInline: 12 },
   menuFor: { color: color.muted, marginBottom: space.s6 },
   boosts: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2, marginBlock: space.s5 },
   boost: {
@@ -109,8 +137,8 @@ const addBoost = (recordingId: number) => (fd: FormData) => {
   if (content && [...content].length <= 16) temp("boosts", { recording_id: recordingId, person_id: me().id, content, created_at: new Date().toISOString() })
 }
 
-/** Boosts, comments, subscribers and the ••• link. Goes at the bottom of every item page. */
-export const ItemFooter = observer(({ r, project, showComments = true }: { r: Recording; project: Project; showComments?: boolean }) => {
+/** Boosts, comments, subscribers and (where the page has no ItemHead) the ••• link. Goes at the bottom of item pages. */
+export const ItemFooter = observer(({ r, project, showComments = true, more = true }: { r: Recording; project: Project; showComments?: boolean; more?: boolean }) => {
   const m = me()
   const thread = showComments ? comments(r.id) : []
   const subs = peopleByIds(subscriberIds(r.id))
@@ -181,7 +209,7 @@ export const ItemFooter = observer(({ r, project, showComments = true }: { r: Re
           <button data-quiet {...sx(kit.linkButton)}>{subscribed ? "Unsubscribe me" : "Subscribe me"}</button>
         </Form>
       </section>
-      <p {...sx(fs.more)}><a href={`/r/${r.id}/menu`}>••• More options for this {TYPE_NAMES[r.type] ?? "item"}</a></p>
+      {more && <p {...sx(fs.more)}><a href={`/r/${r.id}/menu`}>••• More options for this {TYPE_NAMES[r.type] ?? "item"}</a></p>}
     </>
   )
 })

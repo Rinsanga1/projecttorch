@@ -13,7 +13,7 @@ import { ByLine, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, PeopleCheckboxes, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, radius, space, text } from "../ui/tokens.stylex.ts"
-import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
+import { ItemFooter, ItemHead, StatusBanner } from "./items.tsx"
 
 // ---------- dates ----------
 const DAY = 86_400_000
@@ -305,17 +305,15 @@ export const routes = [
     return (
       <Page title={r.title} crumbs={projectCrumbs(project, "schedule")}>
         <StatusBanner r={r} />
-        <ClientBanner r={r} hasClients={projectPeople(project).some(isClient)} />
         <article>
-          <h1>{r.title}</h1>
+          <ItemHead r={r} project={project} edit={(r.creator_id === m.id || !isClient(m)) && "Edit"}>{r.title}</ItemHead>
           <p><b>{fmtWhen(r)}</b>{r.data.tz && !r.data.all_day && String(r.data.starts_at).length > 10 && <> <small>({r.data.tz} time)</small></>}</p>
           {r.data.repeat && r.data.repeat !== "never" && <p>Repeats: {REPEATS[r.data.repeat as Repeat]}</p>}
           <p>Who's involved: {involved.length ? involved.map((x, i) => <span key={x.id}>{i ? ", " : ""}<a href={`/people/${x.id}`}>{x.name}</a></span>) : "nobody in particular"}</p>
           {r.body && <Fmt text={r.body} />}
           <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
-          {r.status === "active" && (r.creator_id === m.id || !isClient(m)) && <p><a href={`/projects/${project.id}/events/${r.id}/edit`}>Edit</a></p>}
         </article>
-        <ItemFooter r={r} project={project} />
+        <ItemFooter r={r} project={project} more={false} />
       </Page>
     )
   }),

@@ -13,7 +13,7 @@ import { daysFromToday, fmtDate, fmtDateTime, isoDate, plural } from "../../shar
 import { Fmt, kit, sx, useTween } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, PostOnOpen, usePost, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
-import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
+import { ItemFooter, ItemHead, StatusBanner } from "./items.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
 import { progressOf } from "../news.ts"
 
@@ -365,13 +365,12 @@ export const routes = [
     return (
       <Page title={t.title} crumbs={crumbs(p, t)}>
         <StatusBanner r={t} />
-        <ClientBanner r={parent ?? t} hasClients={people.some(isClient)} />
         <article>
           {parent && <p>A subgoal of <a href={urlFor(parent)}>{parent.title}</a></p>}
-          <h1>
+          <ItemHead r={t} project={p} vis={parent ?? t} edit={!readOnly && "Edit"}>
             {!readOnly && <CheckButton p={p} t={t} large />}
             <Struck done={!!t.data.completed_at}>{t.title}</Struck>
-          </h1>
+          </ItemHead>
           {t.data.completed_at && <p>Completed by {completer?.name ?? "someone"} on {fmtDate(t.data.completed_at, m.time_zone)}</p>}
           {/* A task's subtasks come first: for a split task they're the work. Its details follow. */}
           {!parent && (subs.length > 0 || !readOnly) && (
@@ -400,9 +399,8 @@ export const routes = [
             <dt>Notes</dt><dd>{t.body ? <Fmt text={t.body} {...sx(kit.prose)} /> : "None"}</dd>
             <dt>Added by</dt><dd>{author?.name ?? "Someone"}{t.via ? ` via ${t.via}` : ""} on {fmtDateTime(t.created_at, m.time_zone)}</dd>
           </dl>
-          <p>{!readOnly && <a href={`/projects/${p.id}/tasks/${t.id}/edit`}>Edit</a>}</p>
         </article>
-        <ItemFooter r={t} project={p} />
+        <ItemFooter r={t} project={p} more={false} />
       </Page>
     )
   }),
