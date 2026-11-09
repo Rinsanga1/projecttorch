@@ -13,7 +13,7 @@ import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField }
 import { NewTag, useWindow, WindowId } from "../ui/in-window.tsx"
 import { Page, page, projectCrumbs, type Crumb } from "../ui/page.tsx"
 import { color, media, radius, space, text } from "../ui/tokens.stylex.ts"
-import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
+import { ItemFooter, ItemHead, StatusBanner } from "./items.tsx"
 import { DOT } from "./cards.tsx"
 
 const fmtSize = (n: number) => (n < 1024 ? `${n} bytes` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : n < 1024 ** 3 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${(n / 1024 ** 3).toFixed(2)} GB`)
@@ -240,15 +240,13 @@ const DocView = observer(({ r, p }: { r: Recording; p: Project }) => {
   return (
     <Page title={r.title} crumbs={folderCrumbs(p, r.parent_id)}>
       <StatusBanner r={r} />
-      <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
       <article>
-        <h1>{r.title}</h1>
+        <ItemHead r={r} project={p} edit={mayEdit(r) && "Edit"}>{r.title}</ItemHead>
         <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
-        {last && n > 1 && <p><small>Last edited by {last.name ?? "someone"} on {fmtDate(last.created_at, m.time_zone)}</small></p>}
+        {last && n > 1 && <p><small>Edited by {last.name ?? "someone"} on {fmtDate(last.created_at, m.time_zone)} · <a href={`/r/${r.id}/history`}>{n - 1} earlier {n - 1 === 1 ? "version" : "versions"}</a></small></p>}
         <Fmt text={r.body} />
       </article>
-      <p>{r.status === "active" && mayEdit(r) && <><a href={`/projects/${p.id}/docs/${r.id}/edit`}>Edit</a> · </>}<a href={`/r/${r.id}/history`}>Previous versions{last && n > 1 ? ` (${n - 1})` : ""}</a></p>
-      <ItemFooter r={r} project={p} />
+      <ItemFooter r={r} project={p} more={false} />
     </Page>
   )
 })
@@ -286,13 +284,10 @@ export const routes = [
     return (
       <Page title={r.title} crumbs={folderCrumbs(p, r.parent_id)}>
         <StatusBanner r={r} />
-        <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
-        <h1>{r.data.color && <span aria-hidden="true" {...sx(vs.dotBox, vs.dot(DOT[r.data.color] ?? DOT.gray!))} />}{r.title}</h1>
+        <ItemHead r={r} project={p} edit={!isClient(me()) && "Rename"}>{r.data.color && <span aria-hidden="true" {...sx(vs.dotBox, vs.dot(DOT[r.data.color] ?? DOT.gray!))} />}{r.title}</ItemHead>
         {r.status === "active" && p.status === "active" && <NewMenu p={p} folderId={r.id} />}
         {items.length > 10 && <SortViewForm sort={sort} view={view} />}
         {items.length ? <Listing items={items} view={view} /> : <p>This folder is empty. Add a doc or upload files to it.</p>}
-        {r.status === "active" && <p><a href={`/projects/${p.id}/folders/${r.id}/edit`}>Rename or recolor this folder</a></p>}
-        <ItemFooter r={r} project={p} />
       </Page>
     )
   }),
@@ -352,9 +347,8 @@ export const routes = [
     return (
       <Page title={r.title} crumbs={folderCrumbs(p, r.parent_id)}>
         <StatusBanner r={r} />
-        <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
         <article>
-          <h1>📎 {r.title}</h1>
+          <ItemHead r={r} project={p} edit={mayEdit(r) && "Rename"}>📎 {r.title}</ItemHead>
           <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
           {ct.startsWith("image/") ? <p><img src={raw} alt={r.title} /></p>
             : ct.startsWith("video/") ? <p><video src={raw} controls width={640} /></p>
@@ -372,7 +366,6 @@ export const routes = [
         )}
         <p>
           <a href={`/r/${r.id}/history`}>Versions ({versions.length + 1})</a>
-          {r.status === "active" && mayEdit(r) && <> · <a href={`/projects/${p.id}/uploads/${r.id}/edit`}>Rename or add a note</a></>}
           {!isClient(m) && <> · <a href={`/r/${r.id}/public-link`}>{link ? "Public link is on" : "Share a public link"}</a></>}
         </p>
         {versions.length > 0 && (
@@ -384,7 +377,7 @@ export const routes = [
             ))}</ul>
           </>
         )}
-        <ItemFooter r={r} project={p} />
+        <ItemFooter r={r} project={p} more={false} />
       </Page>
     )
   }),
@@ -420,14 +413,12 @@ export const routes = [
     return (
       <Page title={r.title} crumbs={folderCrumbs(p, r.parent_id)}>
         <StatusBanner r={r} />
-        <ClientBanner r={r} hasClients={projectPeople(p).some(isClient)} />
         <article>
-          <h1>🔗 {r.title}</h1>
+          <ItemHead r={r} project={p} edit={mayEdit(r) && "Edit"}>🔗 {r.title}</ItemHead>
           <ByLine who={personById(r.creator_id)} when={r.created_at} tz={me().time_zone} via={r.via} />
           <p><a href={r.data.url} target="_blank" rel="noopener noreferrer">Open {r.data.url}</a></p>
         </article>
-        {r.status === "active" && mayEdit(r) && <p><a href={`/projects/${p.id}/cloudfiles/${r.id}/edit`}>Edit</a></p>}
-        <ItemFooter r={r} project={p} />
+        <ItemFooter r={r} project={p} more={false} />
       </Page>
     )
   }),

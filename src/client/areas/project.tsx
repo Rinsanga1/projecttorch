@@ -241,7 +241,7 @@ const LeadView = ({ l }: { l: Lead }) => <>
 const upcoming = (p: Project, t: Tool) =>
   activeIn(p, t, "event").filter((r) => r.data.starts_at >= isoDate(new Date())).sort((a, b) => String(a.data.starts_at).localeCompare(b.data.starts_at))
 
-/** One line about what's new in a tool, for its window's title bar and its taskbar tip. */
+/** One line about what's in a tool, for an empty preview's title bar and the taskbar tip. */
 const summary = (p: Project, t: Tool): string => {
   switch (t.type) {
     case "message_board": {

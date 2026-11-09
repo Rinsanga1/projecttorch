@@ -18,7 +18,7 @@ export type DeskWindow = {
   key: string
   name: string
   icon: IconName
-  /** One line about what's new, for the title bar and the taskbar tip. */
+  /** One line about what's in it ("5 files", "No posts yet"): an empty preview's title bar and the taskbar tip. The main window's title bar is just its name: what's in it is right there under it. */
   summary: string
   /** The preview the column shows. */
   body: ReactNode
@@ -521,7 +521,6 @@ const WindowHead = ({ w, onRename }: { w: DeskWindow; onRename?: (key: string, n
       ? <button type="button" onClick={w.back} aria-label={`Back in ${w.name}`} title="Back" {...sx(s.iconBtn, s.backBtn)}><Icon name="back" size={16} /></button>
       : <Icon name={w.icon} size={16} />}
     <WindowName w={w} onRename={onRename} />
-    <span {...sx(s.summary)}>{w.summary}</span>
   </div>
 )
 

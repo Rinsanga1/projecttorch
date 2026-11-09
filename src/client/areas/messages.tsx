@@ -9,7 +9,7 @@ import { ByLine, Face, Fmt, PageHead, kit, sx } from "../ui/kit.tsx"
 import { ClientSwitch, Form, NotifyPicker, submitOnChange, TextArea, TextField } from "../ui/forms.tsx"
 import { NewTag, useWindow, WindowField } from "../ui/in-window.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
-import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
+import { ItemFooter, ItemHead, StatusBanner } from "./items.tsx"
 
 const categories = (): Category[] =>
   [...db.categories.values()].filter((k) => k.account_id === me().account_id).sort((a, b) => a.name.localeCompare(b.name))
@@ -52,14 +52,13 @@ const Message = observer(({ r, project }: { r: Recording; project: Project }) =>
   return (
     <Page title={r.title} crumbs={projectCrumbs(project, "message_board")}>
       <StatusBanner r={r} />
-      <ClientBanner r={r} hasClients={projectPeople(project).some(isClient)} />
       <article>
-        <Tags r={r} cat={catOf(categories(), r)} pinned="Pinned to the top" />
-        <h1>{r.title}</h1>
+        <Tags r={r} cat={catOf(categories(), r)} pinned="Pinned" />
+        <ItemHead r={r} project={project} edit={(r.creator_id === m.id || !isClient(m)) && "Edit"}>{r.title}</ItemHead>
         <ByLine who={personById(r.creator_id)} when={r.created_at} tz={m.time_zone} via={r.via} />
         <Fmt text={r.body} {...sx(kit.prose)} />
       </article>
-      <ItemFooter r={r} project={project} />
+      <ItemFooter r={r} project={project} more={false} />
     </Page>
   )
 })
