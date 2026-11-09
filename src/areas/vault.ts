@@ -56,7 +56,7 @@ const backTo = (p: Project, folder: Recording | null) => (folder ? urlFor(folder
 // ---------- file serving ----------
 
 /** Serve a stored file. Inline only for types browsers render safely; everything else downloads. */
-const sendFile = (rel: string, filename: string, contentType: string, inline: boolean) =>
+export const sendFile = (rel: string, filename: string, contentType: string, inline: boolean) =>
   Effect.gen(function* () {
     const abs = storagePath(rel)
     if (!abs) return yield* new NotFound()
