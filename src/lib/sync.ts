@@ -4,11 +4,11 @@
 //   (and every /api form post carries the changes it made; see web.ts)
 // Changes come from sync_log, which Postgres triggers fill (db/schema.sql), so any write anywhere (a post, a job,
 // a seed) reaches every browser that may see it. `shape` is the one place that decides who sees which row.
-import { Effect, Layer, Schedule } from "effect"
+import { Effect, Layer } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { SqlClient } from "effect/sql"
 import { CLIENT_INHERITS, KEYS, TABLES, canSeeProject, isAdmin, isClient, mayInvite, type Account, type Table } from "../shared/domain.ts"
-import { loadMe, type Person } from "./web.ts"
+import { loadMe, runEvery, type Person } from "./web.ts"
 
 type Me = Pick<Person, "id" | "account_id" | "role">
 type Row = Record<string, any>
@@ -201,8 +201,8 @@ const prune = Effect.gen(function* () {
 /** Runs the broadcaster (every 250ms) and the pruner (hourly). */
 export const SyncLive = Layer.effectDiscard(
   Effect.all([
-    Effect.forkDetach(broadcast.pipe(Effect.catchCause((c) => Effect.logError("sync broadcast failed", c)), Effect.repeat(Schedule.spaced("250 millis")))),
-    Effect.forkDetach(prune.pipe(Effect.catchCause((c) => Effect.logError("sync prune failed", c)), Effect.repeat(Schedule.spaced("1 hour")))),
+    runEvery(250,            "sync broadcast", broadcast),
+    runEvery(60 * 60 * 1000, "sync prune",     prune),
   ]),
 )
 
