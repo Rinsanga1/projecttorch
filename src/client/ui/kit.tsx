@@ -1,7 +1,7 @@
 // The look: StyleX themes and the `sx` helper, faces, the kit tool pages share and menus.
 // Write `<div {...sx(styles.box)}>`; bare elements are styled by the base layer (base.ts).
 import * as stylex from "@stylexjs/stylex"
-import { Fragment, type ReactNode } from "react"
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
 import { fmt, fmtDateTime } from "../../shared/format.ts"
 import { color, dark, font, light, media, radius, space, text } from "./tokens.stylex.ts"
 import { Form } from "./forms.tsx"
@@ -76,6 +76,27 @@ export const ProgressBar = ({ pct, width = 64 }: { pct: number; width?: number }
     <span {...sx(bar.fill)} style={{ width: `${pct}%` }} />
   </span>
 )
+
+/** A number that eases to each new value on a bar's curve and time (600ms, ease-out), so a count and its bar move
+ *  together. Interrupted, it carries on from where it is. At once under reduced motion. */
+export const useTween = (to: number, ms = 600) => {
+  const [v, setV] = useState(to)
+  const at = useRef(to)
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { at.current = to; return setV(to) }
+    const from = at.current, start = performance.now()
+    let raf = 0
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / ms)
+      at.current = from + (to - from) * (1 - (1 - k) ** 4) // ease-out, close to motion.out
+      setV(Math.round(at.current))
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [to, ms])
+  return v
+}
 
 export const Fmt = ({ text, ...rest }: { text: string | null | undefined } & React.HTMLAttributes<HTMLDivElement>) =>
   <div data-prose {...rest} dangerouslySetInnerHTML={{ __html: fmt(text) }} />

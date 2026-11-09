@@ -26,6 +26,9 @@ const s = stylex.create({
     width: "100%", maxWidth: 1200, marginInline: "auto", paddingInline: { default: space.s4, [DESKTOP]: space.s6 },
     paddingBlock: space.s4, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s5, rowGap: space.s2,
   },
+  // On a wide page the bar spans the screen too, its ends in line with the page's own padding, and slims down: it's
+  // chrome over a place to work.
+  headerWide: { maxWidth: "none", paddingInline: { default: 20, [DESKTOP]: 28 }, paddingBlock: 6 },
   wordmark: {
     fontSize: text.md, fontWeight: 750, letterSpacing: "-0.035em", color: color.ink, textDecoration: "none", whiteSpace: "nowrap",
   },
@@ -57,6 +60,8 @@ const s = stylex.create({
     width: "100%", maxWidth: 1200, marginInline: "auto", paddingInline: { default: space.s2, [DESKTOP]: space.s6 },
     paddingBottom: space.s8, flexGrow: 1,
   },
+  // A wide page (the project) runs edge to edge and down to the bottom of the screen.
+  frameWide: { maxWidth: "none", paddingInline: 0, paddingBottom: 0 },
 })
 
 // Less than half a bar, on purpose: the wordmark is Home, then at the end Find, the Inbox (private chats and updates,
@@ -66,11 +71,11 @@ const isCurrent = (path: string, href: string) => (href === "/" ? path === "/" :
 /** Paths that keep working while an account is on hold or cancelled. Matches ON_HOLD_OK in src/lib/web.ts. */
 const ON_HOLD_OK = /^\/(lockout|admin\/billing|admin\/export|inbox|dev|accounts|signin|signup|help|exports)/
 
-const Header = observer(() => {
+const Header = observer(({ wide }: { wide: boolean }) => {
   const me = meOrNull()
   const path = useLocation().pathname
   const account = me ? db.accounts.get(String(me.account_id)) : undefined
-  if (!me || !account) return <header {...sx(s.header)}><a href="/marketing" {...sx(s.wordmark)}>Saintsflow</a></header>
+  if (!me || !account) return <header {...sx(s.header, wide && s.headerWide)}><a href="/marketing" {...sx(s.wordmark)}>Saintsflow</a></header>
   const n = inboxCount(me.id)
   const inInbox = tray.open || isCurrent(path, "/updates") || isCurrent(path, "/chats")
   // The Inbox is a link to its page; a plain click opens it as a tray instead (a new tab still gets the page).
@@ -80,7 +85,7 @@ const Header = observer(() => {
     openTray()
   }
   return (
-    <header {...sx(s.header)}>
+    <header {...sx(s.header, wide && s.headerWide)}>
       <a href="/" {...sx(s.wordmark)}>{account.name}</a>
       <nav aria-label="Main" {...sx(s.navEnd)}>
         {isQuiet(me) && <a href="/my/quiet-hours" {...sx(s.quiet)}><span {...sx(s.dot, s.quietDot)} />Notifications paused</a>}
@@ -98,7 +103,10 @@ const Header = observer(() => {
 export const App = observer(() => {
   const loc = useLocation()
   const navigate = useNavigate()
-  const handle = (useMatches().at(-1)?.handle ?? {}) as Handle
+  const matches = useMatches()
+  const handle = (matches.at(-1)?.handle ?? {}) as Handle
+  // A window's pages sit inside the project page, whose route is the wide one.
+  const wide = matches.some((m) => (m.handle as Handle | undefined)?.wide)
   const me = meOrNull()
   const account = me ? db.accounts.get(String(me.account_id)) : undefined
 
@@ -152,8 +160,8 @@ export const App = observer(() => {
   return (
     <div {...sx(s.body)}>
       <p id="offline" role="alert" hidden={state.online} {...sx(s.strip)}><b>You're offline.</b> You can keep reading. Quick changes wait here and sync when you reconnect.</p>
-      <Header />
-      <div {...sx(s.frame)}><Outlet /></div>
+      <Header wide={wide} />
+      <div {...sx(s.frame, wide && s.frameWide)}><Outlet /></div>
       {me && <InboxTray />}
     </div>
   )

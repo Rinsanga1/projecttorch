@@ -82,6 +82,8 @@ type RouteOpts = {
   pub?: boolean
   /** Draws its own whole page, without the app chrome (marketing). */
   bare?: boolean
+  /** A place to work in, not to read: it fills the screen's width, edge to edge (the project page). */
+  wide?: boolean
 }
 export type Handle = RouteOpts
 

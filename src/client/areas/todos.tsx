@@ -10,7 +10,7 @@ import { me, findProject, findRecording, projectPeople, recordings, commentCount
 import { isClient, urlFor, windowUrl, type Project, type Recording, type Tool } from "../../shared/domain.ts"
 import { useWindow, WindowField } from "../ui/in-window.tsx"
 import { daysFromToday, fmtDate, fmtDateTime, isoDate, plural } from "../../shared/format.ts"
-import { Fmt, kit, sx } from "../ui/kit.tsx"
+import { Fmt, kit, sx, useTween } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, PostOnOpen, usePost, TextArea, TextField } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { ClientBanner, ItemFooter, StatusBanner } from "./items.tsx"
@@ -24,9 +24,13 @@ const ts = stylex.create({
   overallPct: { fontSize: text.xl, fontWeight: 700, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", lineHeight: 1 },
   overallText: { color: color.muted, fontSize: text.sm },
   bar: { display: "block", height: 6, borderRadius: radius.pill, backgroundColor: color.tile, overflow: "hidden" },
-  fill: { display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent },
+  // The fill slides in from the left (transform only, like the marketing demo), so its round end stays round at any width.
+  fill: {
+    display: "block", height: "100%", borderRadius: radius.pill, backgroundColor: color.accent,
+    transitionProperty: "transform, background-color", transitionDuration: { default: "600ms", [media.reduce]: "0s" }, transitionTimingFunction: motion.out,
+  },
   fillDone: { backgroundColor: color.control },
-  width: (w: string) => ({ width: w }),
+  shift: (pct: number) => ({ transform: `translateX(${pct - 100}%)` }),
 
   list: { display: "grid", margin: 0, padding: 0, listStyle: "none" },
   // A task: its row, then its subtasks indented under it. Rows are hairline-split; drag a task to reorder.
@@ -37,6 +41,12 @@ const ts = stylex.create({
   row: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s3, rowGap: 2, paddingBlock: 8 },
   title: { fontWeight: 500, textDecoration: "none", ":hover": { textDecoration: "underline" } },
   done: { color: color.muted },
+  // Ticked, a line draws through the title from the left, a beat behind the box; unticked, it pulls back quicker.
+  strike: {
+    backgroundImage: "linear-gradient(currentColor, currentColor)", backgroundRepeat: "no-repeat", backgroundPosition: "0 55%", backgroundSize: "0% 1.5px",
+    transitionProperty: "background-size, color", transitionDuration: "150ms", transitionTimingFunction: motion.out,
+  },
+  struck: { backgroundSize: "100% 1.5px", transitionDuration: "300ms", transitionDelay: "120ms" },
   meta: { display: "inline-flex", flexWrap: "wrap", columnGap: space.s3, fontSize: text.sm, color: color.muted },
   count: { fontVariantNumeric: "tabular-nums" },
   // Late is the case orange is kept for: it needs attention now.
@@ -64,6 +74,9 @@ const ts = stylex.create({
   checkDone: { backgroundColor: color.accent, borderColor: { default: color.accent, ":hover": { default: null, [media.hover]: color.focus } } },
   checkLarge: { width: 28, height: 28, minHeight: 28, borderRadius: 9, verticalAlign: "-3px", marginRight: space.s2 },
   static: { display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" },
+  // The check is always there, clipped away until ticked: then it wipes in from the left as the box fills.
+  tick: { display: "flex", clipPath: "inset(0 100% 0 0)", transitionProperty: "clip-path", transitionDuration: "120ms", transitionTimingFunction: motion.out },
+  ticked: { clipPath: "inset(0 0 0 0)", transitionDuration: "350ms", transitionDelay: "80ms" },
   // On a task's page: its subtasks under a small bar.
   subsHead: { display: "grid", gap: space.s2, maxWidth: 480, marginTop: space.s4, marginBottom: space.s2 },
   details: { marginTop: space.s6 },
@@ -130,8 +143,11 @@ const dueText = (t: Recording) => {
 }
 
 const Bar = ({ pct, done = false }: { pct: number; done?: boolean }) => (
-  <span aria-hidden="true" {...sx(ts.bar)}><span {...sx(ts.fill, done && ts.fillDone, ts.width(`${pct}%`))} /></span>
+  <span aria-hidden="true" {...sx(ts.bar)}><span {...sx(ts.fill, done && ts.fillDone, ts.shift(pct))} /></span>
 )
+
+/** A title that's struck through once done. The line is always there, drawn to nothing, so ticking draws it. */
+const Struck = ({ done, children }: { done: boolean; children: string }) => <span {...sx(ts.strike, done && ts.struck)}>{children}</span>
 
 // ---------- pieces ----------
 
@@ -141,7 +157,7 @@ const CheckButton = ({ p, t, large = false, small = false }: { p: Project; t: Re
   return (
     <Form action={`/projects/${p.id}/tasks/${t.id}/complete`} style={{ display: "inline" }} optimistic={() => toggleDone(t)}>
       <button aria-label={label} title={t.data.completed_at ? "Mark as not done" : "Mark as done"} {...sx(ts.check, small && ts.checkSmall, !!t.data.completed_at && ts.checkDone, large && ts.checkLarge)}>
-        {t.data.completed_at ? <Tick size={large ? 16 : small ? 10 : 12} /> : null}
+        <span {...sx(ts.tick, !!t.data.completed_at && ts.ticked)}><Tick size={large ? 16 : small ? 10 : 12} /></span>
       </button>
     </Form>
   )
@@ -180,7 +196,7 @@ const TaskItem = observer(({ p, t, people, active, adding, onAdd }: { p: Project
     <>
       <div {...sx(ts.row)}>
         {active ? <CheckButton p={p} t={t} /> : <CheckMark t={t} />}
-        <a href={urlFor(t)} {...sx(ts.title, !!t.data.completed_at && ts.done)}>{t.data.completed_at ? <s>{t.title}</s> : t.title}</a>
+        <a href={urlFor(t)} {...sx(ts.title, !!t.data.completed_at && ts.done)}><Struck done={!!t.data.completed_at}>{t.title}</Struck></a>
         {subs.length > 0 && <span {...sx(ts.meta, ts.count)}>{done}/{subs.length}</span>}
         <Meta t={t} people={people} />
         {active && !adding && <button type="button" data-quiet data-row-action onClick={() => onAdd(true)} {...sx(kit.linkButton, ts.rowAction)}>+ Subgoal</button>}
@@ -190,7 +206,7 @@ const TaskItem = observer(({ p, t, people, active, adding, onAdd }: { p: Project
           {subs.map((s) => (
             <li key={s.id} {...sx(ts.sub)}>
               {active ? <CheckButton p={p} t={s} small /> : <CheckMark t={s} small />}
-              <a href={urlFor(s)} {...sx(ts.subTitle, !!s.data.completed_at && ts.done)}>{s.data.completed_at ? <s>{s.title}</s> : s.title}</a>
+              <a href={urlFor(s)} {...sx(ts.subTitle, !!s.data.completed_at && ts.done)}><Struck done={!!s.data.completed_at}>{s.title}</Struck></a>
               <Meta t={s} people={people} />
             </li>
           ))}
@@ -238,9 +254,15 @@ export const routes = [
     const pr = progressOf(p, w.id)
     const people = projectPeople(p)
     const active = p.status === "active"
-    const open = pr.tasks.filter((t) => !t.data.completed_at).sort(byPosition)
-    const finished = pr.tasks.filter((t) => t.data.completed_at).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at)))
+    // A goal ticked while you're here stays in its place, struck through, so you see it happen; it joins the done goals
+    // next time you open Compass.
+    // ponytail: compares server stamps with this browser's clock; a clock far ahead could fold a fresh tick away at once.
+    const [openedAt] = useState(() => new Date().toISOString())
+    const stays = (t: Recording) => !t.data.completed_at || t.data.completed_at >= openedAt
+    const open = pr.tasks.filter(stays).sort(byPosition)
+    const finished = pr.tasks.filter((t) => !stays(t)).sort((a, b) => String(b.data.completed_at).localeCompare(String(a.data.completed_at)))
     const late = pr.tasks.flatMap((t) => [t, ...(pr.subtasks.get(t.id) ?? [])]).filter(isLate).length
+    const shownPct = useTween(pr.pct)
     const [showDone, setShowDone] = useState(true)
     const [adding, setAdding] = useState<number | null>(null)
 
@@ -297,7 +319,7 @@ export const routes = [
           <>
             <div {...sx(ts.overall)}>
               <p {...sx(ts.overallLine)}>
-                <span {...sx(ts.overallPct)}>{pr.pct}%</span>
+                <span {...sx(ts.overallPct)}>{shownPct}%</span>
                 <span {...sx(ts.overallText)}>done · {pr.done} of {pr.total}{late > 0 && <span {...sx(ts.late)}> · {late} late</span>}</span>
               </p>
               <Bar pct={pr.pct} done={pr.total > 0 && pr.done === pr.total} />
@@ -348,7 +370,7 @@ export const routes = [
           {parent && <p>A subgoal of <a href={urlFor(parent)}>{parent.title}</a></p>}
           <h1>
             {!readOnly && <CheckButton p={p} t={t} large />}
-            {t.data.completed_at ? <s>{t.title}</s> : t.title}
+            <Struck done={!!t.data.completed_at}>{t.title}</Struck>
           </h1>
           {t.data.completed_at && <p>Completed by {completer?.name ?? "someone"} on {fmtDate(t.data.completed_at, m.time_zone)}</p>}
           {/* A task's subtasks come first: for a split task they're the work. Its details follow. */}
@@ -363,7 +385,7 @@ export const routes = [
                 {subs.map((s) => (
                   <li key={s.id} {...sx(ts.sub)}>
                     {readOnly ? <CheckMark t={s} small /> : <CheckButton p={p} t={s} small />}
-                    <a href={urlFor(s)} {...sx(ts.subTitle, !!s.data.completed_at && ts.done)}>{s.data.completed_at ? <s>{s.title}</s> : s.title}</a>
+                    <a href={urlFor(s)} {...sx(ts.subTitle, !!s.data.completed_at && ts.done)}><Struck done={!!s.data.completed_at}>{s.title}</Struck></a>
                     <Meta t={s} people={people} />
                   </li>
                 ))}

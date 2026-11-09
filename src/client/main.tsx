@@ -28,7 +28,7 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage />,
     children: [
       {
-        path: "/projects/:id", Component: ProjectLayout, errorElement: <ErrorPage />,
+        path: "/projects/:id", Component: ProjectLayout, errorElement: <ErrorPage />, handle: { wide: true },
         children: [{ index: true }, ...pages.filter(inWindow).map((r) => ({ ...r, path: r.path!.slice(PREFIX.length) }))],
       },
       ...pages.filter((r) => !inWindow(r)),
