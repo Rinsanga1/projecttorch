@@ -193,7 +193,8 @@ export const notify = (c: Ctx, n: { personIds: ReadonlyArray<number>; recording?
     if (c.app && n.kind !== "mention" && n.kind !== "ping") return
     const targets = [...new Set(n.personIds)].filter((id) => id !== c.me.id)
     if (!targets.length) return
-    const people = yield* sql<Person>`select * from people where id in ${sql.in(targets)} and removed_at is null`
+    // Only ever people in my account, whatever ids a caller passes: a notification carries the title and body.
+    const people = yield* sql<Person>`select * from people where id in ${sql.in(targets)} and account_id = ${c.me.account_id} and removed_at is null`
     const visible = n.recording ? yield* clientVisible(n.recording) : true
     for (const p of people) {
       if (isClient(p) && !visible) continue
@@ -315,13 +316,27 @@ export const commentCount = (recordingId: number) =>
 
 // ---------- forms ----------
 
-/** Read the notify picker's answer. */
+/**
+ * Read the notify picker's answer. Only ever people in `people` (the project's): an id from the form that isn't
+ * one of them is dropped, so a post can't notify someone outside the project (or the account) about it.
+ */
 export const notifyIdsFrom = (fd: FormData, people: ReadonlyArray<Person>, me: Person) => {
   const mode = String(fd.get("notify") ?? "everyone")
   if (mode === "nobody") return []
-  if (mode === "selected") return fd.getAll("notify_ids").map(Number)
+  if (mode === "selected") {
+    const picked = fd.getAll("notify_ids").map(Number)
+    return people.filter((p) => picked.includes(p.id)).map((p) => p.id)
+  }
   return people.filter((p) => p.id !== me.id).map((p) => p.id)
 }
+
+/** The ids that are people in my account (not removed). Anything else a form sends is dropped. */
+export const inMyAccount = (c: Ctx, personIds: ReadonlyArray<number>) => Effect.gen(function* () {
+  if (!personIds.length) return [] as number[]
+  const sql  = yield* SqlClient.SqlClient
+  const rows = yield* sql<{ id: number }>`select id from people where account_id = ${c.me.account_id} and removed_at is null and id in ${sql.in([...personIds])}`
+  return rows.map((r) => r.id)
+})
 
 export { NotFound, NoAccess, Deleted, fmtDate, esc }
 
