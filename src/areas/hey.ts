@@ -39,7 +39,7 @@ export const zonedToUtc = (local: string, tz: string) => {
 }
 
 /** Today's date (YYYY-MM-DD) in a time zone, `offset` days from now. */
-const dayIn = (tz: string, offset = 0) => new Date(Date.now() + offset * DAY).toLocaleDateString("en-CA", { timeZone: tz })
+export const dayIn = (tz: string, offset = 0) => new Date(Date.now() + offset * DAY).toLocaleDateString("en-CA", { timeZone: tz })
 
 /** The snooze form's choice → when notifications come back. An hour unless it says otherwise. */
 const snoozeUntil = (fd: FormData, tz: string): Date => {
