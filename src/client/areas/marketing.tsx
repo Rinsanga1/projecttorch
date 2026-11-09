@@ -5,7 +5,7 @@ import * as stylex from "@stylexjs/stylex"
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as PE, type ReactNode } from "react"
 import { Navigate, useParams } from "react-router"
 import { meOrNull } from "../data.ts"
-import { sx } from "../ui/kit.tsx"
+import { sx, useTween } from "../ui/kit.tsx"
 import { page } from "../ui/page.tsx"
 import { color, media, motion, radius, space, text } from "../ui/tokens.stylex.ts"
 
@@ -413,27 +413,6 @@ const useSeen = <T extends HTMLElement>(threshold: number) => {
     return () => io.disconnect()
   }, [threshold])
   return [ref, seen] as const
-}
-
-/** A number that eases to each new value on the bar's own curve and time, so the count and the bar move together.
- *  Interrupted (another click mid-way), it carries on from where it is. */
-const useTween = (to: number, ms = 600) => {
-  const [v, setV] = useState(to)
-  const at = useRef(to)
-  useEffect(() => {
-    if (calm()) { at.current = to; return setV(to) }
-    const from = at.current, start = performance.now()
-    let raf = 0
-    const step = (t: number) => {
-      const k = Math.min(1, (t - start) / ms)
-      at.current = from + (to - from) * (1 - (1 - k) ** 4) // ease-out, close to motion.out
-      setV(Math.round(at.current))
-      if (k < 1) raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
-  }, [to, ms])
-  return v
 }
 
 // `at`: when (ms after the example project comes on screen) a message arrives. Yours sit on the right, in a bubble, as in the app.

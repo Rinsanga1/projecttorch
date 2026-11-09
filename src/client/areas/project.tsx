@@ -12,7 +12,7 @@ import { InWindow, WindowId, WindowSince } from "../ui/in-window.tsx"
 import { defaultTools, isClient, projectUrl, toolUrl, urlFor, titleOf, TYPE_NAMES, windowIdOf, windowOfPath, windowUrl, type Project, type Recording, type Tool, type ToolType } from "../../shared/domain.ts"
 import { fmtDate, fmtDateTime, excerpt, plural, isoDate, ms, today } from "../../shared/format.ts"
 import { ActivityList, AgentsFilter, useJustAgents } from "../ui/activity.tsx"
-import { Face, Fmt, kit, menu, ProgressBar, sx } from "../ui/kit.tsx"
+import { Face, kit, menu, ProgressBar, sx } from "../ui/kit.tsx"
 import { Form, PeopleCheckboxes, PostOnOpen, submitOnChange, usePost } from "../ui/forms.tsx"
 import { Page, page, projectCrumbs } from "../ui/page.tsx"
 import { color, font, radius, space, text } from "../ui/tokens.stylex.ts"
@@ -124,37 +124,36 @@ const WindowsMenu = observer(({ p, onAdd, onHide, onShow }: { p: Project; onAdd:
   )
 })
 
-// Project home: a compact head (title, description, one line of facts), then the project's tools as windows (master
-// and stack) running to the sheet's edges, with the taskbar below them. The head stays short so the windows get the
-// screen. See docs/project_ui_explore.
+// Project home: a two-line head (title and description; facts and what's new), then the project's tools as windows
+// (master and stack) running to the sheet's edges, with the taskbar below them. The head stays short so the windows get
+// the screen. See docs/project_ui_explore.
 const ps = stylex.create({
-  // The top of the page's card (the desk is its bottom half): the sheet's white and its top corners.
+  // The top of the page (the desk is its bottom half): a white band, edge to edge.
   top: {
-    backgroundColor: color.sheet, borderTopLeftRadius: { default: radius.lg, "@media (min-width: 768px)": radius.xl }, borderTopRightRadius: { default: radius.lg, "@media (min-width: 768px)": radius.xl },
-    paddingBlock: { default: "20px 16px", "@media (min-width: 768px)": "24px 18px" }, paddingInline: { default: 20, "@media (min-width: 768px)": 28 },
+    backgroundColor: color.sheet,
+    paddingBlock: { default: 10, "@media (min-width: 768px)": 8 }, paddingInline: { default: 20, "@media (min-width: 768px)": 28 },
   },
-  head: { display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: space.s4 },
-  title: { fontSize: "1.625rem", lineHeight: 1.15, letterSpacing: "-0.03em", marginBottom: space.s1 },
-  lede: { fontSize: text.base, color: color.muted, marginBottom: 0 },
-  actions: { display: "flex", alignItems: "center", gap: space.s2, flexShrink: 0 },
-  faces: { display: "flex", paddingLeft: 4, marginRight: space.s1, textDecoration: "none" },
-  face: { marginLeft: -4, borderRadius: radius.pill, boxShadow: `0 0 0 2px ${color.sheet}`, display: "inline-flex" },
-  facts: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: space.s4, rowGap: space.s1, maxWidth: "none", marginTop: space.s1, marginBottom: 0, fontSize: text.sm, color: color.muted },
+  // One slim bar, like Basecamp's project bar: what the project is and where it stands on the left, people and the
+  // menu on the right. On a phone it wraps.
+  head: { display: "flex", flexWrap: { default: "wrap", "@media (min-width: 900px)": "nowrap" }, alignItems: "center", justifyContent: "space-between", columnGap: space.s5, rowGap: space.s2, minHeight: 32 },
+  // The title (the description is its tooltip: you know which project you are in), then the facts, which never shrink.
+  name: { display: "flex", flexWrap: { default: "wrap", "@media (min-width: 900px)": "nowrap" }, alignItems: "center", columnGap: space.s4, rowGap: space.s1, minWidth: 0, flexGrow: 1 },
+  title: { margin: 0, fontSize: "1.0625rem", fontWeight: 650, lineHeight: 1.3, letterSpacing: "-0.02em", flexShrink: 0, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  actions: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
+  faces: { display: "flex", paddingLeft: 2, marginRight: space.s1, textDecoration: "none" },
+  face: { marginLeft: -2, borderRadius: radius.pill, boxShadow: `0 0 0 2px ${color.sheet}`, display: "inline-flex" },
+  // Compact buttons for a bar: 30px, not the page's 36.
+  btn: { minHeight: 30, paddingBlock: 0, paddingInline: 12 },
+  facts: { display: "flex", flexShrink: 0, maxWidth: "100%", flexWrap: { default: "wrap", "@media (min-width: 900px)": "nowrap" }, alignItems: "center", columnGap: space.s4, rowGap: space.s1, whiteSpace: "nowrap", fontSize: text.sm, color: color.muted },
   fact: { display: "inline-flex", alignItems: "center", gap: space.s2 },
   factInk: { color: color.ink },
   pitch: { margin: 0, fontSize: text.sm, color: color.muted, maxWidth: "48ch" },
-  progressLine: { margin: 0, marginBottom: space.s2, fontSize: text.sm, color: color.muted },
-  itemLink: { textDecoration: "none", ":hover": { textDecoration: "underline" } },
-  // Inside a window: rows of title, a muted line of facts, and sometimes an excerpt or the next tasks.
-  rows: { margin: 0, fontSize: text.base },
-  rowTitle: { fontWeight: 600, letterSpacing: "-0.01em" },
-  tag: { marginLeft: space.s2, verticalAlign: 2 },
-  meta: { display: "block", marginTop: 2 },
-  excerpt: { display: "block", marginTop: space.s1, fontSize: text.sm, color: color.muted, maxWidth: "72ch" },
-  meter: { display: "block", width: "min(100%, 280px)", height: 6, marginTop: space.s2, borderRadius: radius.pill, backgroundColor: color.tile, overflow: "hidden" },
+  // A preview: the one thing worth knowing in a window, in whole lines (cut with an ellipsis, never sliced).
+  leadTitle: { display: "-webkit-box", WebkitBoxOrient: "vertical", overflow: "hidden", fontWeight: 600, letterSpacing: "-0.01em", overflowWrap: "anywhere" },
+  lines: (n: number) => ({ WebkitLineClamp: n }),
+  leadMeta: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: text.xs, color: color.muted },
+  meter: { display: "block", height: 4, marginBottom: space.s2, borderRadius: radius.pill, backgroundColor: color.tile, overflow: "hidden" },
   fill: (w: string) => ({ display: "block", height: "100%", width: w, borderRadius: radius.pill, backgroundColor: color.accent }),
-  todo: { display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: space.s2, marginTop: space.s2, fontSize: text.sm },
-  todoMeta: { fontSize: text.xs },
   // Late is the case orange is kept for: it needs attention now.
   late: { color: color.accentText, fontWeight: 650 },
 })
@@ -175,55 +174,69 @@ const clock = (at: string) => {
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "am" : "pm"}`
 }
 const KIND: Record<string, string> = { folder: "Folder", doc: "Doc", upload: "File", cloudfile: "Link" }
-const COLUMN_ORDER: Record<string, number> = { not_now: 0, triage: 1, custom: 2, done: 3 }
+const firstNames = (x: Recording) => (x.data.assignee_ids ?? []).map((id: number) => who(id).split(" ")[0]).join(", ")
+/** "Ann · Oct 21": the parts there are, dotted. */
+const dotted = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" · ")
 
-/** What a tool's window shows: its latest things, enough to work from; null shows the tool's pitch instead. */
-const windowBody = (p: Project, t: Tool): ReactNode => {
+type Lead = { title: string; meta?: string; late?: boolean; lines?: number; pct?: number }
+
+/** A window's preview: the one thing worth knowing in it. Null when there's nothing in it yet. */
+const leadOf = (p: Project, t: Tool): Lead | null => {
   const tz = me().time_zone
-  const list = (items: ReactNode[]) => (items.length ? <ul {...sx(ps.rows)}>{items}</ul> : null)
-  const row = (key: number, title: ReactNode, meta: ReactNode, more?: ReactNode) =>
-    <li key={key}><span {...sx(ps.rowTitle)}>{title}</span><small {...sx(ps.meta)}>{meta}</small>{more}</li>
-  const link = (r: Recording, label = titleOf(r)) => <a href={urlFor(r)} {...sx(ps.itemLink)}>{label}</a>
   switch (t.type) {
-    case "message_board":
-      return list(activeIn(p, t, "message").sort((a, b) => Number(!!b.data.pinned) - Number(!!a.data.pinned) || newestFirst(a, b)).slice(0, 8).map((r) =>
-        row(r.id, <>{link(r)}{r.data.pinned && <span {...sx(kit.tag, kit.tagAccent, ps.tag)}>Pinned</span>}</>,
-          `${who(r.creator_id)} · ${fmtDate(r.created_at, tz)} · ${plural(commentCount(r.id), "comment")}`,
-          r.body && <span {...sx(ps.excerpt)}>{excerpt(r.body, 150)}</span>)))
+    case "message_board": {
+      const r = activeIn(p, t, "message").sort(newestFirst)[0]
+      return r ? { title: titleOf(r), meta: dotted(who(r.creator_id), fmtDate(r.created_at, tz), commentCount(r.id) > 0 && plural(commentCount(r.id), "comment")) } : null
+    }
     case "todos": {
-      // The bar, then the next open tasks in order, each with who, when and its subtasks' count.
+      // Under the bar: what's late (the earliest due), else the next open goal.
       const pr = progressOf(p, t.id)
       if (!pr.tasks.length) return null
-      const firstNames = (x: Recording) => (x.data.assignee_ids ?? []).map((id: number) => who(id).split(" ")[0]).join(", ")
-      const late = (k: Recording) => !!k.data.due_on && k.data.due_on < today()
-      const open = pr.tasks.filter((k) => !k.data.completed_at).sort(byPosition).slice(0, 8)
-      return <>
-        <p {...sx(ps.progressLine)}><b>{pr.pct}% done</b> · {pr.done} of {pr.total}</p>
-        <span {...sx(ps.meter)}><span {...sx(ps.fill(`${pr.pct}%`))} /></span>
-        {list(open.map((k) => {
-          const subs = pr.subtasks.get(k.id) ?? []
-          const meta = [subs.length ? `${subs.filter((s) => s.data.completed_at).length}/${subs.length}` : "", firstNames(k), k.data.due_on ? fmtDate(k.data.due_on) : ""].filter(Boolean).join(" · ")
-          return row(k.id, link(k), <span {...sx(late(k) && ps.late)}>{meta}</span>)
-        }))}
-      </>
+      const open = pr.tasks.filter((k) => !k.data.completed_at).sort(byPosition)
+      const late = open.flatMap((k) => [k, ...(pr.subtasks.get(k.id) ?? [])])
+        .filter((k) => !k.data.completed_at && !!k.data.due_on && k.data.due_on < today())
+        .sort((a, b) => String(a.data.due_on).localeCompare(b.data.due_on))[0]
+      if (late) return { pct: pr.pct, title: late.title, meta: dotted("Late, was due " + fmtDate(late.data.due_on), firstNames(late)), late: true }
+      const next = open[0]
+      return next ? { pct: pr.pct, title: next.title, meta: dotted("Next", firstNames(next), next.data.due_on && fmtDate(next.data.due_on)) } : { pct: pr.pct, title: "Every goal is done." }
     }
-    case "vault":
-      return list(activeIn(p, t, ["folder", "doc", "upload", "cloudfile"]).filter((r) => r.parent_id === null).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 8).map((r) =>
-        row(r.id, link(r), `${KIND[r.type]} · ${who(r.creator_id)} · ${fmtDate(r.updated_at, tz)}`)))
-    case "campfire":
-      return list(activeIn(p, t, "line").sort(newestFirst).slice(0, 8).reverse().map((l) =>
-        <li key={l.id}><b>{l.creator_id ? who(l.creator_id) : `${l.data.chatbot_name ?? "Someone"} (bot)`}:</b> {excerpt(l.body, 140)}</li>))
-    case "schedule":
-      return list(upcoming(p, t).slice(0, 8).map((r) =>
-        row(r.id, link(r), `${fmtDate(r.data.starts_at)} · ${r.data.all_day ? "All day" : clock(r.data.starts_at)}${r.data.repeat && r.data.repeat !== "never" ? ` · every ${r.data.repeat === "weekly" ? "week" : r.data.repeat.replace(/ly$/, "")}` : ""}`)))
-    case "cardtable":
-      // Fizzy's order: Not now, Triage, your columns, Done; Golden Tickets first in each.
-      return list(activeIn(p, t, "column").sort((a, b) => (COLUMN_ORDER[a.data.kind ?? "custom"] ?? 2) - (COLUMN_ORDER[b.data.kind ?? "custom"] ?? 2) || byPosition(a, b)).map((c) => {
-        const cards = recordings((k) => k.parent_id === c.id && k.type === "card" && k.status === "active").sort((a, b) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position)
-        return row(c.id, c.title, plural(cards.length, "card"), cards.length > 0 && <span {...sx(ps.excerpt)}>{cards.slice(0, 3).map((k, i) => <span key={k.id}>{i ? " · " : ""}{link(k)}</span>)}{cards.length > 3 ? " …" : ""}</span>)
-      }))
+    case "vault": {
+      const r = activeIn(p, t, ["doc", "upload", "cloudfile"]).sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
+      return r ? { title: titleOf(r), meta: dotted(KIND[r.type], who(r.creator_id), fmtDate(r.updated_at, tz)) } : null
+    }
+    case "campfire": {
+      const l = activeIn(p, t, "line").sort(newestFirst)[0]
+      if (!l) return null
+      const name = l.creator_id ? who(l.creator_id) : `${l.data.chatbot_name ?? "Someone"} (bot)`
+      return { title: `${name}: ${excerpt(l.body, 160)}`, lines: 2 }
+    }
+    case "schedule": {
+      const r = upcoming(p, t)[0]
+      const every = r?.data.repeat && r.data.repeat !== "never" && "every " + (r.data.repeat === "weekly" ? "week" : r.data.repeat.replace(/ly$/, ""))
+      return r ? { title: r.title, meta: dotted(fmtDate(r.data.starts_at), r.data.all_day ? "All day" : clock(r.data.starts_at), every) } : null
+    }
+    case "cardtable": {
+      // What waits on people: Review, then Triage (Golden Tickets first); else the card someone touched last.
+      const cols = activeIn(p, t, "column")
+      const cardsIn = (c: Recording) => recordings((k) => k.parent_id === c.id && k.type === "card" && k.status === "active")
+        .sort((a, b) => Number(!!b.data.golden) - Number(!!a.data.golden) || b.position - a.position)
+      for (const [kind, say] of [["review", "waiting for review"], ["triage", "in Triage"]] as const) {
+        const c = cols.find((x) => x.data.kind === kind)
+        const cs = c ? cardsIn(c) : []
+        if (cs.length) return { title: cs[0]!.title, meta: `${cs.length} ${say}` }
+      }
+      const live = cols.filter((c) => c.data.kind !== "done" && c.data.kind !== "not_now")
+      const k = live.flatMap(cardsIn).sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
+      return k ? { title: k.title, meta: `In ${live.find((c) => c.id === k.parent_id)?.title}` } : null
+    }
   }
 }
+
+const LeadView = ({ l }: { l: Lead }) => <>
+  {l.pct != null && <span {...sx(ps.meter)}><span {...sx(ps.fill(`${l.pct}%`))} /></span>}
+  <span {...sx(ps.leadTitle, ps.lines(l.lines ?? 1))}>{l.title}</span>
+  {l.meta && <span {...sx(ps.leadMeta, l.late && ps.late)}>{l.meta}</span>}
+</>
 
 const upcoming = (p: Project, t: Tool) =>
   activeIn(p, t, "event").filter((r) => r.data.starts_at >= isoDate(new Date())).sort((a, b) => String(a.data.starts_at).localeCompare(b.data.starts_at))
@@ -304,11 +317,12 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
   const [seenAtOpen] = useState(() => seenOf(m.prefs, p.id))
   const [projectSince] = useState(() => m.prefs.project_seen?.[String(p.id)] ?? null)
   const people = projectPeople(p)
-  const clients = people.filter(isClient)
   const tools = enabledTools(p)
   // How far along it is: the share of its tasks done (subtasks counted in their task's place).
   const pr = progressOf(p)
   const tasksWindow = tools.find((t) => t.type === "todos")
+  const dates = !!(p.starts_on || p.ends_on)
+  const progress = !!tasksWindow && pr.total > 0
   const keys = tools.map((t) => t.id)
 
   // The window in front is the one the address is in; with none (a bare /projects/2), the one you had last.
@@ -356,47 +370,50 @@ const ProjectHome = observer(({ p }: { p: Project }) => {
     : undefined
   const back = (k: string) => (k === front && cur === front && !atRoot(k) ? () => navigate(rootOf(k)) : undefined)
   const windows: DeskWindow[] = tools.map((t) => {
-    const body = windowBody(p, t)
+    const lead = leadOf(p, t)
     return {
       key: t.id, name: t.name, icon: t.type, summary: summary(p, t),
-      body: body ?? <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !body, news: news.get(t.id) ?? 0, late: t.type === "todos" ? lateTasks(p.id, t.id) : 0,
+      body: lead ? <LeadView l={lead} /> : <p {...sx(ps.pitch)}>{PITCH[t.type]}</p>, empty: !lead, news: news.get(t.id) ?? 0, late: t.type === "todos" ? lateTasks(p.id, t.id) : 0,
       work: work(t.id), back: back(t.id), place: here,
     }
   })
   if (!cur && front) return <Navigate replace to={lastIn.get(`${p.id}:${front}`) ?? rootOf(front)} />
-  return (
-    <Page title={p.name} crumbs={p.kind === "template" ? [["Templates", "/templates"]] : undefined} flush>
-      <div {...sx(ps.top)}>
-        {p.kind === "template" && (
-          <div role="note"><p><b>This is a template.</b> Changing it doesn't change projects already made from it.</p>
-            <p><a href={`/templates/${p.id}/use`} data-button>Make a project from this template</a></p></div>
-        )}
-        {p.status === "archived" && <div role="note"><p><b>This project is archived.</b> It's read-only.</p>{!isClient(m) && <Form action={`/projects/${p.id}/unarchive`}><button>Unarchive</button></Form>}</div>}
-        {p.status === "trashed" && <div role="note"><p><b>This project is in the trash.</b></p><Form action={`/projects/${p.id}/restore`}><button>Put it back</button></Form></div>}
-        <div {...sx(ps.head)}>
-          <div>
-            <h1 {...sx(ps.title)}>{p.name}</h1>
-            {p.description && <Fmt text={p.description} {...sx(ps.lede)} />}
-            <p {...sx(ps.facts)}>
-              {(p.starts_on || p.ends_on) && <span {...sx(ps.fact, ps.factInk)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</span>}
-              {tasksWindow && pr.total > 0 && (
-                <a href={rootOf(tasksWindow.id)} title={`${pr.done} of ${pr.total} done`} {...sx(ps.fact)}>
-                  <ProgressBar pct={pr.pct} /> <span {...sx(ps.factInk)}>{pr.pct}% done</span>
+  const head = (news: ReactNode) => (
+    <div {...sx(ps.top)}>
+      {p.kind === "template" && (
+        <div role="note"><p><b>This is a template.</b> Changing it doesn't change projects already made from it.</p>
+          <p><a href={`/templates/${p.id}/use`} data-button>Make a project from this template</a></p></div>
+      )}
+      {p.status === "archived" && <div role="note"><p><b>This project is archived.</b> It's read-only.</p>{!isClient(m) && <Form action={`/projects/${p.id}/unarchive`}><button>Unarchive</button></Form>}</div>}
+      {p.status === "trashed" && <div role="note"><p><b>This project is in the trash.</b></p><Form action={`/projects/${p.id}/restore`}><button>Put it back</button></Form></div>}
+      <div {...sx(ps.head)}>
+        <div {...sx(ps.name)}>
+          <h1 title={p.description ? `${p.name}: ${excerpt(p.description, 1000)}` : p.name} {...sx(ps.title)}>{p.name}</h1>
+          {(dates || progress || news) && (
+            <span {...sx(ps.facts)}>
+              {dates && <span {...sx(ps.fact, ps.factInk)}>{fmtDate(p.starts_on)} → {fmtDate(p.ends_on)}</span>}
+              {progress && (
+                <a href={rootOf(tasksWindow!.id)} title={`${pr.done} of ${pr.total} done`} {...sx(ps.fact)}>
+                  <ProgressBar pct={pr.pct} width={48} /> <span {...sx(ps.factInk)}>{pr.pct}% done</span>
                 </a>
               )}
-              {clients.length > 0 && !isClient(m) && <span>Clients see only what you share. <a href={`/projects/${p.id}/clients`}>Client access</a></span>}
-            </p>
-          </div>
-          <div {...sx(ps.actions)}>
-            <a href={isClient(m) ? `/people` : `/projects/${p.id}/people`} aria-label={`People on this project: ${people.map((x) => x.name).join(", ")}`} title={people.map((x) => x.name).join(", ")} {...sx(ps.faces)}>
-              {people.slice(0, 5).map((x) => <span key={x.id} {...sx(ps.face)}><Face p={x} px={30} /></span>)}
-            </a>
-            {canInvite() && <a href={`/people/invite?project_id=${p.id}`} data-button>Invite</a>}
-            <a href={`/projects/${p.id}/menu`} data-button aria-label="Project menu" title="Project menu">•••</a>
-          </div>
+              {news && <span>{news}</span>}
+            </span>
+          )}
+        </div>
+        <div {...sx(ps.actions)}>
+          <a href={isClient(m) ? `/people` : `/projects/${p.id}/people`} aria-label={`People on this project: ${people.map((x) => x.name).join(", ")}`} title={people.map((x) => x.name).join(", ")} {...sx(ps.faces)}>
+            {people.slice(0, 5).map((x) => <span key={x.id} {...sx(ps.face)}><Face p={x} px={24} /></span>)}
+          </a>
+          {canInvite() && <a href={`/people/invite?project_id=${p.id}`} data-button {...sx(ps.btn)}>Invite</a>}
+          <a href={`/projects/${p.id}/menu`} data-button aria-label="Project menu" title="Project menu" {...sx(ps.btn)}>•••</a>
         </div>
       </div>
-      <Desk windows={windows} project={p.name} master={front ?? ""} onBring={bring} since={oldest ? sinceLabel(oldest) : projectSince ? sinceLabel(projectSince) : undefined}
+    </div>
+  )
+  return (
+    <Page title={p.name} crumbs={p.kind === "template" ? [["Templates", "/templates"]] : undefined} flush>
+      <Desk windows={windows} head={head} master={front ?? ""} onBring={bring} since={oldest ? sinceLabel(oldest) : projectSince ? sinceLabel(projectSince) : undefined}
         note={!windows.length ? "A fresh start. Add the windows this project needs, then invite the people on it."
           : windows.every((w) => w.empty) ? "A fresh start. Invite the people on it, then post what this project is about." : undefined}
         menu={canChange ? <WindowsMenu p={p} onAdd={add} onHide={hide} onShow={show} /> : undefined} onRename={canChange ? rename : undefined} onReorder={canChange ? reorder : undefined} />

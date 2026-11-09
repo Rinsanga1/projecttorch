@@ -5,12 +5,10 @@
 // to close: they're the project, not tabs. Dragging a rail icon reorders the windows; the big window's name renames it
 // in place; + (on the rail, as the last preview, on the taskbar, on an empty desk) opens the one menu that adds, hides
 // and shows windows. Which window is in front is the page's address (/projects/2/docs/5 is Files, at that doc), so the
-// desk only asks to switch. Full screen lifts the desk over the whole page. Above the desk,
-// one sentence says what's new ("Since Tuesday: 5 new in Chat and Posts."). Design and history: docs/project_ui_explore,
-// docs/app_terms.
+// desk only asks to switch. The project head above it gets one sentence of what's new ("Since Tuesday: 5 new in Chat and
+// Posts."). Design and history: docs/project_ui_explore, docs/app_terms.
 import * as stylex from "@stylexjs/stylex"
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent, type ReactNode } from "react"
-import { flushSync } from "react-dom"
 import { flash } from "../store.ts"
 import { fadeOverflow, sx } from "./kit.tsx"
 import { Icon, type IconName } from "./icons.tsx"
@@ -39,8 +37,6 @@ export type DeskWindow = {
 }
 
 const DESKTOP = "@media (min-width: 900px)"
-/** Where the page sheet takes its larger corners (ui/page.tsx). */
-const SHEET = "@media (min-width: 768px)"
 /** Strong ease-out: starts fast, so the interface answers at once. */
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)"
 /** The drawer curve: quick to answer, long soft landing. For the rail opening and the windows making room. */
@@ -52,11 +48,8 @@ const SLOT = 44
 const RAIL = 160
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const s = stylex.create({
-  // No corners of its own: it runs to the sheet's edges and the sheet clips it.
-  // The bottom half of the page's card (the project head is the top): Tile Gray, with the sheet's bottom corners.
-  card: { backgroundColor: color.tile, borderBottomLeftRadius: { default: radius.lg, [SHEET]: radius.xl }, borderBottomRightRadius: { default: radius.lg, [SHEET]: radius.xl } },
-  // Full screen: the desk covers the whole page, the big window alone above the taskbar.
-  wrapFull: { position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", backgroundColor: color.tile },
+  // The bottom half of the page (the project head is the top): Tile Gray, edge to edge, no corners.
+  card: { backgroundColor: color.tile },
   desk: {
     display: "grid", gap: 10, padding: 10,
     // The rail keeps 160px on the left: each window by icon and name, with its count; every other pixel goes to the big window.
@@ -64,11 +57,10 @@ const s = stylex.create({
     gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: `${RAIL}px minmax(0, 1fr)` },
     gridTemplateRows: { default: "auto", [DESKTOP]: "minmax(0, 1fr)" },
     transitionProperty: "grid-template-columns", transitionDuration: { default: "200ms", [media.reduce]: "0ms" }, transitionTimingFunction: EASE_DRAWER,
-    // Fills the screen under the project head.
-    height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 262px))" },
+    // Fills the screen under the app bar and the project head, to its bottom edge.
+    height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 95px))" },
   },
   deskOpen: { gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "300px minmax(0, 1fr)" }, transitionDuration: { default: "280ms", [media.reduce]: "0ms" } },
-  deskFull: { flexGrow: 1, minHeight: 0, height: { default: "auto", [DESKTOP]: "auto" }, borderRadius: 0 },
 
   // A hairline outline keeps a window's edge against the desk (white on light gray alone disappears). It's a border,
   // not a shadow, so the view-transition picture carries it while windows glide.
@@ -79,7 +71,7 @@ const s = stylex.create({
   },
   master: { borderWidth: 2, minHeight: { default: 320, [DESKTOP]: 0 } },
   // With the previews open, the big window carries the focus ring: it says which one is where you are. Alone, it needs none.
-  masterFocus: { borderColor: color.accent },
+  masterFocus: { borderColor: color.ink },
 
   head: { display: "flex", alignItems: "center", gap: space.s2, minHeight: 40, paddingBlock: 4, paddingInline: "12px 6px", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line, flexShrink: 0 },
   // The back button is wider than the icon it replaces; it tucks into the padding so the name stays put.
@@ -87,24 +79,16 @@ const s = stylex.create({
   backBtn: { marginRight: -6 },
   name: { fontSize: "0.875rem", fontWeight: 650, letterSpacing: "-0.015em", whiteSpace: "nowrap" },
   summary: { minWidth: 0, fontSize: text.xs, color: color.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  actions: { display: "flex", alignItems: "center", gap: 2, marginLeft: "auto", flexShrink: 0 },
   iconBtn: {
     width: 28, minHeight: 28, padding: 0, borderRadius: radius.sm, background: "none", color: color.muted,
     backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: color.tile } },
   },
   // On desktop the window scrolls inside itself; on a phone the window is the page, so the page does the scrolling.
   body: { flexGrow: 1, overflow: { default: "visible", [DESKTOP]: "auto" }, overscrollBehavior: "contain", paddingBlock: 12, paddingInline: 14 },
-  // In full screen the window fills the screen at every size, so it scrolls inside.
-  bodyFull: { overflow: "auto" },
-  peek: { overflow: "hidden", fontSize: text.sm, maskImage: "linear-gradient(#000 55%, transparent)", pointerEvents: "none" },
-  // A window with nothing in it yet: a quiet skeleton of lines in its preview, so it's the same size as the rest. Still,
-  // not shimmering: nothing is loading, there's just nothing there yet.
-  skeleton: { display: "grid", alignContent: "start", gap: 10, paddingTop: 4 },
-  bone: { display: "block", height: 8, borderRadius: radius.pill, backgroundColor: color.tile },
+  // A preview's body: the window's one lead thing (areas/project.tsx), in whole lines, right under its name.
+  peek: { display: "grid", gap: 2, paddingTop: 0, fontSize: text.sm, pointerEvents: "none" },
 
-  // What's new, in one sentence under the project head: the head's white, the head's padding.
-  row: { paddingInline: { default: 20, [DESKTOP]: 28 }, paddingBottom: 16, margin: 0, maxWidth: "none", backgroundColor: color.sheet, fontSize: text.sm },
-  rowFull: { paddingTop: 10, paddingInline: 10, paddingBottom: 6, backgroundColor: color.tile },
+  // What's new, in one sentence the project head places among its facts.
   lead: { fontWeight: 650 },
   calm: { color: color.muted },
   lateLine: { color: color.accentText, fontWeight: 650 },
@@ -164,14 +148,16 @@ const s = stylex.create({
     opacity: 0, transitionProperty: "opacity", transitionDuration: "120ms", transitionTimingFunction: EASE_OUT,
   },
   paneOpen: { opacity: 1, transitionDuration: "220ms", transitionDelay: "60ms" },
+  // As tall as what it says: its name, then one thing. More than fit scroll. Pressed, it gives a little.
   colWin: {
-    flexShrink: 0, height: 168, cursor: "pointer", transitionProperty: "border-color", transitionDuration: motion.fast,
+    flexShrink: 0, cursor: "pointer", transitionProperty: "border-color, transform", transitionDuration: "160ms", transitionTimingFunction: EASE_OUT,
     borderColor: { default: color.line, ":hover": { default: null, [media.hover]: color.control } },
+    transform: { default: null, ":active": { default: "scale(0.98)", [media.reduce]: null } },
   },
   // The whole title bar is the button that brings a window forward.
   colBring: {
     display: "flex", alignItems: "center", justifyContent: "flex-start", gap: space.s2, width: "100%", minHeight: 40, paddingBlock: 4, paddingInline: 12, borderRadius: 0, background: "none",
-    color: "inherit", textAlign: "left", fontWeight: "inherit", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: color.line,
+    color: "inherit", textAlign: "left", fontWeight: "inherit",
     transform: { default: null, ":active": "none" }, backgroundColor: { default: "transparent", ":hover": { default: null, [media.hover]: "transparent" } },
   },
   // The last preview: a blank, dashed window that adds one. It fills in white on hover, the window it would become.
@@ -207,14 +193,13 @@ const s = stylex.create({
   empty: { gridColumn: "1 / -1", display: "grid", placeContent: "center", gap: 4, minHeight: 280, borderRadius: radius.lg, backgroundColor: color.sheet, textAlign: "center", color: color.muted },
   emptyTitle: { margin: 0, fontSize: text.md, fontWeight: 650, color: color.ink },
 
-  // The taskbar, in its own strip under the card, on the page ground (in full screen, under the big window).
+  // The taskbar, in its own strip under the card, on the page ground.
   // On a phone the bar stays at the bottom of the screen, in thumb reach, while the windows scroll past.
   strip: {
     // On desktop the rail does this job.
-    display: { default: "flex", [DESKTOP]: "none" }, justifyContent: "center", paddingTop: 12, zIndex: 5,
+    display: { default: "flex", [DESKTOP]: "none" }, justifyContent: "center", paddingTop: 12, paddingInline: 8, zIndex: 5,
     position: { default: "sticky", [DESKTOP]: "static" }, bottom: 0, paddingBottom: { default: "max(8px, env(safe-area-inset-bottom))", [DESKTOP]: 0 },
   },
-  stripFull: { paddingTop: 0, paddingInline: 10, paddingBottom: 10 },
   bar: {
     display: "flex", gap: 4, padding: 5, borderRadius: 18, backgroundColor: color.slab, color: color.slabInk,
     width: { default: "100%", [DESKTOP]: "auto" }, justifyContent: { default: "space-between", [DESKTOP]: "flex-start" },
@@ -258,7 +243,7 @@ export const closeWindowsMenu = () => document.getElementById(MENU_ID)?.hidePopo
 /** "Chat, Posts and Tasks" */
 const and = (xs: ReadonlyArray<string>) => xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`
 
-export const Desk = ({ windows, master, onBring, since, note, menu, onRename, onReorder, project }: {
+export const Desk = ({ windows, master, onBring, since, note, menu, onRename, onReorder, head }: {
   windows: ReadonlyArray<DeskWindow>
   /** The window in front (from the address). */
   master: string
@@ -274,12 +259,10 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
   onRename?: (key: string, name: string) => void
   /** Put the windows in this order (every window's key). None for people who can't. */
   onReorder?: (keys: string[]) => void
-  /** The project's name: full screen leads with it, since the page's head (and its title) is out of sight. */
-  project?: string
+  /** The project head, drawn above the desk, given the what's-new sentence to place (null when there's nothing to say). */
+  head: (news: ReactNode) => ReactNode
 }) => {
   const m = windows.find((w) => w.key === master)
-  const [fullOn, setFull] = useState(false)
-  const full = fullOn && !!m
   // Opening a window is reading it: its news count goes for the rest of this visit.
   const [read, setRead] = useState<ReadonlySet<string>>(() => new Set([master]))
   useEffect(() => setRead((r) => (r.has(master) ? r : new Set(r).add(master))), [master])
@@ -288,26 +271,9 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
   const newsTotal = withNews.reduce((n, w) => n + newsOf(w), 0)
   const late = windows.filter((w) => (w.late ?? 0) > 0)
 
-  // Full screen: the page under it holds still, and Escape comes back out (unless something inside used the key).
-  useEffect(() => {
-    if (!full) return
-    const root = document.documentElement
-    root.style.overflow = "hidden"
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setFull(false) }
-    document.addEventListener("keydown", onKey)
-    return () => { root.style.overflow = ""; document.removeEventListener("keydown", onKey) }
-  }, [full])
-
-  // Full screen stays on while you switch windows. Going in and out glides (a view transition) when it's by pointer;
-  // by keyboard it's instant: an action repeated by key should never wait on an animation.
   // The window you're leaving: its spot among the previews is where it glides to.
   const leaving = useRef<string | null>(null)
   const bring = (k: string, e?: MouseEvent) => { leaving.current = master; onBring(k, e) }
-  const toggleFull = (e: MouseEvent) => {
-    const glide = e.detail > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches && document.startViewTransition
-    if (glide) document.startViewTransition(() => flushSync(() => setFull(!full)))
-    else setFull(!full)
-  }
 
   // The taskbar opens (names, and a tip for the hovered tool) while a mouse is over it or a keyboard is in it.
   // From the keyboard it opens instantly. The first tip fades in; moving along the bar, the next ones are instant.
@@ -464,15 +430,12 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
 
   const lateLine = late.length > 0 && <span {...sx(s.lateLine)}> {late.map((w) => `${w.late} late in ${w.name}`).join(", ")}.</span>
   const news = note ? <span {...sx(s.calm)}>{note}</span>
-    : since ? <>{withNews.length ? <><span {...sx(s.lead)}>{since}:</span> {newsTotal} new in {and(withNews.map((w) => w.name))}.</> : <span {...sx(s.calm)}>{late.length ? "Nothing new." : "All caught up."}</span>}{lateLine}</>
-    : lateLine
+    : since && withNews.length ? <><span {...sx(s.lead)}>{since}:</span> {newsTotal} new in {and(withNews.map((w) => w.name))}.{lateLine}</>
+    : lateLine || null
 
   return (
-    <section aria-label="Windows" {...sx(full && s.wrapFull)}>
-      {full
-        ? <p {...sx(s.row, s.rowFull)}><span {...sx(s.lead)}>{project}</span>{news && <span {...sx(s.calm)}> · </span>}{news}</p>
-        : news && <p {...sx(s.row)}>{news}</p>}
-      <div {...sx(s.desk, s.card, m && col && s.deskOpen, full && s.deskFull)}>
+    <>{head(news)}<section aria-label="Windows">
+      <div {...sx(s.desk, s.card, m && col && s.deskOpen)}>
         {m && (
           <nav aria-label="Every window in this project" onPointerLeave={() => setHot(null)} {...sx(s.rail)}>
             <button type="button" onClick={toggleCol} aria-expanded={col} aria-label={col ? "Hide previews" : "Show previews"} title={col ? "Hide previews" : "Show previews"}
@@ -506,11 +469,10 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
                     {...sx(s.win, s.colWin)}>
                     <button type="button" aria-label={say(w)} onClick={(e) => { e.stopPropagation(); bring(w.key, e.nativeEvent) }} {...sx(s.colBring)}>
                       <span ref={(el) => { if (el) paneGlyph.current.set(w.key, el); else paneGlyph.current.delete(w.key) }} {...sx(s.glyph, flying && s.glyphWaiting)}><Icon name={w.icon} size={16} /></span><b {...sx(s.name)}>{w.name}</b>
-                      {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : <span {...sx(s.summary)}>{w.summary}</span>}
+                      {newsOf(w) > 0 ? <span {...sx(s.newTag)}>{newsOf(w)} new</span> : w.empty && <span {...sx(s.summary)}>{w.summary}</span>}
                     </button>
-                    {w.empty
-                      ? <div aria-hidden="true" {...sx(s.body, s.peek, s.skeleton)}>{["72%", "90%", "56%", "84%", "64%"].map((wd) => <span key={wd} style={{ width: wd }} {...sx(s.bone)} />)}</div>
-                      : <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
+                    {/* Empty, it's just its name and "No files yet". */}
+                    {!w.empty && <div inert {...sx(s.body, s.peek)}>{w.body}</div>}
                   </section>
                 ))}
                 {menu && <button {...plus} data-quiet {...sx(s.miniAdd)}><Icon name="plus" size={16} />Add a window</button>}
@@ -520,16 +482,14 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
         )}
         {m ? (
           <section key={m.key} aria-label={m.name} style={vt(m.key)} {...sx(s.win, s.master, col && s.masterFocus)}>
-            <WindowHead w={m} onRename={onRename}>
-              <button type="button" onClick={(e) => toggleFull(e.nativeEvent)} aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen (Esc)" : "Full screen"} {...sx(s.iconBtn)}><Icon name={full ? "shrink" : "full"} size={16} /></button>
-            </WindowHead>
-            <div key={m.place} data-window-body {...sx(s.body, full && s.bodyFull)}>{m.work ?? m.body}</div>
+            <WindowHead w={m} onRename={onRename} />
+            <div key={m.place} data-window-body {...sx(s.body)}>{m.work ?? m.body}</div>
           </section>
         ) : (
           <div {...sx(s.empty)}><p {...sx(s.emptyTitle)}>No windows yet</p>{menu ? <p><button {...plus}>Add a window</button></p> : <p>There's nothing here yet.</p>}</div>
         )}
       </div>
-      <div {...sx(s.strip, full && s.stripFull)}>
+      <div {...sx(s.strip)}>
         <nav aria-label="Every window in this project" onPointerEnter={enterBar} onPointerLeave={leaveBar} onBlur={focusOut} ref={fadeOverflow} {...sx(s.bar)}>
           {windows.map((w) => {
             const isOpen = w.key === master
@@ -550,24 +510,23 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
         </nav>
       </div>
       {menu && <div id={MENU_ID} popover="auto" ref={menuEl} data-windows-menu role="dialog" aria-label="Windows" {...sx(s.menu)}>{menu}</div>}
-    </section>
+    </section></>
   )
 }
 
 // Deeper than the tool's start page, the icon gives way to a back button, in the same spot.
-const WindowHead = ({ w, onRename, children }: { w: DeskWindow; onRename?: (key: string, name: string) => void; children: ReactNode }) => (
+const WindowHead = ({ w, onRename }: { w: DeskWindow; onRename?: (key: string, name: string) => void }) => (
   <div {...sx(s.head, w.back && s.headBack)}>
     {w.back
       ? <button type="button" onClick={w.back} aria-label={`Back in ${w.name}`} title="Back" {...sx(s.iconBtn, s.backBtn)}><Icon name="back" size={16} /></button>
       : <Icon name={w.icon} size={16} />}
     <WindowName w={w} onRename={onRename} />
     <span {...sx(s.summary)}>{w.summary}</span>
-    <span {...sx(s.actions)}>{children}</span>
   </div>
 )
 
 /** The big window's name. With `onRename`, clicking it turns it into a field: Enter or clicking away saves, Escape
- * cancels (and doesn't leave full screen). No animation: it's a field where the name was. */
+ * cancels. No animation: it's a field where the name was. */
 const WindowName = ({ w, onRename }: { w: DeskWindow; onRename?: (key: string, name: string) => void }) => {
   const [draft, setDraft] = useState<string | null>(null)
   const closing = useRef(false)
