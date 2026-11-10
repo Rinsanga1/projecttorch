@@ -230,7 +230,7 @@ const DEV_ONLY = /^\/(dev|inbox)(\/|$)/
  * (email, password, two-step, Google, password resets, invitations). Any of those would let whoever runs the agent
  * sign in as you from a browser.
  */
-const NOT_FOR_AGENTS = /^\/(my\/agents|my\/security|oauth|signin|signup|signout|accounts|auth|forgot|reset|join)(\/|$)/
+export const NOT_FOR_AGENTS = /^\/(my\/agents|my\/security|oauth|signin|signup|signout|accounts|auth|forgot|reset|join)(\/|$)/
 
 const wrap = <C extends PubCtx>(needsPerson: boolean, h: Handler<C>) =>
   Effect.gen(function* () {
