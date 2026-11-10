@@ -27,7 +27,7 @@ import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { post, redirect, back, invalid, str, ids, isClient, NoAccess, NotFound, type Ctx } from "../lib/web.ts"
 import { addComment } from "./items.ts"
-import { findProject, findRecording, projectPeople, createRecording, updateRecording, windowUrl, urlFor, titleOf, notify, logEvent, type Project, type Recording } from "../lib/core.ts"
+import { findProject, findRecording, projectPeople, createRecording, updateRecording, windowUrl, urlFor, titleOf, notify, logEvent, clientVisibleFrom, type Project, type Recording } from "../lib/core.ts"
 import type { Seed } from "../seed.ts"
 
 const COLORS     = ["", "red", "orange", "yellow", "green", "blue", "purple", "gray"]
@@ -264,8 +264,7 @@ const editCard = post("/projects/:id/cards/:cid/edit", (c) => Effect.gen(functio
   const title     = str(fd, "title")
   if (!title) return invalid(["Your card needs a title."])
 
-  // The "Clients see this" box is only on the form when the project has clients; without it, keep what it was.
-  const visible = people.some(isClient) ? fd.get("visible_to_clients") === "on" : r.visible_to_clients
+  const visible = clientVisibleFrom(fd, people, r.visible_to_clients)
   const updated = yield* updateRecording(c, r, {
     title,
     body:               str(fd, "body"),

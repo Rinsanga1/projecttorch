@@ -19,7 +19,7 @@ import { HttpServerResponse } from "effect/http"
 import { addDays, today } from "../shared/format.ts"
 import { get, post, pubGet, redirect, invalid, json, str, ids, bool, origin, isClient, NoAccess, NotFound, type Ctx, type Person, type Account } from "../lib/web.ts"
 import {
-  findProject, findRecording, projectPeople, createRecording, updateRecording, urlFor, titleOf, clientFilter, notify, visibleProjects,
+  findProject, findRecording, projectPeople, createRecording, updateRecording, urlFor, titleOf, clientFilter, notify, visibleProjects, clientVisibleFrom,
   type Project, type Recording,
 } from "../lib/core.ts"
 import { seedCtx, type Seed } from "../seed.ts"
@@ -39,7 +39,7 @@ type EventInput = {
   all_day:            boolean
   repeat:             Repeat
   participant_ids:    number[]
-  visible_to_clients: boolean
+  visible_to_clients: boolean | undefined   // undefined: the form had no box (see clientVisibleFrom)
 }
 
 /** Read the form. Participants must be on the project (`people`); anyone else is dropped. */
@@ -55,7 +55,7 @@ const readEvent = (fd: FormData, people: ReadonlyArray<Person>): EventInput => {
     all_day:            bool(fd, "all_day") || !str(fd, "start_time"),   // no start time means all day
     repeat:             repeat in REPEATS ? repeat as Repeat : "never",
     participant_ids:    ids(fd, "participant_ids").filter((id) => people.some((p) => p.id === id)),
-    visible_to_clients: bool(fd, "visible_to_clients"),
+    visible_to_clients: clientVisibleFrom(fd, people, undefined),
   }
 }
 
@@ -227,8 +227,7 @@ const editEvent = post("/projects/:id/events/:eid/edit", (c) => Effect.gen(funct
   const { errors, data } = eventData(input, c.me.time_zone)
   if (errors.length) return invalid(errors)
 
-  // The "Clients see this" box is only on the form when the project has clients; without it, keep what it was.
-  const visible = people.some(isClient) ? input.visible_to_clients : r.visible_to_clients
+  const visible = input.visible_to_clients ?? r.visible_to_clients
   const updated = yield* updateRecording(c, r, { title: input.title, body: input.body, data, visible_to_clients: visible })
 
   // Only the newly added hear about it.

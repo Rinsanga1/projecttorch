@@ -10,17 +10,17 @@
 import { Effect } from "effect"
 import { SqlClient } from "effect/sql"
 import { post, redirect, invalid, str, isAdmin, isClient, NoAccess } from "../lib/web.ts"
-import { findProject, findRecording, projectPeople, createRecording, updateRecording, urlFor, notifyIdsFrom } from "../lib/core.ts"
+import { findProject, findRecording, projectPeople, createRecording, updateRecording, urlFor, notifyIdsFrom, clientVisibleFrom } from "../lib/core.ts"
 import { addComment } from "./items.ts"
 import type { Seed } from "../seed.ts"
 
 // ─── Reading forms. Plain functions: FormData in, data out. ────────────────
 
+// Who sees it (clientVisibleFrom) depends on the project's people, so the handlers add that.
 const readMessage = (fd: FormData) => ({
-  title:              str(fd, "title"),
-  body:               str(fd, "body"),
-  data:               { category_id: Number(str(fd, "category_id")) || null },
-  visible_to_clients: fd.get("visible_to_clients") === "on",
+  title: str(fd, "title"),
+  body:  str(fd, "body"),
+  data:  { category_id: Number(str(fd, "category_id")) || null },
 })
 
 const readCategory = (fd: FormData) => ({
@@ -39,19 +39,19 @@ const newPost = post("/projects/:id/posts", (c) => Effect.gen(function* () {
   const message = readMessage(fd)
   if (!message.title) return invalid([NEEDS_TITLE])
 
-  // Drafts notify nobody, so only look people up for a real post.
+  // Drafts notify nobody.
+  const people  = yield* projectPeople(project)
   const isDraft = fd.get("draft") === "1"
-  let notifyIds: number[] = []
-  if (!isDraft) notifyIds = notifyIdsFrom(fd, yield* projectPeople(project), c.me)
 
   const r = yield* createRecording(c, {
     project,
-    type:      "message",
-    tool:      str(fd, "tool"),
+    type:               "message",
+    tool:               str(fd, "tool"),
     ...message,
-    status:    isDraft ? "drafted" : "active",
-    notifyIds,
-    verb:      "shared a post",
+    visible_to_clients: clientVisibleFrom(fd, people, undefined),
+    status:             isDraft ? "drafted" : "active",
+    notifyIds:          isDraft ? [] : notifyIdsFrom(fd, people, c.me),
+    verb:               "shared a post",
   })
 
   if (isDraft) return redirect("/my/drafts", "Saved as a draft.")
@@ -66,15 +66,16 @@ const editPost = post("/projects/:id/posts/:mid/edit", (c) => Effect.gen(functio
   const message = readMessage(fd)
   if (!message.title) return invalid([NEEDS_TITLE])
 
+  const people   = yield* projectPeople(project)
   const wasDraft = r.status === "drafted"
-  const updated  = yield* updateRecording(c, r, message, { quiet: wasDraft })   // editing a draft tells nobody
+  const visible  = clientVisibleFrom(fd, people, r.visible_to_clients)
+  const updated  = yield* updateRecording(c, r, { ...message, visible_to_clients: visible }, { quiet: wasDraft })   // editing a draft tells nobody
 
   // Three outcomes: publish a draft, save a draft, save a post.
   if (wasDraft && fd.get("publish") === "1") {
     // Publishing: the draft is deleted and posted fresh, with notifications.
     // One transaction, so a failed post can't lose the draft.
     const sql    = yield* SqlClient.SqlClient
-    const people = yield* projectPeople(project)
     const posted = yield* sql.withTransaction(Effect.gen(function* () {
       yield* sql`delete from recordings where id = ${r.id}`
       return yield* createRecording(c, {

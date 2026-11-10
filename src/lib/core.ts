@@ -330,6 +330,14 @@ export const notifyIdsFrom = (fd: FormData, people: ReadonlyArray<Person>, me: P
   return people.filter((p) => p.id !== me.id).map((p) => p.id)
 }
 
+/**
+ * Read the "Clients see this" box. It's only on a form when the project has clients (client/ui/forms.tsx ClientSwitch),
+ * so without clients a missing box means "no answer", not "hidden": the result is `otherwise`, which is what the item
+ * already was when editing, or undefined for a new one (createRecording then uses the project's default).
+ */
+export const clientVisibleFrom = <T extends boolean | undefined>(fd: FormData, people: ReadonlyArray<Person>, otherwise: T): boolean | T =>
+  people.some(isClient) ? fd.get("visible_to_clients") === "on" : otherwise
+
 /** The ids that are people in my account (not removed). Anything else a form sends is dropped. */
 export const inMyAccount = (c: Ctx, personIds: ReadonlyArray<number>) => Effect.gen(function* () {
   if (!personIds.length) return [] as number[]
