@@ -187,6 +187,7 @@ ok(bad.isError && /exist/.test(bad.out.error), "errors come back as errors")
 const loop = await rpc(key, "tools/call", { name: "execute", arguments: { code: "while (true) {}" } })
 ok(loop.body.result?.isError && /time/.test(loop.body.result.content[0].text), "a runaway script is stopped")
 ok((await execute(key, `return await pt.call("POST", "/../mcp")`)).isError, "can't step outside /api")
+ok((await execute(key, `return await pt.call("GET", "/%2e%2e/.well-known/oauth-protected-resource")`)).isError, "…not with %2e%2e either")
 
 // 5. What agents can't do.
 ok((await fetch(`${BASE}/api/my/agents`, { method: "POST", headers: { authorization: `Bearer ${key}` }, body: new URLSearchParams({ name: "x" }) })).status === 403, "an agent can't make keys")
