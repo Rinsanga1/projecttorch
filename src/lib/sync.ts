@@ -43,6 +43,8 @@ export const scopeFor = (me: Me) =>
   })
 
 const PUBLIC_PREFS = ["ooo", "wcw", "snooze_until"]
+/** Never synced, not even to the person: one-time sign-in and reset tokens (frontdoor.ts). Anything acting as them could use them. */
+const SECRET_PREFS = ["signin_token", "signin_token_at", "reset_token", "reset_token_at"]
 const PERSONAL: Partial<Record<Table, true>> = { pins: true, bookmarks: true, bubble_ups: true, notifications: true, connected_apps: true }
 
 /** The row as `me` may see it, or null when they may not. */
@@ -56,7 +58,9 @@ export const shape = (tbl: Table, row: Row, me: Me, s: Scope): Row | null => {
     case "people": {
       if (!inAccount) return null
       const { invite_token, ...rest } = row
-      return row.id === me.id ? rest : { ...rest, prefs: Object.fromEntries(Object.entries(row.prefs ?? {}).filter(([k]) => PUBLIC_PREFS.includes(k))) }
+      const prefs = Object.entries(row.prefs ?? {})
+      if (row.id === me.id) return { ...rest, prefs: Object.fromEntries(prefs.filter(([k]) => !SECRET_PREFS.includes(k))) }
+      return { ...rest, prefs: Object.fromEntries(prefs.filter(([k]) => PUBLIC_PREFS.includes(k))) }
     }
     case "projects": return s.projectIds.has(row.id) ? row : null
     case "project_people": return s.projectIds.has(row.project_id) ? row : null

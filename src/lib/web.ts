@@ -223,8 +223,12 @@ export const navigate = (r: Reply) => setCookies(HttpServerResponse.redirect(r.r
 
 /** The dev inbox (it shows sign-in links) and /dev routes exist only under `bun run dev`. */
 const DEV_ONLY = /^\/(dev|inbox)(\/|$)/
-/** What an agent can't do even as you: hand out keys, approve apps, or sign in and out. */
-const NOT_FOR_AGENTS = /^\/(my\/agents|oauth|signin|signup|signout|accounts|auth)(\/|$)/
+/**
+ * What an agent can't do even as you: hand out keys, approve apps, sign in or out, or change how you sign in
+ * (email, password, two-step, Google, password resets, invitations). Any of those would let whoever runs the agent
+ * sign in as you from a browser.
+ */
+const NOT_FOR_AGENTS = /^\/(my\/agents|my\/security|oauth|signin|signup|signout|accounts|auth|forgot|reset|join)(\/|$)/
 
 const wrap = <C extends PubCtx>(needsPerson: boolean, h: Handler<C>) =>
   Effect.gen(function* () {
