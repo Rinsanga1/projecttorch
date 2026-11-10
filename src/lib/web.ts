@@ -128,13 +128,15 @@ export const resync = (r: Reply): Reply => ({ ...r, resync: true })
  * Run `work` now, then again `ms` after each run finishes, forever, in the background.
  * Runs never overlap, and a failure is logged instead of killing the loop.
  */
-export const runEvery = <R>(ms: number, name: string, work: Effect.Effect<unknown, unknown, R>) =>
-  Effect.forkDetach(
+// A function declaration, not a const: sync.ts calls this while web.ts (which imports sync.ts) is still loading.
+export function runEvery<R>(ms: number, name: string, work: Effect.Effect<unknown, unknown, R>) {
+  return Effect.forkDetach(
     work.pipe(
       Effect.catchCause((cause) => Effect.logError(`${name} failed`, cause)),
       Effect.repeat(Schedule.spaced(ms)),
     ),
   )
+}
 
 // ---------- who's acting ----------
 /** `bun run dev` sets DEV=1: the `pid` cookie (act as anyone), the dev inbox and /dev routes. */
