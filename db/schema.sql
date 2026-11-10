@@ -36,7 +36,7 @@ create table people (
   avatar_url  text,
   role        text not null default 'member',              -- owner | admin | member | client
   appearance  text not null default 'system',              -- light | dark | system
-  prefs       jsonb not null default '{}',                 -- notify_email, notify_desktop, notify_push, wcw{on,days,start,end}, snooze_until, ooo{from,until,message}, recent_searches, two_factor, google
+  prefs       jsonb not null default '{}',                 -- notify_email, notify_desktop, notify_push, wcw{on,days,start,end}, snooze_until, ooo{from,until,message}, recent_searches, two_factor
   invited_by  int references people on delete set null,
   invite_token text unique,
   invited_at  timestamptz,

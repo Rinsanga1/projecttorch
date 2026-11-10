@@ -328,7 +328,7 @@ const signUp = pubPost("/signup", (c) => Effect.gen(function* () {
       email,
       role:       "owner",
       joined_at:  new Date(),
-      prefs:      JSON.stringify({ notify_email: true, google: !!google }),
+      prefs:      JSON.stringify({ notify_email: true }),
     })} returning *`
     return { account: account!, me: me! }
   }))
@@ -511,7 +511,7 @@ const join = pubPost("/join/:token", (c) => Effect.gen(function* () {
 
   const timeZone = validTz(str(fd, "time_zone")) ?? inv.person.time_zone
   yield* sql`update people set name = ${name}, time_zone = ${timeZone}, joined_at = now(), invite_token = null,
-             prefs = prefs || ${JSON.stringify({ used_invite_token: c.params.token, google: !!google })}::jsonb
+             prefs = prefs || ${JSON.stringify({ used_invite_token: c.params.token })}::jsonb
              where id = ${inv.person.id}`
 
   // Land on the first project they were invited to.
@@ -557,7 +557,7 @@ const joinTeam = (c: PubCtx, account: Account) => Effect.gen(function* () {
     role:       "member",
     time_zone:  validTz(str(fd, "time_zone")) ?? "UTC",
     joined_at:  new Date(),
-    prefs:      JSON.stringify({ notify_email: true, google: !!google }),
+    prefs:      JSON.stringify({ notify_email: true }),
   })} returning *`
   yield* logEvent({ ...c, me: me!, account }, { project_id: null, action: "joined", summary: "joined with the team link" })
   return withCookie(yield* signInAs(c, "/", me!.id, `Welcome to ${account.name}!`), "google", null)

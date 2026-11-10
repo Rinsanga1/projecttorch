@@ -387,8 +387,6 @@ export const routes = [
             <Form action="/my/security/two-factor" onDone={(r) => setCodes(r.data?.codes)}><button>Set up two-step verification</button></Form>
           </>
         )}
-        <h2>Sign in with Google</h2>
-        <Form action="/my/security/google"><button>{m.prefs.google ? "Turn off Sign in with Google" : "Turn on Sign in with Google"}</button></Form>
         <h2>Where you're signed in</h2>
         <ul><li>This browser (now)</li></ul>
         <Form action="/my/security/sign-out-others"><button>Sign out everywhere else</button></Form>
