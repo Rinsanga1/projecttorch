@@ -26,7 +26,6 @@ export type Prefs = {
   ooo?: { from?: string; until?: string; message?: string }
   recent_searches?: string[]
   two_factor?: boolean
-  google?: boolean
   campfire_notify?: Record<string, "everything" | "mentions">
   recent_pages?: { href: string; title: string }[]
   recent_projects?: number[]

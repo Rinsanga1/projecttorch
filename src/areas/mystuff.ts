@@ -10,7 +10,6 @@
 //   POST /my/security/email                change your email (keeps your password and Google sign-in)
 //   POST /my/security/password
 //   POST /my/security/two-factor           on/off; turning it on answers with backup codes
-//   POST /my/security/google               on/off
 //   POST /my/security/sign-out-others      end every other session
 //   POST /help/support                     send a support request
 //
@@ -150,13 +149,6 @@ const toggleTwoFactor = post("/my/security/two-factor", (c) => Effect.gen(functi
   return json({ codes: Array.from({ length: 8 }, () => crypto.randomUUID().slice(0, 8)) })
 }))
 
-const toggleGoogle = post("/my/security/google", (c) => Effect.gen(function* () {
-  const wasOn = !!c.me.prefs.google
-  yield* savePrefs(c, { google: !wasOn })
-  if (wasOn) return redirect("/my/security", "Sign in with Google is off.")
-  return redirect("/my/security", "Sign in with Google is on.")
-}))
-
 // Every session of yours except the one making this request. (Under `bun run dev` with the pid cookie there's no
 // session here, so it ends all of them, which is still "everywhere else".)
 const signOutOthers = post("/my/security/sign-out-others", (c) => Effect.gen(function* () {
@@ -188,7 +180,6 @@ export const routes = [
   changeEmail,
   changePassword,
   toggleTwoFactor,
-  toggleGoogle,
   signOutOthers,
   askSupport,
 ]
