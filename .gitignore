@@ -4,3 +4,6 @@ dist/
 *.log
 /docs/
 .env
+.claude/
+.impeccable/
+skills-lock.json
