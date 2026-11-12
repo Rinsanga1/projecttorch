@@ -78,8 +78,8 @@ The scripts take `BASE` (default `http://localhost:3000`); `smoke` also takes `L
 
 ## Code style
 
-Plain code that reads top to bottom, after Jonathan Blow, with Effect kept for I/O, errors that pass up the chain,
-background loops and startup/shutdown.
+Plain code that reads top to bottom, with Effect kept for I/O, errors that pass up the chain, background loops and
+startup/shutdown.
 
 - Each file opens with a comment listing what it serves; handlers are named functions gathered in a short `routes = [...]`.
 - Early returns, no pipe chains where `Effect.gen` reads straighter, form parsing as plain functions.
