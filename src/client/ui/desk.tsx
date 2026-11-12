@@ -57,8 +57,8 @@ const s = stylex.create({
     gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: `${RAIL}px minmax(0, 1fr)` },
     gridTemplateRows: { default: "auto", [DESKTOP]: "minmax(0, 1fr)" },
     transitionProperty: "grid-template-columns", transitionDuration: { default: "200ms", [media.reduce]: "0ms" }, transitionTimingFunction: EASE_DRAWER,
-    // Fills the screen under the app bar and the project head, to its bottom edge.
-    height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 95px))" },
+    // Fills the screen under the project bar (the page's only bar), to its bottom edge.
+    height: { default: "auto", [DESKTOP]: "max(460px, calc(100dvh - 48px))" },
   },
   deskOpen: { gridTemplateColumns: { default: "minmax(0, 1fr)", [DESKTOP]: "300px minmax(0, 1fr)" }, transitionDuration: { default: "280ms", [media.reduce]: "0ms" } },
 
@@ -288,7 +288,7 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
 
   // The previews open from the rail's top button and stay how you left them (in this browser). A deliberate click, not a
   // hover: the big window makes room for them, and work shouldn't shift because the pointer passed the edge.
-  const [col, setCol] = useState(() => { try { return localStorage.getItem("saintsflow:previews") === "1" } catch { return false } })
+  const [col, setCol] = useState(() => { try { return localStorage.getItem("projecttorch:previews") === "1" } catch { return false } })
   // Opening, each icon flies from the rail to its preview's title bar, shrinking from 18px to 16px, on the same curve and
   // time as the rail; closing, it flies back. That's what tells you which preview is which. The previews' own icons wait
   // hidden until the flight lands, then take over (an opening flight holds its landing, so nothing flickers back).
@@ -317,7 +317,7 @@ export const Desk = ({ windows, master, onBring, since, note, menu, onRename, on
   const toggleCol = () => {
     fly(!col)
     setCol(!col)
-    try { localStorage.setItem("saintsflow:previews", col ? "0" : "1") } catch {}
+    try { localStorage.setItem("projecttorch:previews", col ? "0" : "1") } catch {}
   }
   // The preview under the pointer: with the one you're leaving, it's what glides when you swap.
   const [hot, setHot] = useState<string | null>(null)

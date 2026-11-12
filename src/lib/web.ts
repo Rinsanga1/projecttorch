@@ -2,7 +2,7 @@
 // Every server route lives under /api. Pages are React (src/client); the server answers form posts with a Reply
 // ({ redirect, flash, errors }) and carries the sync changes the post made, so the browser's copy is current
 // before it navigates.
-import { Cause, Data, Effect } from "effect"
+import { Cause, Data, Effect, Schedule } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 import { SqlClient } from "effect/sql"
 import type { Prefs } from "../shared/domain.ts"
@@ -123,6 +123,21 @@ export const withCookie = (r: Reply, name: string, value: string | null, opts?: 
 /** Make the browser start over from a fresh bootstrap. */
 export const resync = (r: Reply): Reply => ({ ...r, resync: true })
 
+// ---------- background loops ----------
+/**
+ * Run `work` now, then again `ms` after each run finishes, forever, in the background.
+ * Runs never overlap, and a failure is logged instead of killing the loop.
+ */
+// A function declaration, not a const: sync.ts calls this while web.ts (which imports sync.ts) is still loading.
+export function runEvery<R>(ms: number, name: string, work: Effect.Effect<unknown, unknown, R>) {
+  return Effect.forkDetach(
+    work.pipe(
+      Effect.catchCause((cause) => Effect.logError(`${name} failed`, cause)),
+      Effect.repeat(Schedule.spaced(ms)),
+    ),
+  )
+}
+
 // ---------- who's acting ----------
 /** `bun run dev` sets DEV=1: the `pid` cookie (act as anyone), the dev inbox and /dev routes. */
 export const DEV = process.env.DEV === "1"
@@ -210,8 +225,12 @@ export const navigate = (r: Reply) => setCookies(HttpServerResponse.redirect(r.r
 
 /** The dev inbox (it shows sign-in links) and /dev routes exist only under `bun run dev`. */
 const DEV_ONLY = /^\/(dev|inbox)(\/|$)/
-/** What an agent can't do even as you: hand out keys, approve apps, or sign in and out. */
-const NOT_FOR_AGENTS = /^\/(my\/agents|oauth|signin|signup|signout|accounts|auth)(\/|$)/
+/**
+ * What an agent can't do even as you: hand out keys, approve apps, sign in or out, or change how you sign in
+ * (email, password, two-step, Google, password resets, invitations). Any of those would let whoever runs the agent
+ * sign in as you from a browser.
+ */
+export const NOT_FOR_AGENTS = /^\/(my\/agents|my\/security|oauth|signin|signup|signout|accounts|auth|forgot|reset|join)(\/|$)/
 
 const wrap = <C extends PubCtx>(needsPerson: boolean, h: Handler<C>) =>
   Effect.gen(function* () {

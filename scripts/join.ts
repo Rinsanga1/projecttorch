@@ -13,14 +13,14 @@ const call = async (path: string, fields?: Record<string, string>, sid = "") => 
   const sidOut = res.headers.getSetCookie().find((c) => c.startsWith("sid="))?.split(";")[0] ?? ""
   return { status: res.status, text: await res.text(), sid: sidOut }
 }
-const signIn = async (email: string) => (await call("/signin", { email, password: "saintsflow" })).sid
+const signIn = async (email: string) => (await call("/signin", { email, password: "projecttorch" })).sid
 const codeOf = async () => (await db`select join_code from accounts where name = 'Acme'`)[0].join_code as string
 const stamp = Date.now()
 const made = [`new-${stamp}@example.test`, `removed-${stamp}@example.test`, `pending-${stamp}@example.test`]
 
 try {
   const code = await codeOf()
-  const join = (fields: Record<string, string>) => call(`/join/${code}`, { password: "saintsflow", time_zone: "Europe/Paris", ...fields })
+  const join = (fields: Record<string, string>) => call(`/join/${code}`, { password: "projecttorch", time_zone: "Europe/Paris", ...fields })
 
   // Who sees the code: people who may invite, never clients.
   ok((await call("/bootstrap", undefined, await signIn("bob@acme.test"))).text.includes(code), "a member's copy has the team link")

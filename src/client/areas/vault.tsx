@@ -438,7 +438,7 @@ export const routes = [
     return (
       <Page title="Public link" crumbs={folderCrumbs(p, r.parent_id)}>
         <h1>Public link for “{r.title}”</h1>
-        <p>Share one file with someone who isn't in Saintsflow.</p>
+        <p>Share one file with someone who isn't in ProjectTorch.</p>
         {link ? (
           <>
             <p><label>The link <input readOnly size={60} value={url} onClick={(e) => e.currentTarget.select()} /></label>{" "}
@@ -469,7 +469,7 @@ export const routes = [
             <h1>{f.title}</h1>
             <p>{f.filename} · {fmtSize(f.size)}</p>
             <p><a href={`/api/p/${token}/download`} data-button>Download</a></p>
-            <p><small>Shared with a public link from Saintsflow.</small></p>
+            <p><small>Shared with a public link from ProjectTorch.</small></p>
           </>
         )}
       </Page>

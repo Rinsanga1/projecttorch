@@ -53,7 +53,7 @@ export const TeamLink = observer(() => {
       <p>Anyone with this link can join {a.name} and see every all-access project. Clients still need an invitation.</p>
       <p><input readOnly size={60} value={url} aria-labelledby="team-link" onClick={(e) => e.currentTarget.select()} />{" "}
         <button type="button" onClick={() => navigator.clipboard?.writeText(url).then(() => setCopied(true), () => {})}>{copied ? "Copied" : "Copy"}</button>{" "}
-        {"share" in navigator && <button type="button" onClick={() => navigator.share({ title: `Join ${a.name} on Saintsflow`, url }).catch(() => {})}>Share</button>}</p>
+        {"share" in navigator && <button type="button" onClick={() => navigator.share({ title: `Join ${a.name} on ProjectTorch`, url }).catch(() => {})}>Share</button>}</p>
       {isAdmin(me()) && <Form action="/people/join-link"><p><button data-quiet>Make a new link</button> The old one stops working.</p></Form>}
     </section>
   )

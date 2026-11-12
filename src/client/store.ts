@@ -33,7 +33,7 @@ export const state = observable({
 })
 
 // ---------- disk ----------
-const idb = openDB("saintsflow", 1, {
+const idb = openDB("projecttorch", 1, {
   upgrade(d) {
     d.createObjectStore("kv")
     d.createObjectStore("queue", { autoIncrement: true })
